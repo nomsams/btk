@@ -1,3 +1,4 @@
+<!-- Version 56 -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -358,6 +359,7 @@ input[type="number"] { -moz-appearance: textfield; }
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
     width: 100%;
+    position: relative;
 }
 
 /* Terms list */
@@ -597,6 +599,30 @@ h3.name.editable {
     width: 100%;
 }
 
+/* main items container remove-icon on hover */
+#mainItemsSectionContainer {
+    position: relative;
+}
+#mainItemsSectionContainer .section-remove-icon {
+    display: none;
+    position: absolute;
+    left:10px;
+    top:5px;
+    background-color:red;
+    width:20px;
+    height:20px;
+    border-radius:10px;
+    text-align:center;
+    line-height:18px;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+    z-index:100;
+}
+#mainItemsSectionContainer:hover .section-remove-icon {
+    display: block;
+}
+
 /* table block in info section */
 .info-table {
     width: 100%;
@@ -650,8 +676,8 @@ h3.name.editable {
     </div>
 
     <!--
-      ADDED: Custom currency toggle + input (hidden by default).
-      This block has 'unwanted' so it won't be in print.
+      Language toggle + custom currency + remove total checkbox
+      Marked as 'unwanted' so not printed
     -->
     <div class="unwanted" style="text-align:right; margin-bottom:20px;">
         <!-- Language toggle button -->
@@ -668,6 +694,12 @@ h3.name.editable {
                value="EUR"
                style="width:80px; display:none; margin-left:10px;"
         />
+
+        <!-- Box to remove total line -->
+        <label id="removeTotalCheckboxLabel" style="margin-left:15px;">
+            <input type="checkbox" id="removeTotalCheck" />
+            Ta bort totalen
+        </label>
     </div>
 
     <div class="quote-section">
@@ -687,16 +719,28 @@ h3.name.editable {
         <span class="editable" contenteditable="true" id="reference"></span>
     </div>
 
-    <!-- Items list -->
-    <div class="item-header">
-        <div class="item-number-header" id="nrHeader">Nr</div>
-        <div class="name-header editable" contenteditable="true" id="articleNameHeader">Artikel / Namn</div>
-        <div class="quantity-header" id="quantityHeader">Antal</div>
-        <div class="price-header" id="priceHeader">Pris (SEK)</div>
+
+    <!-- MAIN items section -->
+    <div id="mainItemsSectionContainer">
+        <!-- Same style for remove icon on hover -->
+        <span class="section-remove-icon" onclick="removeMainSection()">✖</span>
+
+        <div class="item-header">
+            <div class="item-number-header" id="nrHeader">Nr</div>
+            <div class="name-header editable" contenteditable="true" id="articleNameHeader">Artikel / Namn</div>
+            <div class="quantity-header" id="quantityHeader">Antal</div>
+            <div class="price-header" id="priceHeader">Pris (SEK)</div>
+        </div>
+        <div id="itemsList"></div>
+
+        <!-- Make the label part editable, numeric part auto-updated. -->
+        <div class="total-price" id="totalPrice">
+            <span id="totalLabel" class="editable" contenteditable="true" data-field="totalLabel">Total:</span>
+            <span id="totalValue">0 SEK</span>
+        </div>
+
+        <button class="add-button unwanted" id="addItemButton">+ Lägg till ny artikel</button>
     </div>
-    <div id="itemsList"></div>
-    <div class="total-price" id="totalPrice">Total: 0 SEK</div>
-    <button class="add-button unwanted" id="addItemButton">+ Lägg till ny artikel</button>
 
     <!-- Optional items list -->
     <div id="optionalSectionContainer">
@@ -751,6 +795,10 @@ h3.name.editable {
 <div class="footer unwanted">
     <input type="file" id="fileInput" accept=".json" />
     <div class="pdf-buttons">
+        <!-- Print Button to simulate Ctrl+P -->
+        <button class="unwanted" id="printBtn">Print</button>
+        <br/><br/>
+
         <button class="unwanted" id="makeTransparent">Make Unwanted Transparent</button>
         <button class="unwanted" id="setDisplayNone">Hide Unwanted Elements</button>
         <button class="unwanted" id="removeElements">Remove Unwanted Elements</button>
@@ -766,10 +814,15 @@ h3.name.editable {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
 <script>
+/* Version 56 additions:
+   - The main items container remove icon now only appears on hover, matching optional section
+   - "Total:" separated into an editable label (#totalLabel) and an auto-updated numeric part (#totalValue)
+   - A new "remove total" checkbox (#removeTotalCheck) to hide the total line entirely
+   - All existing functionality preserved
+*/
+
 /*
   Translation dictionary:
-  We'll keep it simple and map each textual label for Swedish & English.
-  We'll call updateLanguage() to forcibly set them.
 */
 const translations = {
   sv: {
@@ -797,7 +850,9 @@ const translations = {
     newAltArticleName: "Alternativ Artikel Namn",
     newDescription: "Beskrivning",
     newInfoText: "Klicka för att redigera text",
-    promptImageUrl: "Ange bildens URL:"
+    promptImageUrl: "Ange bildens URL:",
+    removeTotalLabel: "Ta bort totalen",
+    totalLabel: "Total:"
   },
   en: {
     quoteTitle: "Quote",
@@ -824,7 +879,9 @@ const translations = {
     newAltArticleName: "Alternative Article Name",
     newDescription: "Description",
     newInfoText: "Click to edit text",
-    promptImageUrl: "Enter image URL:"
+    promptImageUrl: "Enter image URL:",
+    removeTotalLabel: "Remove total",
+    totalLabel: "Total:"
   }
 };
 
@@ -841,7 +898,11 @@ let originalElements = {};
     const localData = localStorage.getItem('quoteData');
     if(!localData){
         jsonData={
-            quote:{currencyMultiplicator:1},
+            quote:{
+                currencyMultiplicator:1,
+                // store user custom label for total so we can preserve it
+                totalLabel: translations.sv.totalLabel // default
+            },
             companyA:{},
             companyB:{},
             items:[],
@@ -858,6 +919,10 @@ let originalElements = {};
         if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
         if(!Array.isArray(jsonData.terms))jsonData.terms=[];
         if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
+        if(!jsonData.quote.totalLabel){
+            // in case older data doesn't have it
+            jsonData.quote.totalLabel = translations.sv.totalLabel;
+        }
     }
 })();
 
@@ -866,7 +931,7 @@ let originalElements = {};
 // -------------------------
 function loadQuoteData(data){
     jsonData=JSON.parse(JSON.stringify(data));
-    if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1};
+    if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1,totalLabel:translations.sv.totalLabel};
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
 
     const q=jsonData.quote;
@@ -892,6 +957,9 @@ function loadQuoteData(data){
 
     document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||1;
     document.getElementById('showDecimals').checked=false;
+
+    // The total label is stored in q.totalLabel
+    document.getElementById('totalLabel').textContent = q.totalLabel || translations.sv.totalLabel;
 
     updatePrices();
     loadItems(jsonData.items,'itemsList');
@@ -923,12 +991,10 @@ function reRenderLists(){
 // -------------------------
 function updateLanguage(lang){
     currentLanguage = lang;
-
-    // Set <html> lang attribute:
     document.documentElement.setAttribute('lang', lang);
 
     const t = translations[lang];
-    if(!t)return; // fallback do nothing
+    if(!t)return;
 
     // Update static text/labels
     document.getElementById("quoteTitle").textContent = t.quoteTitle;
@@ -941,11 +1007,14 @@ function updateLanguage(lang){
     document.getElementById("nrHeader").textContent = t.nrHeader;
     document.getElementById("articleNameHeader").textContent = t.articleHeader;
     document.getElementById("quantityHeader").textContent = t.quantityHeader;
+    document.getElementById("optNrHeader").textContent = t.nrHeader;
+    document.getElementById("optArticleHeader").textContent = t.articleHeader;
+    document.getElementById("optQuantityHeader").textContent = t.quantityHeader;
 
-    // Price label depends on custom currency checkbox
+    // Price label depends on custom currency
     updatePriceHeaders();
 
-    // Buttons
+    // Optional headings & buttons
     if(document.getElementById("addItemButton")) {
       document.getElementById("addItemButton").textContent = t.addItemButton;
     }
@@ -958,60 +1027,52 @@ function updateLanguage(lang){
     document.getElementById("optionalItemsHeading").textContent = t.optionalItemsHeading;
     document.getElementById("infoImagesHeading").textContent = t.infoImagesHeading;
     document.getElementById("termsHeading").textContent = t.termsHeading;
-
-    document.getElementById("optNrHeader").textContent = t.nrHeader;
-    document.getElementById("optArticleHeader").textContent = t.articleHeader;
-    document.getElementById("optQuantityHeader").textContent = t.quantityHeader;
-
-    // The price header for optional items also changes
-    updatePriceHeaders();
-
-    // Also update the label of the toggle button itself
     document.getElementById("toggleLanguageBtn").textContent = t.toggleLangBtn;
 
-    // And the "Använd egen valuta" label – though we made it inline,
-    // we can also do a translation if needed:
-    // But to keep minimal changes, we'll just leave it. If you want it fully dynamic:
-    let ccyLabelParent = document.querySelector("label[for='useCustomCurrencyChk']") ||
-                         document.querySelector("#useCustomCurrencyChk").parentNode;
-    if(ccyLabelParent) {
-      // This label might not have a 'for' attribute in our minimal example, so we just do:
-      ccyLabelParent.childNodes[1].textContent = " " + t.customCurrencyLabel;
+    // Update "ta bort totalen" label or "remove total"
+    if(document.getElementById("removeTotalCheckboxLabel")){
+      document.getElementById("removeTotalCheckboxLabel").childNodes[1].textContent = " " + t.removeTotalLabel;
     }
 
-    // Re-calc total label (SEK / ???), etc.
+    // If user hasn't customized the totalLabel yet, we set it to the dictionary
+    // But if they've already changed it, we don't forcibly overwrite.
+    // We'll do a small check:
+    if(!jsonData.quote.totalLabel || 
+       jsonData.quote.totalLabel === translations[currentLanguage === 'sv' ? 'en' : 'sv'].totalLabel)
+    {
+      // only then forcibly update it:
+      document.getElementById("totalLabel").textContent = t.totalLabel;
+      jsonData.quote.totalLabel = t.totalLabel;
+    }
+
+    // Recalc total, etc.
     calculateTotalPrice();
 }
 
-// Helper to update the "price" text in item headers
+// Helper for price column headers
 function updatePriceHeaders(){
-    // If custom currency is selected, use that (Price (XXX) or Pris (XXX)).
-    // Otherwise, default to Price (SEK) / Pris (SEK).
     const customChk = document.getElementById("useCustomCurrencyChk");
     const currencyVal = document.getElementById("customCurrencyInput").value;
     const t = translations[currentLanguage];
 
-    let prefix = (currentLanguage === 'sv') ? t.priceHeader : t.priceHeader;
-    // t.priceHeader is "Pris" in sv and "Price" in en
+    let prefix = t.priceHeader;
 
     let curSymbol = "(SEK)";
     if(customChk.checked && currencyVal) {
       curSymbol = "(" + currencyVal + ")";
     }
-
     // main items
     document.getElementById("priceHeader").textContent = prefix + " " + curSymbol;
-
     // optional items
     document.getElementById("optPriceHeader").textContent = prefix + " " + curSymbol;
 }
-
 
 // -------------------------
 // ITEMS
 // -------------------------
 function loadItems(items, containerId){
     const container=document.getElementById(containerId);
+    if(!container)return;
     container.innerHTML='';
     items.forEach((it, idx)=>{
         const iNum=it.itemNumber||(`${idx+1}`);
@@ -1459,6 +1520,12 @@ function removeOptionalSection(){
     const sec=document.getElementById('optionalSectionContainer');
     if(sec)sec.remove();
 }
+function removeMainSection(){
+    jsonData.items = [];
+    saveToLocal();
+    const sec = document.getElementById('mainItemsSectionContainer');
+    if(sec) sec.remove();
+}
 
 // -------------------------
 // PRICES
@@ -1495,20 +1562,25 @@ function calculateTotalPrice(){
         });
     }
     sum(jsonData.items);
+
     const dec=document.getElementById('showDecimals').checked;
     const formatted=dec?total.toFixed(2):Math.round(total).toString();
 
-    // The currency label: depends on custom currency check
+    // The currency label
     const customChk = document.getElementById("useCustomCurrencyChk");
     let currencyVal = "SEK";
     if(customChk.checked){
       currencyVal = document.getElementById("customCurrencyInput").value.trim() || "SEK";
     }
-    // If language is 'sv' => "Total: X SEK", if 'en' => "Total: X SEK" or "USD" etc.
-    // We'll do a small snippet: "Total: 123 456 XYZ"
-    // If you'd like different language strings for "Total:", we can do so. 
-    // For simplicity, we keep "Total:" in English. Or you can do translations if you prefer.
-    document.getElementById('totalPrice').textContent='Total: '+formatNumber(formatted)+' ' + currencyVal;
+    // Update #totalValue (the numeric + currency part)
+    document.getElementById('totalValue').textContent= formatNumber(formatted) + " " + currencyVal;
+
+    // If "ta bort totalen" is checked, hide it.
+    if(document.getElementById('removeTotalCheck').checked){
+        document.getElementById('totalPrice').style.display='none';
+    } else {
+        document.getElementById('totalPrice').style.display='';
+    }
 }
 function formatPrice(price){
     if(price==null)return'';
@@ -1668,6 +1740,15 @@ document.getElementById("customCurrencyInput").addEventListener('input', ()=>{
     calculateTotalPrice();
 });
 
+// Remove total line
+document.getElementById("removeTotalCheck").addEventListener('change', ()=>{
+    if(document.getElementById("removeTotalCheck").checked){
+        document.getElementById('totalPrice').style.display='none';
+    } else {
+        document.getElementById('totalPrice').style.display='';
+    }
+});
+
 // -------------------------
 // DRAG & DROP (SORTABLE)
 // -------------------------
@@ -1777,6 +1858,9 @@ function onEditableInput(e){
             jsonData.quote.date=this.textContent;
         } else if(this.id==='projectNumber'){
             jsonData.quote.projectNumber=this.textContent;
+        } else if(this.id==='totalLabel'){
+            // store user-changed total label
+            jsonData.quote.totalLabel=this.textContent;
         }
         saveToLocal();
         return;
@@ -1788,6 +1872,7 @@ function onEditableInput(e){
         return;
     }
 
+    // else it is item or sub item
     const containerId=this.dataset.item;
     const idx=this.dataset.index;
     const sIdx=this.dataset.includedIndex;
@@ -1852,6 +1937,7 @@ function onEditableInput(e){
             break;
     }
     saveToLocal();
+    // Recalc total
     updatePrices();
     calculateTotalPrice();
 }
@@ -1920,7 +2006,7 @@ document.getElementById('removeElements').addEventListener('click',()=>{
     });
 });
 document.getElementById('resetUnwanted').addEventListener('click',()=>{
-    document.getElementById('statusMessage').textContent='Återställer oönskade element...';
+    document.getElementById('statusMessage').textContent='Oönskade element har återställts.';
     const uw=document.querySelectorAll('.unwanted');
     uw.forEach(el=>{
         if(!el.id)return;
@@ -1933,7 +2019,6 @@ document.getElementById('resetUnwanted').addEventListener('click',()=>{
             el.parentNode.replaceChild(originalElements[el.id], el);
         }
     });
-    document.getElementById('statusMessage').textContent='Oönskade element har återställts.';
 });
 function storeOriginalStates(){
     const unw=document.querySelectorAll('.unwanted');
@@ -1943,6 +2028,11 @@ function storeOriginalStates(){
         originalElements[el.id]=el.cloneNode(true);
     });
 }
+
+// ADDED: Print button to simulate Ctrl+P
+document.getElementById('printBtn').addEventListener('click', () => {
+    window.print();
+});
 
 // -------------------------
 // SAVE + ONLOAD
