@@ -1,0 +1,1958 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8"/>
+<title>Offertgenerator</title>
+<style>
+/* ------------------ PRINT STYLES ------------------ */
+@media print {
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+    body {
+        font-family: 'Arial', sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.2;
+    }
+    body * {
+        visibility: hidden;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    #quoteContent, #quoteContent * {
+        visibility: visible;
+    }
+    #quoteContent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+    .quote-section {
+        margin: 5mm 0;
+        page-break-inside: avoid !important;
+    }
+    .item-header, .item-meta {
+        display: grid;
+        grid-template-columns: 50px minmax(150px, 1fr) 80px 100px;
+        gap: 5mm;
+        align-items: start;
+    }
+    .item-details, .included-item .item-details {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+        max-width: calc(100% - 60px);
+        margin-left: 50px;
+        margin-right: 10mm;
+    }
+    .editable, .item-meta div, .term-item {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+    }
+    .term-item {
+        margin: 1.5mm 0;
+        padding-bottom: 2mm;
+    }
+    .info-text {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+    }
+    .total-price {
+        margin-top: 4mm;
+        padding-top: 2mm;
+        border-top: 1pt solid #000;
+        text-align: right;
+        padding-right: 2mm;
+        page-break-inside: avoid !important;
+    }
+    h3 {
+        page-break-before: auto !important;
+        page-break-after: avoid !important;
+        margin-top: 6mm;
+        margin-bottom: 3mm !important;
+    }
+    .info-image-container {
+        page-break-inside: avoid !important;
+        margin: 3mm 0;
+    }
+    .info-image-container img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    .unwanted,
+    .remove-icon,
+    .button-container,
+    .description-remove-icon,
+    .image-resize-handle,
+    .info-image-remove {
+        display: none !important;
+    }
+}
+/* ------------------ SCREEN STYLES ------------------ */
+
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    padding: 20px;
+    max-width: 210mm;
+    margin: auto;
+    font-size: 12pt;
+    background-color: #fff;
+}
+
+.targetPrice span, .subItemTargetPrice span {
+    width: 90% !important;
+}
+
+.bold { font-weight: bold; }
+
+.zero-text { color: white !important; /* hides zero on white bg */ }
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+.header img {
+    max-width: 200px;
+    margin-right: 20px;
+}
+.quote-title {
+    font-size: 24px;
+    font-weight: bold;
+    text-align: right;
+    width: 100%;
+}
+
+.quote-number, .date, .project-number {
+    text-align: right;
+}
+.quote-section {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    align-items: flex-start;
+}
+.quote-section strong {
+    display: block;
+    margin-bottom: 2px;
+}
+.quote-section p {
+    margin-top: 2px;
+}
+.swap-button {
+    font-size: 24px;
+    cursor: pointer;
+    margin: 0 20px;
+    user-select: none;
+}
+
+/* Items + subitems */
+.quote-item {
+    border-bottom: 0px solid #ccc;
+    padding: 5px 0;
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+    cursor: move; /* so we can drag these top-level items */
+}
+.quote-item:hover .remove-icon {
+    display: block;
+}
+.included-item {
+    padding: 0px 0;
+    font-weight: normal;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.item-header {
+    display: grid;
+    grid-template-columns: 70px minmax(200px, 1fr) 100px 120px;
+    gap: 10px;
+    font-weight: bold;
+    border-bottom: 2px solid #000;
+    padding-bottom: 10px;
+    margin-top: 20px;
+    align-items: center;
+}
+.item-header > div {
+    padding: 5px;
+}
+.item-meta {
+    display: grid;
+    grid-template-columns: 70px minmax(200px,1fr) 100px 120px;
+    gap: 10px;
+    align-items: center;
+    position: relative;
+    margin: 5px 0;
+    padding-left: 0;
+}
+.item-meta div {
+    display: flex;
+    align-items: center;
+    padding: 5px;
+    justify-content: flex-start;
+}
+
+.item-number { text-align: left; width: 100%; }
+.item-name {
+    text-align: left;
+    padding-right: 10px;
+    word-wrap: break-word;
+}
+.quantity, .quantity-header,
+.targetPrice, .price-header,
+.subItemTargetPrice {
+    text-align: right;
+    padding-right: 15px;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    min-width: 80px;
+    white-space: nowrap;
+    position: relative;
+    justify-content: flex-end;
+}
+.input-container {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+}
+.button-container {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    display: none;
+    flex-direction: row;
+    gap: 1px;
+}
+.input-container:hover .button-container {
+    display: flex;
+}
+.button-container button {
+    width: 25px;
+    height: 25px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    background-color: #f8f8f8;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.button-container button:hover {
+    background-color: #e8e8e8;
+}
+input[type="number"] {
+    width: 60px;
+    padding: 5px;
+    text-align: right;
+    border: none;
+    background-color: transparent;
+    font-size: 12pt;
+    vertical-align: middle;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+    display: none;
+}
+input[type="number"] { -moz-appearance: textfield; }
+
+.included-item .item-meta {
+    grid-template-columns: 70px minmax(200px,1fr) 100px 120px;
+    margin-left: 0;
+    width: 100%;
+    background-color: rgba(249, 249, 249, 0.5);
+    border-left: 0;
+}
+.item-details, .included-item .item-details {
+    margin-top: 5px;
+    font-weight: normal;
+    position: relative;
+    grid-column: 2 / 5;
+    padding-left: 5px;
+    padding-right: 130px;
+    max-width: calc(100% - 200px);
+    word-wrap: break-word;
+    margin-left: 80px;
+}
+
+/* editable fields */
+.editable {
+    border: 1px solid transparent;
+    padding: 5px;
+    width: 100%;
+    word-wrap: break-word;
+}
+.editable:hover {
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+}
+.editable:focus {
+    outline: 2px solid #007bff;
+    border-radius: 3px;
+    background-color: #fff;
+}
+
+/* Terms + footer */
+.terms, .footer { margin-top: 20px; }
+.footer { text-align: center; }
+#fileInput { margin-bottom: 20px; }
+.add-button, .remove-button, .add-optional-button, .add-term-button {
+    cursor: pointer;
+    padding: 5px 10px;
+    background-color: green;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    margin: 5px;
+    font-size: 12pt;
+}
+.remove-button {
+    background-color: red;
+}
+
+/* icons for removing items */
+.remove-icon {
+    display: none;
+    color: white;
+    background-color: red;
+    font-size: 16px;
+    cursor: pointer;
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    text-align: center;
+    line-height: 18px;
+}
+
+.pdf-buttons { margin: 20px 0; }
+.status-message {
+    margin-top: 10px;
+    font-weight: bold;
+    color: green;
+    font-size: 12pt;
+}
+
+/* total price line */
+.total-price {
+    text-align: right;
+    font-weight: bold;
+    margin-top: 20px;
+    font-size: 12pt;
+    padding-right: 15px;
+    margin-right: 0;
+    border-top: 2px solid #000;
+    padding-top: 10px;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    width: 100%;
+}
+
+/* Terms list */
+.term-item {
+    padding: 2px 0;
+    position: relative;
+}
+.term-item .editable {
+    width: 80%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    margin-right: 10px;
+}
+.term-item:hover .remove-icon {
+    display: block;
+}
+
+/* reference block */
+.reference { margin: 20px 0; }
+.included-list {
+    margin-left: 0;
+    margin-top: 5px;
+}
+.currency-multiplier {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    text-align: right;
+}
+.currency-multiplier label {
+    font-weight: bold;
+}
+.currency-multiplier input {
+    width: 60px;
+    padding: 5px;
+    font-size: 12pt;
+    text-align: right;
+}
+
+/* remove icon for item details */
+.description-remove-icon {
+    display: none;
+    color: white;
+    background-color: red;
+    font-size: 16px;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    text-align: center;
+    line-height: 18px;
+    position: absolute;
+    right: 10px;
+    top: 10px;
+}
+.item-details:hover .description-remove-icon,
+.included-item:hover .description-remove-icon {
+    display: block;
+}
+
+/* checkboxes for project number and decimals */
+.checkbox-group {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+#optionalItemsList {
+    margin-top: 0;
+    padding-top: 0;
+}
+#termsList {
+    margin-top: 0px;
+    padding-top: 10px;
+}
+h3.name.editable {
+    margin-bottom: 0 !important;
+}
+
+/* info images section */
+.info-images { margin: 20px 0; }
+#infoImagesList {
+    margin: 20px 0;
+}
+.info-block {
+    position: relative;
+    margin: 10px 0;
+    background-color: transparent;
+}
+.info-block:hover {
+    background-color: #fafafa;
+}
+.info-block .remove-icon,
+.info-block .drag-handle {
+    display: none;
+}
+.info-block:hover .remove-icon,
+.info-block:hover .drag-handle {
+    display: inline-block;
+}
+.drag-handle {
+    cursor: move;
+    color: #333;
+    font-weight: bold;
+    padding: 2px 6px;
+    background-color: #eee;
+    border-radius: 4px;
+    margin-right: 8px;
+}
+
+.info-text-block {
+    min-height: 30px;
+    padding: 5px;
+    border: 1px solid transparent;
+}
+.info-text-block:hover {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+}
+
+.info-image-container {
+    position: relative;
+    width: auto;
+    margin: 10px 0;
+}
+.info-image-container img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+.image-resize-handle {
+    width: 20px;
+    height: 20px;
+    background-color: #fff;
+    border: 2px solid #007bff;
+    border-radius: 50%;
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    cursor: se-resize;
+    z-index: 10;
+}
+.info-image-remove {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: red;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 18px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.image-upload-container {
+    margin: 10px 0;
+}
+.image-upload-button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 5px;
+}
+.image-upload-button:hover {
+    background-color: #45a049;
+}
+#dropzone {
+    border: 2px dashed #007bff;
+    border-radius: 5px;
+    padding: 20px;
+    text-align: center;
+    color: #007bff;
+    cursor: pointer;
+    margin: 10px 0;
+    display: none;
+}
+#dropzone.hover {
+    background-color: #f1f1f1;
+}
+#infoSectionContainer {
+    position: relative;
+}
+#infoSectionContainer .section-remove-icon {
+    display: none;
+    position: absolute;
+    left:10px;
+    top:5px;
+    background-color:red;
+    width:20px;
+    height:20px;
+    border-radius:10px;
+    text-align:center;
+    line-height:18px;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+    z-index:100;
+}
+#infoSectionContainer:hover .section-remove-icon {
+    display: block;
+}
+
+#optionalSectionContainer {
+    position: relative;
+}
+#optionalSectionContainer .section-remove-icon {
+    display: none;
+    position: absolute;
+    left:10px;
+    top:5px;
+    background-color:red;
+    width:20px;
+    height:20px;
+    border-radius:10px;
+    text-align:center;
+    line-height:18px;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+    z-index:100;
+}
+#optionalSectionContainer:hover .section-remove-icon {
+    display: block;
+}
+
+.horizontal-line {
+    border: none;
+    border-top: 2px solid black;
+    margin-top: 5px;
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+/* table block in info section */
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    margin-top: 10px;
+}
+.info-table td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    min-width: 50px;
+    position: relative;
+}
+.info-table td[contenteditable="true"] {
+    cursor: text;
+}
+.info-table td[contenteditable="true"]:hover {
+    background-color: #f9f9f9;
+}
+.info-table td[contenteditable="true"]:focus {
+    outline: 2px solid #007bff;
+    background-color: #fff;
+}
+</style>
+</head>
+<body>
+<div id="quoteContent">
+    <div class="header">
+        <!-- Company Logo -->
+        <img alt="Company Logo" src="logo.png"/>
+        <div class="quote-title editable" contenteditable="true" id="quoteTitle">Offert</div>
+    </div>
+    <div class="quote-number" id="quoteNumberLabel">Offert nr:
+        <span class="editable" contenteditable="true" id="quoteNumber"></span>
+    </div>
+    <div class="date" id="dateLabel">Datum:
+        <span class="editable" contenteditable="true" id="quoteDate"></span>
+    </div>
+    <div class="project-number unwanted" id="projectNumberDiv">
+        Projekt Nummer:
+        <span class="editable" contenteditable="true" id="projectNumber"></span>
+    </div>
+
+    <div class="checkbox-group unwanted">
+        <label><input type="checkbox" id="showProjectNumber" checked /> Visa Projekt Nummer</label>
+        <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
+    </div>
+    <div class="currency-multiplier unwanted">
+        <label for="currencyMultiplierInput">Valutakurs:</label>
+        <input type="number" id="currencyMultiplierInput" value="11.8" step="0.01" />
+    </div>
+
+    <!--
+      ADDED: Custom currency toggle + input (hidden by default).
+      This block has 'unwanted' so it won't be in print.
+    -->
+    <div class="unwanted" style="text-align:right; margin-bottom:20px;">
+        <!-- Language toggle button -->
+        <button id="toggleLanguageBtn">Byt Språk (SV/EN)</button>
+
+        <!-- Custom currency checkbox -->
+        <label style="margin-left:15px;">
+            <input type="checkbox" id="useCustomCurrencyChk" />
+            Använd egen valuta
+        </label>
+
+        <!-- Custom currency input (initially hidden/disabled) -->
+        <input type="text" id="customCurrencyInput"
+               value="EUR"
+               style="width:80px; display:none; margin-left:10px;"
+        />
+    </div>
+
+    <div class="quote-section">
+        <div style="margin-bottom: -5px;">
+            <strong id="toLabel">Till:</strong>
+            <p class="editable" contenteditable="true" id="companyA"></p>
+        </div>
+        <div class="swap-button unwanted" id="swapButton" style="margin-bottom: -5px;">&lt;-&gt;</div>
+        <div style="margin-bottom: -5px;">
+            <strong id="fromLabel">Från:</strong>
+            <p class="editable" contenteditable="true" id="companyB"></p>
+        </div>
+    </div>
+
+    <div class="reference">
+        <strong id="refLabel">Ref:</strong>
+        <span class="editable" contenteditable="true" id="reference"></span>
+    </div>
+
+    <!-- Items list -->
+    <div class="item-header">
+        <div class="item-number-header" id="nrHeader">Nr</div>
+        <div class="name-header editable" contenteditable="true" id="articleNameHeader">Artikel / Namn</div>
+        <div class="quantity-header" id="quantityHeader">Antal</div>
+        <div class="price-header" id="priceHeader">Pris (SEK)</div>
+    </div>
+    <div id="itemsList"></div>
+    <div class="total-price" id="totalPrice">Total: 0 SEK</div>
+    <button class="add-button unwanted" id="addItemButton">+ Lägg till ny artikel</button>
+
+    <!-- Optional items list -->
+    <div id="optionalSectionContainer">
+        <h3 class="name editable" contenteditable="true" id="optionalItemsHeading">Alternativ / Ytterligare Artiklar</h3>
+        <span class="section-remove-icon" onclick="removeOptionalSection()">✖</span>
+        <div class="item-header">
+            <div class="item-number-header" id="optNrHeader">Nr</div>
+            <div class="name-header editable" contenteditable="true" id="optArticleHeader">Artikel / Namn</div>
+            <div class="quantity-header" id="optQuantityHeader">Antal</div>
+            <div class="price-header" id="optPriceHeader">Pris (SEK)</div>
+        </div>
+        <div id="optionalItemsList"></div>
+        <button class="add-optional-button unwanted" id="addOptionalItemButton">
+            + Lägg till ny artikel
+        </button>
+    </div>
+
+    <!-- Info/bilder -->
+    <div id="infoSectionContainer">
+        <h3 class="name editable" contenteditable="true" id="infoImagesHeading">Info / Bilder</h3>
+        <hr class="horizontal-line" />
+        <span class="section-remove-icon" onclick="removeInfoSection()">✖</span>
+        <div id="infoImagesList"></div>
+        <div class="image-upload-container unwanted">
+            <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
+            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">
+                Lägg till bild (filuppladdning)
+            </button>
+            <button class="image-upload-button" onclick="addImageFromUrl()">
+                Lägg till bild (URL)
+            </button>
+            <button class="image-upload-button" onclick="showDropzone()">
+                Lägg till bild (Dra & Släpp)
+            </button>
+            <button class="image-upload-button add-info-text-button" onclick="addInfoText()">
+                Lägg till text
+            </button>
+            <button class="image-upload-button add-table-button" onclick="addTable()">
+                Lägg till tabell
+            </button>
+            <div id="dropzone">Dra och släpp bilder här</div>
+        </div>
+    </div>
+
+    <!-- Terms section -->
+    <h3 class="name editable" contenteditable="true" id="termsHeading">Villkor</h3>
+    <hr class="horizontal-line" />
+    <div id="termsList"></div>
+    <button class="add-term-button unwanted" id="addTermButton">+ Lägg till villkor</button>
+</div>
+
+<div class="footer unwanted">
+    <input type="file" id="fileInput" accept=".json" />
+    <div class="pdf-buttons">
+        <button class="unwanted" id="makeTransparent">Make Unwanted Transparent</button>
+        <button class="unwanted" id="setDisplayNone">Hide Unwanted Elements</button>
+        <button class="unwanted" id="removeElements">Remove Unwanted Elements</button>
+        <button class="unwanted" id="resetUnwanted">Reset Unwanted</button>
+        <br/>
+        <div class="status-message" id="statusMessage"></div>
+    </div>
+    <button class="unwanted" id="saveJson">Spara JSON</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+<script>
+/*
+  Translation dictionary:
+  We'll keep it simple and map each textual label for Swedish & English.
+  We'll call updateLanguage() to forcibly set them.
+*/
+const translations = {
+  sv: {
+    quoteTitle: "Offert",
+    quoteNumberLabel: "Offert nr:",
+    dateLabel: "Datum:",
+    projectNumberLabel: "Projekt Nummer:",
+    toLabel: "Till:",
+    fromLabel: "Från:",
+    refLabel: "Ref:",
+    nrHeader: "Nr",
+    articleHeader: "Artikel / Namn",
+    quantityHeader: "Antal",
+    priceHeader: "Pris",
+    addItemButton: "+ Lägg till ny artikel",
+    optionalItemsHeading: "Alternativ / Ytterligare Artiklar",
+    infoImagesHeading: "Info / Bilder",
+    termsHeading: "Villkor",
+    addOptionalItemButton: "+ Lägg till ny artikel",
+    addTermButton: "+ Lägg till villkor",
+    customCurrencyLabel: "Använd egen valuta",
+    toggleLangBtn: "Byt Språk (SV/EN)",
+    newTermText: "Nytt villkor: Klicka för att redigera",
+    newArticleName: "Artikel Namn",
+    newAltArticleName: "Alternativ Artikel Namn",
+    newDescription: "Beskrivning",
+    newInfoText: "Klicka för att redigera text",
+    promptImageUrl: "Ange bildens URL:"
+  },
+  en: {
+    quoteTitle: "Quote",
+    quoteNumberLabel: "Quote No:",
+    dateLabel: "Date:",
+    projectNumberLabel: "Project Number:",
+    toLabel: "To:",
+    fromLabel: "From:",
+    refLabel: "Ref:",
+    nrHeader: "No",
+    articleHeader: "Article / Name",
+    quantityHeader: "Quantity",
+    priceHeader: "Price",
+    addItemButton: "+ Add new item",
+    optionalItemsHeading: "Alternative / Additional Items",
+    infoImagesHeading: "Info / Images",
+    termsHeading: "Terms",
+    addOptionalItemButton: "+ Add new item",
+    addTermButton: "+ Add a term",
+    customCurrencyLabel: "Use custom currency",
+    toggleLangBtn: "Toggle Language (SV/EN)",
+    newTermText: "New term: Click to edit",
+    newArticleName: "Article Name",
+    newAltArticleName: "Alternative Article Name",
+    newDescription: "Description",
+    newInfoText: "Click to edit text",
+    promptImageUrl: "Enter image URL:"
+  }
+};
+
+/* We'll store the current language and do dynamic changes. */
+let currentLanguage = "sv"; // default
+let jsonData = null;
+let originalStyles = {};
+let originalElements = {};
+
+// -------------------------
+// Load data from localStorage or init
+// -------------------------
+(function initData(){
+    const localData = localStorage.getItem('quoteData');
+    if(!localData){
+        jsonData={
+            quote:{currencyMultiplicator:1},
+            companyA:{},
+            companyB:{},
+            items:[],
+            optionalItems:[],
+            terms:[],
+            infoImages:[]
+        };
+    } else {
+        jsonData=JSON.parse(localData);
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1};
+        if(!jsonData.companyA)jsonData.companyA={};
+        if(!jsonData.companyB)jsonData.companyB={};
+        if(!Array.isArray(jsonData.items))jsonData.items=[];
+        if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
+        if(!Array.isArray(jsonData.terms))jsonData.terms=[];
+        if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
+    }
+})();
+
+// -------------------------
+// MAIN LOADER
+// -------------------------
+function loadQuoteData(data){
+    jsonData=JSON.parse(JSON.stringify(data));
+    if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1};
+    if(!Array.isArray(jsonData.terms))jsonData.terms=[];
+
+    const q=jsonData.quote;
+    if(!q.quoteNumber)q.quoteNumber=Math.floor(Math.random()*100000).toString();
+
+    document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
+    document.getElementById('quoteDate').textContent = new Date().toLocaleDateString('sv-SE');
+    document.getElementById('quoteTitle').textContent = q.title || 'Offert';
+    document.getElementById('projectNumber').textContent = q.projectNumber || '';
+
+    document.getElementById('companyA').innerHTML=`
+        ${(jsonData.companyA.name||'')}<br>
+        ${(jsonData.companyA.address||'')}<br>
+        ${(jsonData.companyA.postalCode||'')}<br>
+        ${(jsonData.companyA.attention||'')}
+    `;
+    document.getElementById('companyB').innerHTML=`
+        ${(jsonData.companyB.name||'')}<br>
+        ${(jsonData.companyB.address||'')}<br>
+        ${(jsonData.companyB.postalCode||'')}
+    `;
+    document.getElementById('reference').textContent = q.reference||'';
+
+    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||1;
+    document.getElementById('showDecimals').checked=false;
+
+    updatePrices();
+    loadItems(jsonData.items,'itemsList');
+    loadItems(jsonData.optionalItems,'optionalItemsList');
+    loadTerms(jsonData.terms);
+    loadInfoImages();
+
+    makeEditable();
+    calculateTotalPrice();
+    initializeDragAndDrop();
+
+    // Make sure language toggles to "sv" at start
+    updateLanguage('sv');
+}
+
+function reRenderLists(){
+    updatePrices();
+    loadItems(jsonData.items,'itemsList');
+    loadItems(jsonData.optionalItems,'optionalItemsList');
+    loadTerms(jsonData.terms);
+    loadInfoImages();
+    calculateTotalPrice();
+    makeEditable();
+    initializeDragAndDrop();
+}
+
+// -------------------------
+// LANGUAGE TOGGLE
+// -------------------------
+function updateLanguage(lang){
+    currentLanguage = lang;
+
+    // Set <html> lang attribute:
+    document.documentElement.setAttribute('lang', lang);
+
+    const t = translations[lang];
+    if(!t)return; // fallback do nothing
+
+    // Update static text/labels
+    document.getElementById("quoteTitle").textContent = t.quoteTitle;
+    document.getElementById("quoteNumberLabel").childNodes[0].textContent = t.quoteNumberLabel + " ";
+    document.getElementById("dateLabel").childNodes[0].textContent = t.dateLabel + " ";
+    document.getElementById("projectNumberDiv").childNodes[0].textContent = t.projectNumberLabel + " ";
+    document.getElementById("toLabel").textContent = t.toLabel;
+    document.getElementById("fromLabel").textContent = t.fromLabel;
+    document.getElementById("refLabel").textContent = t.refLabel;
+    document.getElementById("nrHeader").textContent = t.nrHeader;
+    document.getElementById("articleNameHeader").textContent = t.articleHeader;
+    document.getElementById("quantityHeader").textContent = t.quantityHeader;
+
+    // Price label depends on custom currency checkbox
+    updatePriceHeaders();
+
+    // Buttons
+    if(document.getElementById("addItemButton")) {
+      document.getElementById("addItemButton").textContent = t.addItemButton;
+    }
+    if(document.getElementById("addOptionalItemButton")) {
+      document.getElementById("addOptionalItemButton").textContent = t.addOptionalItemButton;
+    }
+    if(document.getElementById("addTermButton")) {
+      document.getElementById("addTermButton").textContent = t.addTermButton;
+    }
+    document.getElementById("optionalItemsHeading").textContent = t.optionalItemsHeading;
+    document.getElementById("infoImagesHeading").textContent = t.infoImagesHeading;
+    document.getElementById("termsHeading").textContent = t.termsHeading;
+
+    document.getElementById("optNrHeader").textContent = t.nrHeader;
+    document.getElementById("optArticleHeader").textContent = t.articleHeader;
+    document.getElementById("optQuantityHeader").textContent = t.quantityHeader;
+
+    // The price header for optional items also changes
+    updatePriceHeaders();
+
+    // Also update the label of the toggle button itself
+    document.getElementById("toggleLanguageBtn").textContent = t.toggleLangBtn;
+
+    // And the "Använd egen valuta" label – though we made it inline,
+    // we can also do a translation if needed:
+    // But to keep minimal changes, we'll just leave it. If you want it fully dynamic:
+    let ccyLabelParent = document.querySelector("label[for='useCustomCurrencyChk']") ||
+                         document.querySelector("#useCustomCurrencyChk").parentNode;
+    if(ccyLabelParent) {
+      // This label might not have a 'for' attribute in our minimal example, so we just do:
+      ccyLabelParent.childNodes[1].textContent = " " + t.customCurrencyLabel;
+    }
+
+    // Re-calc total label (SEK / ???), etc.
+    calculateTotalPrice();
+}
+
+// Helper to update the "price" text in item headers
+function updatePriceHeaders(){
+    // If custom currency is selected, use that (Price (XXX) or Pris (XXX)).
+    // Otherwise, default to Price (SEK) / Pris (SEK).
+    const customChk = document.getElementById("useCustomCurrencyChk");
+    const currencyVal = document.getElementById("customCurrencyInput").value;
+    const t = translations[currentLanguage];
+
+    let prefix = (currentLanguage === 'sv') ? t.priceHeader : t.priceHeader;
+    // t.priceHeader is "Pris" in sv and "Price" in en
+
+    let curSymbol = "(SEK)";
+    if(customChk.checked && currencyVal) {
+      curSymbol = "(" + currencyVal + ")";
+    }
+
+    // main items
+    document.getElementById("priceHeader").textContent = prefix + " " + curSymbol;
+
+    // optional items
+    document.getElementById("optPriceHeader").textContent = prefix + " " + curSymbol;
+}
+
+
+// -------------------------
+// ITEMS
+// -------------------------
+function loadItems(items, containerId){
+    const container=document.getElementById(containerId);
+    container.innerHTML='';
+    items.forEach((it, idx)=>{
+        const iNum=it.itemNumber||(`${idx+1}`);
+        const q=it.quantity||0;
+        const p=it.targetPrice||0;
+
+        const qClass=(q===0)?'zero-text':'';
+        const pClass=(p===0)?'zero-text':'';
+
+        const itemDiv=document.createElement('div');
+        itemDiv.className='quote-item';
+        itemDiv.dataset.index=idx;
+
+        const meta=document.createElement('div');
+        meta.className='item-meta';
+        meta.innerHTML=`
+            <div class="item-number editable"
+                 contenteditable="true"
+                 data-item="${containerId}"
+                 data-index="${idx}"
+                 data-field="itemNumber"
+                 >
+                ${iNum}
+            </div>
+            <div class="item-name bold editable"
+                 contenteditable="true"
+                 data-item="${containerId}"
+                 data-index="${idx}"
+                 data-field="name"
+                 >
+                ${it.name||''}
+            </div>
+            <div class="quantity"
+                 data-item="${containerId}"
+                 data-index="${idx}"
+                 data-field="quantity"
+                 >
+                <div class="input-container">
+                    <input type="number" min="0" step="1"
+                           value="${q}"
+                           class="${qClass}"
+                    />
+                    <div class="button-container unwanted">
+                        <button type="button" class="increment-btn">+</button>
+                        <button type="button" class="decrement-btn">-</button>
+                    </div>
+                </div>
+            </div>
+            <div class="targetPrice editable"
+                 contenteditable="true"
+                 data-item="${containerId}"
+                 data-index="${idx}"
+                 data-field="targetPrice"
+                 style="text-align:right;"
+                 >
+                <span class="${pClass}"
+                      style="text-align:right;display:inline-block;width:100%;">
+                      ${p===0?'0':formatPrice(p)}
+                </span>
+            </div>
+            <span class="remove-icon" onclick="removeItem('${containerId}',${idx})">✖</span>
+        `;
+
+        const details=document.createElement('div');
+        details.className='item-details editable';
+        details.contentEditable=true;
+        details.dataset.item=containerId;
+        details.dataset.index=idx;
+        details.dataset.field='itemDescription';
+        details.innerHTML=it.itemDescription
+            ? it.itemDescription.replace(/\n/g,'<br>')
+            : '';
+
+        const descRemove=document.createElement('span');
+        descRemove.className='description-remove-icon';
+        descRemove.textContent='✖';
+        descRemove.onclick=()=>removeDescription(details);
+        details.appendChild(descRemove);
+
+        itemDiv.appendChild(meta);
+        if(it.itemDescription){
+            itemDiv.appendChild(details);
+        }
+
+        // subitems or optionalSubItems
+        let subArr = it.subItems || it.optionalSubItems || [];
+        subArr.forEach((sItem, sIdx)=>{
+            const siNum=sItem.subItemNumber||(`${iNum}.${sIdx+1}`);
+            const sq=sItem.subItemQuantity||0;
+            const sp=sItem.subItemTargetPrice||0;
+            const sqClass=(sq===0)?'zero-text':'';
+            const spClass=(sp===0)?'zero-text':'';
+
+            const included=document.createElement('div');
+            included.className='included-item';
+            included.dataset.index=sIdx;
+
+            const sMeta=document.createElement('div');
+            sMeta.className='item-meta';
+            sMeta.innerHTML=`
+                <div class="item-number editable"
+                     contenteditable="true"
+                     data-item="${containerId}"
+                     data-index="${idx}"
+                     data-included-index="${sIdx}"
+                     data-field="subItemNumber"
+                     >
+                    ${siNum}
+                </div>
+                <div class="item-name editable"
+                     contenteditable="true"
+                     data-item="${containerId}"
+                     data-index="${idx}"
+                     data-included-index="${sIdx}"
+                     data-field="subItemName"
+                     >
+                    ${sItem.subItemName||''}
+                </div>
+                <div class="quantity"
+                     data-item="${containerId}"
+                     data-index="${idx}"
+                     data-included-index="${sIdx}"
+                     data-field="subItemQuantity"
+                     >
+                    <div class="input-container">
+                        <input type="number" min="0" step="1"
+                               value="${sq}"
+                               class="${sqClass}"
+                        />
+                        <div class="button-container unwanted">
+                            <button type="button" class="increment-btn">+</button>
+                            <button type="button" class="decrement-btn">-</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="subItemTargetPrice editable"
+                     contenteditable="true"
+                     data-item="${containerId}"
+                     data-index="${idx}"
+                     data-included-index="${sIdx}"
+                     data-field="subItemTargetPrice"
+                     style="text-align:right;"
+                     >
+                    <span class="${spClass}"
+                          style="text-align:right;display:inline-block;width:100%;">
+                        ${sp===0?'0':formatPrice(sp)}
+                    </span>
+                </div>
+                <span class="remove-icon"
+                      onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</span>
+            `;
+
+            const sDetails=document.createElement('div');
+            sDetails.className='item-details editable';
+            sDetails.contentEditable=true;
+            sDetails.dataset.item=containerId;
+            sDetails.dataset.index=idx;
+            sDetails.dataset.includedIndex=sIdx;
+            sDetails.dataset.field='subItemDescription';
+            sDetails.innerHTML=sItem.subItemDescription
+                ? sItem.subItemDescription.replace(/\n/g,'<br>')
+                : '';
+
+            const sDescRem=document.createElement('span');
+            sDescRem.className='description-remove-icon';
+            sDescRem.textContent='✖';
+            sDescRem.onclick=()=>removeDescription(sDetails);
+            sDetails.appendChild(sDescRem);
+
+            included.appendChild(sMeta);
+            if(sItem.subItemDescription){
+                included.appendChild(sDetails);
+            }
+            itemDiv.appendChild(included);
+        });
+
+        container.appendChild(itemDiv);
+    });
+}
+
+function removeItem(containerId, idx){
+    if(containerId==='itemsList'){
+        jsonData.items.splice(idx,1);
+    } else {
+        jsonData.optionalItems.splice(idx,1);
+    }
+    saveToLocal();
+    reRenderLists();
+}
+
+function removeSubItem(containerId, idx, sIdx){
+    const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems;
+    let item=arr[idx];
+    let sub=item.subItems||item.optionalSubItems||[];
+    sub.splice(sIdx,1);
+    saveToLocal();
+    reRenderLists();
+}
+
+function removeDescription(el){
+    const arr=(el.dataset.item==='itemsList')?jsonData.items:jsonData.optionalItems;
+    const idx=el.dataset.index;
+    const sIdx=el.dataset.includedIndex;
+    const field=el.dataset.field;
+    if(field==='itemDescription'){
+        arr[idx].itemDescription='';
+    } else if(field==='subItemDescription'){
+        let sub=arr[idx].subItems||arr[idx].optionalSubItems||[];
+        if(sub[sIdx])sub[sIdx].subItemDescription='';
+    }
+    saveToLocal();
+    reRenderLists();
+}
+
+// -------------------------
+// TERMS
+// -------------------------
+function loadTerms(terms){
+    const list=document.getElementById('termsList');
+    list.innerHTML='';
+    terms.forEach((t, i)=>{
+        const div=document.createElement('div');
+        div.className='term-item';
+        div.innerHTML=`
+            <div class="editable" contenteditable="true"
+                 data-field="term"
+                 data-index="${i}"
+            >
+                ${t}
+            </div>
+            <span class="remove-icon" onclick="removeTerm(${i})">✖</span>
+        `;
+        list.appendChild(div);
+    });
+}
+function removeTerm(i){
+    jsonData.terms.splice(i,1);
+    saveToLocal();
+    reRenderLists();
+}
+
+// -------------------------
+// INFO / BILDER
+// -------------------------
+function loadInfoImages(){
+    const c=document.getElementById('infoImagesList');
+    c.innerHTML='';
+    (jsonData.infoImages||[]).forEach((obj, idx)=>{
+        const block=document.createElement('div');
+        block.className='info-block';
+        block.dataset.index=idx;
+
+        const handle=document.createElement('span');
+        handle.className='drag-handle';
+        handle.textContent='≡';
+        block.appendChild(handle);
+
+        const removeIcon=document.createElement('span');
+        removeIcon.className='remove-icon';
+        removeIcon.textContent='✖';
+        removeIcon.style.right='10px';
+        removeIcon.style.top='5px';
+        removeIcon.onclick=()=>removeInfoItem(idx);
+        block.appendChild(removeIcon);
+
+        if(obj.type==='text'){
+            const txt=document.createElement('div');
+            txt.className='info-text-block editable';
+            txt.contentEditable=true;
+            txt.dataset.index=idx;
+            txt.innerHTML=obj.content||'';
+            txt.addEventListener('input',()=>{
+                jsonData.infoImages[idx].content=txt.innerHTML;
+                saveToLocal();
+            });
+            block.appendChild(txt);
+
+        } else if(obj.type==='table'){
+            const table=document.createElement('table');
+            table.className='info-table';
+            for(let r=0;r<obj.rows;r++){
+                const row=document.createElement('tr');
+                for(let cc=0;cc<obj.cols;cc++){
+                    const cell=document.createElement('td');
+                    cell.contentEditable=true;
+                    cell.innerHTML=obj.data[r][cc]||'';
+                    cell.addEventListener('input',()=>{
+                        obj.data[r][cc]=cell.innerHTML;
+                        saveToLocal();
+                    });
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+            block.appendChild(table);
+
+        } else {
+            // image
+            const imgContainer=document.createElement('div');
+            imgContainer.className='info-image-container';
+
+            const img=document.createElement('img');
+            img.src=obj.src;
+            img.style.width=(obj.width||400)+'px';
+
+            const resizeH=document.createElement('div');
+            resizeH.className='image-resize-handle unwanted';
+
+            const removeBtn=document.createElement('div');
+            removeBtn.className='info-image-remove unwanted';
+            removeBtn.textContent='✖';
+            removeBtn.onclick=()=>removeInfoItem(idx);
+
+            imgContainer.appendChild(img);
+            imgContainer.appendChild(resizeH);
+            imgContainer.appendChild(removeBtn);
+
+            block.appendChild(imgContainer);
+            initializeResize(resizeH,img,idx);
+        }
+        c.appendChild(block);
+    });
+}
+function removeInfoItem(idx){
+    jsonData.infoImages.splice(idx,1);
+    saveToLocal();
+    reRenderLists();
+}
+function addInfoText(){
+    const t = translations[currentLanguage];
+    jsonData.infoImages.push({ type:'text', content: t.newInfoText });
+    saveToLocal();
+    reRenderLists();
+}
+function addTable(){
+    const rows=prompt('Antal rader','3');
+    const cols=prompt('Antal kolumner','3');
+    if(rows && cols){
+        const r=parseInt(rows)||2;
+        const c=parseInt(cols)||2;
+        const data=[];
+        for(let i=0;i<r;i++){
+            data.push(new Array(c).fill(''));
+        }
+        jsonData.infoImages.push({
+            type:'table',
+            rows:r,
+            cols:c,
+            data:data
+        });
+        saveToLocal();
+        reRenderLists();
+    }
+}
+function addImageFromUrl(){
+    const t = translations[currentLanguage];
+    const url=prompt(t.promptImageUrl);
+    if(url){
+        jsonData.infoImages.push({
+            type:'image',
+            src:url,
+            width:400,
+            description:''
+        });
+        saveToLocal();
+        reRenderLists();
+    }
+}
+document.getElementById('imageUpload').addEventListener('change',function(ev){
+    const files=ev.target.files;
+    for(let f of files){
+        const reader=new FileReader();
+        reader.onload=(e)=>{
+            jsonData.infoImages.push({
+                type:'image',
+                src:e.target.result,
+                width:400,
+                description:''
+            });
+            saveToLocal();
+            reRenderLists();
+        };
+        reader.readAsDataURL(f);
+    }
+});
+function showDropzone(){
+    document.getElementById('dropzone').style.display='block';
+}
+const dropzone=document.getElementById('dropzone');
+dropzone.addEventListener('dragover',e=>{
+    e.preventDefault();
+    dropzone.classList.add('hover');
+});
+dropzone.addEventListener('dragleave',()=>{
+    dropzone.classList.remove('hover');
+});
+dropzone.addEventListener('drop',e=>{
+    e.preventDefault();
+    dropzone.classList.remove('hover');
+    const files=e.dataTransfer.files;
+    for(let f of files){
+        const reader=new FileReader();
+        reader.onload=(ev)=>{
+            jsonData.infoImages.push({
+                type:'image',
+                src:ev.target.result,
+                width:400,
+                description:''
+            });
+            saveToLocal();
+            reRenderLists();
+        };
+        reader.readAsDataURL(f);
+    }
+});
+function initializeResize(handle,img,idx){
+    let startWidth, startX;
+    const onDown=(ev)=>{
+        startWidth=img.offsetWidth;
+        startX=ev.clientX;
+        document.addEventListener('mousemove',onMove);
+        document.addEventListener('mouseup',onUp);
+    };
+    const onMove=(ev)=>{
+        const w=startWidth+(ev.clientX-startX);
+        img.style.width=w+'px';
+        jsonData.infoImages[idx].width=w;
+        saveToLocal();
+    };
+    const onUp=()=>{
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+    };
+    handle.addEventListener('mousedown',onDown);
+}
+function removeInfoSection(){
+    jsonData.infoImages=[];
+    saveToLocal();
+    const sec=document.getElementById('infoSectionContainer');
+    if(sec)sec.remove();
+}
+function removeOptionalSection(){
+    jsonData.optionalItems=[];
+    saveToLocal();
+    const sec=document.getElementById('optionalSectionContainer');
+    if(sec)sec.remove();
+}
+
+// -------------------------
+// PRICES
+// -------------------------
+function updatePrices(){
+    const mul=jsonData.quote.currencyMultiplicator||1;
+    function handle(arr){
+        arr.forEach(it=>{
+            const q=it.quantity||0;
+            if(it.originalPrice){
+                it.targetPrice=it.originalPrice*mul*q;
+            }
+            let sub=it.subItems||it.optionalSubItems||[];
+            sub.forEach(s=>{
+                const sq=s.subItemQuantity||0;
+                if(s.subItemOriginalPrice){
+                    s.subItemTargetPrice=s.subItemOriginalPrice*mul*sq;
+                }
+            });
+        });
+    }
+    handle(jsonData.items);
+    handle(jsonData.optionalItems);
+}
+function calculateTotalPrice(){
+    let total=0;
+    function sum(arr){
+        arr.forEach(it=>{
+            total+=(it.targetPrice||0);
+            let sub=it.subItems||it.optionalSubItems||[];
+            sub.forEach(s=>{
+                total+=(s.subItemTargetPrice||0);
+            });
+        });
+    }
+    sum(jsonData.items);
+    const dec=document.getElementById('showDecimals').checked;
+    const formatted=dec?total.toFixed(2):Math.round(total).toString();
+
+    // The currency label: depends on custom currency check
+    const customChk = document.getElementById("useCustomCurrencyChk");
+    let currencyVal = "SEK";
+    if(customChk.checked){
+      currencyVal = document.getElementById("customCurrencyInput").value.trim() || "SEK";
+    }
+    // If language is 'sv' => "Total: X SEK", if 'en' => "Total: X SEK" or "USD" etc.
+    // We'll do a small snippet: "Total: 123 456 XYZ"
+    // If you'd like different language strings for "Total:", we can do so. 
+    // For simplicity, we keep "Total:" in English. Or you can do translations if you prefer.
+    document.getElementById('totalPrice').textContent='Total: '+formatNumber(formatted)+' ' + currencyVal;
+}
+function formatPrice(price){
+    if(price==null)return'';
+    const dec=document.getElementById('showDecimals').checked;
+    return formatNumber(dec?price.toFixed(2):Math.round(price).toString());
+}
+function formatNumber(numStr){
+    return numStr.replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+}
+
+// -------------------------
+// EVENT LISTENERS
+// -------------------------
+document.addEventListener('click',e=>{
+    if(e.target.classList.contains('increment-btn')){
+        const par=e.target.closest('.quantity');
+        if(!par)return;
+        const inp=par.querySelector('input[type="number"]');
+        let val=parseInt(inp.value)||0;
+        val++;
+        inp.value=val;
+        handleQuantityChange(inp);
+    } else if(e.target.classList.contains('decrement-btn')){
+        const par=e.target.closest('.quantity');
+        if(!par)return;
+        const inp=par.querySelector('input[type="number"]');
+        let val=parseInt(inp.value)||0;
+        val=Math.max(0,val-1);
+        inp.value=val;
+        handleQuantityChange(inp);
+    }
+});
+function handleQuantityChange(inp){
+    const par=inp.closest('.quantity');
+    const itemId=par.dataset.item;
+    const idx=par.dataset.index;
+    const sIdx=par.dataset.includedIndex;
+    const arr=(itemId==='itemsList')?jsonData.items:jsonData.optionalItems;
+    const val=parseInt(inp.value)||0;
+    if(sIdx!==undefined){
+        let sub=arr[idx].subItems||arr[idx].optionalSubItems||[];
+        if(sub[sIdx]){
+            sub[sIdx].subItemQuantity=val;
+        }
+    } else {
+        if(arr[idx])arr[idx].quantity=val;
+    }
+    saveToLocal();
+    reRenderLists();
+}
+
+document.getElementById('swapButton').addEventListener('click',()=>{
+  const tempCompany = {...jsonData.companyA};
+  jsonData.companyA = {...jsonData.companyB};
+  jsonData.companyB = tempCompany;
+  saveToLocal();
+  loadQuoteData(jsonData);
+});
+
+document.getElementById('showProjectNumber').addEventListener('change',function(){
+    const div=document.getElementById('projectNumberDiv');
+    div.style.display=this.checked?'':'none';
+});
+
+document.getElementById('currencyMultiplierInput').addEventListener('input',function(){
+    const val=parseFloat(this.value);
+    if(!isNaN(val)){
+        jsonData.quote.currencyMultiplicator=val;
+        saveToLocal();
+        reRenderLists();
+    }
+});
+document.getElementById('showDecimals').addEventListener('change',()=>{
+    reRenderLists();
+});
+
+document.getElementById('addItemButton').addEventListener('click',()=>{
+    const t = translations[currentLanguage];
+    const newItem={
+        itemNumber:'',
+        name: t.newArticleName,
+        itemDescription: t.newDescription,
+        quantity:1,
+        originalPrice:0,
+        targetPrice:0,
+        subItems:[]
+    };
+    jsonData.items.push(newItem);
+    saveToLocal();
+    reRenderLists();
+});
+
+document.getElementById('addOptionalItemButton').addEventListener('click',()=>{
+    const t = translations[currentLanguage];
+    const newItem={
+        itemNumber:'',
+        name: t.newAltArticleName,
+        itemDescription: t.newDescription,
+        quantity:1,
+        originalPrice:0,
+        targetPrice:0,
+        optionalSubItems:[]
+    };
+    jsonData.optionalItems.push(newItem);
+    saveToLocal();
+    reRenderLists();
+});
+
+document.getElementById('addTermButton').addEventListener('click',()=>{
+    const t = translations[currentLanguage];
+    jsonData.terms.push(t.newTermText);
+    saveToLocal();
+    reRenderLists();
+});
+
+document.getElementById('fileInput').addEventListener('change',function(ev){
+    const f=ev.target.files[0];
+    if(f && (f.type==='application/json' || f.name.endsWith('.json'))){
+        const r=new FileReader();
+        r.onload=(e)=>{
+            try {
+                const d=JSON.parse(e.target.result);
+                loadQuoteData(d);
+                saveToLocal();
+            } catch(err){
+                alert('JSON-formatet verkar vara felaktigt.');
+            }
+        };
+        r.readAsText(f);
+    } else {
+        alert('Vänligen ladda upp en giltig JSON-fil.');
+    }
+});
+
+// Language toggle
+document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{
+    const newLang = (currentLanguage === 'sv') ? 'en' : 'sv';
+    updateLanguage(newLang);
+    reRenderLists();
+});
+
+// Custom currency checkbox
+document.getElementById("useCustomCurrencyChk").addEventListener('change', ()=>{
+    const customInput = document.getElementById("customCurrencyInput");
+    if(document.getElementById("useCustomCurrencyChk").checked){
+      customInput.style.display = 'inline-block';
+    } else {
+      customInput.style.display = 'none';
+    }
+    updatePriceHeaders();
+    calculateTotalPrice();
+});
+
+// Custom currency input
+document.getElementById("customCurrencyInput").addEventListener('input', ()=>{
+    updatePriceHeaders();
+    calculateTotalPrice();
+});
+
+// -------------------------
+// DRAG & DROP (SORTABLE)
+// -------------------------
+let itemsSortable, optionalItemsSortable, termsSortable, infoSortable;
+function initializeDragAndDrop(){
+    if(itemsSortable) itemsSortable.destroy();
+    if(optionalItemsSortable) optionalItemsSortable.destroy();
+    if(termsSortable) termsSortable.destroy();
+    if(infoSortable) infoSortable.destroy();
+
+    itemsSortable = Sortable.create(document.getElementById('itemsList'),{
+        group:'sharedItems',
+        animation:150,
+        onEnd(evt){
+            if(evt.to===evt.from){
+                const moved=jsonData.items.splice(evt.oldIndex,1)[0];
+                jsonData.items.splice(evt.newIndex,0,moved);
+            }
+            saveToLocal();
+            reRenderLists();
+        },
+        onAdd(evt){
+            if(evt.from.id==='optionalItemsList'){
+                const moved=jsonData.optionalItems.splice(evt.oldIndex,1)[0];
+                jsonData.items.splice(evt.newIndex,0,moved);
+                saveToLocal();
+                reRenderLists();
+            }
+        }
+    });
+
+    optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{
+        group:'sharedItems',
+        animation:150,
+        onEnd(evt){
+            if(evt.to===evt.from){
+                const moved=jsonData.optionalItems.splice(evt.oldIndex,1)[0];
+                jsonData.optionalItems.splice(evt.newIndex,0,moved);
+            }
+            saveToLocal();
+            reRenderLists();
+        },
+        onAdd(evt){
+            if(evt.from.id==='itemsList'){
+                const moved=jsonData.items.splice(evt.oldIndex,1)[0];
+                jsonData.optionalItems.splice(evt.newIndex,0,moved);
+                saveToLocal();
+                reRenderLists();
+            }
+        }
+    });
+
+    termsSortable=Sortable.create(document.getElementById('termsList'),{
+        animation:150,
+        handle:'.term-item',
+        onEnd(evt){
+            const moved=jsonData.terms.splice(evt.oldIndex,1)[0];
+            jsonData.terms.splice(evt.newIndex,0,moved);
+            saveToLocal();
+            reRenderLists();
+        }
+    });
+
+    infoSortable=Sortable.create(document.getElementById('infoImagesList'),{
+        animation:150,
+        handle:'.drag-handle',
+        onEnd(evt){
+            const moved=jsonData.infoImages.splice(evt.oldIndex,1)[0];
+            jsonData.infoImages.splice(evt.newIndex,0,moved);
+            saveToLocal();
+            reRenderLists();
+        }
+    });
+}
+
+// -------------------------
+// MAKE FIELDS EDITABLE
+// -------------------------
+function makeEditable(){
+    document.querySelectorAll('.editable').forEach(el=>{
+        el.removeEventListener('input', onEditableInput);
+        el.addEventListener('input', onEditableInput);
+    });
+}
+function onEditableInput(e){
+    const field=e.target.dataset.field;
+    const val=e.target.innerHTML.trim();
+    if(!field){
+        if(this.id==='companyA'){
+            const lines=this.innerText.split('\n');
+            jsonData.companyA.name=lines[0]||'';
+            jsonData.companyA.address=lines[1]||'';
+            jsonData.companyA.postalCode=lines[2]||'';
+            jsonData.companyA.attention=lines[3]||'';
+        } else if(this.id==='companyB'){
+            const lines=this.innerText.split('\n');
+            jsonData.companyB.name=lines[0]||'';
+            jsonData.companyB.address=lines[1]||'';
+            jsonData.companyB.postalCode=lines[2]||'';
+        } else if(this.id==='reference'){
+            jsonData.quote.reference=this.textContent;
+        } else if(this.id==='quoteTitle'){
+            jsonData.quote.title=this.textContent;
+        } else if(this.id==='quoteNumber'){
+            jsonData.quote.quoteNumber=this.textContent;
+        } else if(this.id==='quoteDate'){
+            jsonData.quote.date=this.textContent;
+        } else if(this.id==='projectNumber'){
+            jsonData.quote.projectNumber=this.textContent;
+        }
+        saveToLocal();
+        return;
+    }
+
+    if(field==='term'){
+        jsonData.terms[this.dataset.index]=val;
+        saveToLocal();
+        return;
+    }
+
+    const containerId=this.dataset.item;
+    const idx=this.dataset.index;
+    const sIdx=this.dataset.includedIndex;
+    const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems;
+    if(!arr[idx])return;
+
+    switch(field){
+        case 'itemDescription':
+            arr[idx].itemDescription=val.replace(/<br>/g,'\n');
+            break;
+        case 'name':
+            arr[idx].name=val;
+            break;
+        case 'targetPrice':
+            {
+                const n=parseFloat(val.replace(/\s/g,'').replace(',','.'));
+                const mul=jsonData.quote.currencyMultiplicator||1;
+                if(!isNaN(n)){
+                    const q=arr[idx].quantity||0;
+                    arr[idx].targetPrice=n;
+                    arr[idx].originalPrice=(q>0)?(n/(mul*q)):0;
+                }
+            }
+            break;
+        case 'itemNumber':
+            arr[idx].itemNumber=val;
+            break;
+        case 'subItemDescription':
+            {
+                let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
+                if(s[sIdx]) s[sIdx].subItemDescription=val.replace(/<br>/g,'\n');
+            }
+            break;
+        case 'subItemName':
+            {
+                let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
+                if(s[sIdx]) s[sIdx].subItemName=val;
+            }
+            break;
+        case 'subItemTargetPrice':
+            {
+                const n2=parseFloat(val.replace(/\s/g,'').replace(',','.'));
+                const mul2=jsonData.quote.currencyMultiplicator||1;
+                if(!isNaN(n2)){
+                    let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
+                    if(s[sIdx]){
+                        let subIt=s[sIdx];
+                        const sq=subIt.subItemQuantity||0;
+                        subIt.subItemTargetPrice=n2;
+                        subIt.subItemOriginalPrice=(sq>0)?(n2/(mul2*sq)):0;
+                    }
+                }
+            }
+            break;
+        case 'subItemNumber':
+            {
+                let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
+                if(s[sIdx]) s[sIdx].subItemNumber=val;
+            }
+            break;
+        default:
+            break;
+    }
+    saveToLocal();
+    updatePrices();
+    calculateTotalPrice();
+}
+
+// -------------------------
+// PDF + JSON
+// -------------------------
+async function generatePDF(){
+    const ele=document.getElementById('quoteContent');
+    const opt={
+        margin:[10,10,10,10],
+        filename:`offert-${jsonData.quote.quoteNumber}.pdf`,
+        image:{ type:'jpeg', quality:0.98 },
+        html2canvas:{
+            scale:2,
+            useCORS:true,
+            allowTaint:true,
+            scrollX:-window.scrollX,
+            scrollY:-window.scrollY,
+            windowWidth:document.documentElement.offsetWidth,
+            windowHeight:document.documentElement.offsetHeight
+        },
+        jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' }
+    };
+    try{
+        await html2pdf().from(ele).set(opt).save();
+        return true;
+    } catch(e){
+        console.error(e);
+        return false;
+    }
+}
+
+document.getElementById('saveJson').addEventListener('click',()=>{
+    const dataStr="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(jsonData,null,2));
+    const dl=document.createElement('a');
+    dl.setAttribute('href',dataStr);
+    dl.setAttribute('download','working.json');
+    document.body.appendChild(dl);
+    dl.click();
+    dl.remove();
+});
+
+// -------------------------
+// SHOW / HIDE unwanted
+// -------------------------
+document.getElementById('makeTransparent').addEventListener('click',()=>{
+    storeOriginalStates();
+    document.getElementById('statusMessage').textContent='Gör oönskade element transparenta...';
+    document.querySelectorAll('.unwanted').forEach(el=>{
+        el.style.opacity='0';
+    });
+});
+document.getElementById('setDisplayNone').addEventListener('click',()=>{
+    storeOriginalStates();
+    document.getElementById('statusMessage').textContent='Döljer oönskade element...';
+    document.querySelectorAll('.unwanted').forEach(el=>{
+        el.style.display='none';
+    });
+});
+document.getElementById('removeElements').addEventListener('click',()=>{
+    storeOriginalStates();
+    document.getElementById('statusMessage').textContent='Tar bort oönskade element...';
+    document.querySelectorAll('.unwanted').forEach(el=>{
+        el.parentNode.removeChild(el);
+    });
+});
+document.getElementById('resetUnwanted').addEventListener('click',()=>{
+    document.getElementById('statusMessage').textContent='Återställer oönskade element...';
+    const uw=document.querySelectorAll('.unwanted');
+    uw.forEach(el=>{
+        if(!el.id)return;
+        if(originalStyles[el.id]){
+            el.setAttribute('style', originalStyles[el.id]);
+        } else {
+            el.removeAttribute('style');
+        }
+        if(originalElements[el.id]){
+            el.parentNode.replaceChild(originalElements[el.id], el);
+        }
+    });
+    document.getElementById('statusMessage').textContent='Oönskade element har återställts.';
+});
+function storeOriginalStates(){
+    const unw=document.querySelectorAll('.unwanted');
+    unw.forEach(el=>{
+        if(!el.id)return;
+        originalStyles[el.id]=el.getAttribute('style')||'';
+        originalElements[el.id]=el.cloneNode(true);
+    });
+}
+
+// -------------------------
+// SAVE + ONLOAD
+// -------------------------
+function saveToLocal(){
+    localStorage.setItem('quoteData', JSON.stringify(jsonData));
+}
+window.onload=()=>{
+    loadQuoteData(jsonData);
+};
+</script>
+</body>
+</html>
