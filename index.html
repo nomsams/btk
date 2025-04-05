@@ -1,9 +1,9 @@
-<!-- Version 56 -->
+<!-- Version 62 --> 
 <!DOCTYPE html>
 <html lang="sv">
 <head>
 <meta charset="utf-8"/>
-<title>Offertgenerator</title>
+<title>Offert</title>
 <style>
 /* ------------------ PRINT STYLES ------------------ */
 @media print {
@@ -85,12 +85,12 @@
         max-width: 100% !important;
         height: auto !important;
     }
+    /* all unwanted classes are hidden in print */
     .unwanted,
     .remove-icon,
     .button-container,
     .description-remove-icon,
-    .image-resize-handle,
-    .info-image-remove {
+    .image-resize-handle {
         display: none !important;
     }
 }
@@ -442,34 +442,26 @@ h3.name.editable {
 /* info images section */
 .info-images { margin: 20px 0; }
 #infoImagesList {
-    margin: 20px 0;
+    margin: px 0;
 }
 .info-block {
     position: relative;
     margin: 10px 0;
     background-color: transparent;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 30px; 
 }
 .info-block:hover {
     background-color: #fafafa;
 }
-.info-block .remove-icon,
-.info-block .drag-handle {
+.info-block .remove-icon {
     display: none;
 }
-.info-block:hover .remove-icon,
-.info-block:hover .drag-handle {
+.info-block:hover .remove-icon {
     display: inline-block;
 }
-.drag-handle {
-    cursor: move;
-    color: #333;
-    font-weight: bold;
-    padding: 2px 6px;
-    background-color: #eee;
-    border-radius: 4px;
-    margin-right: 8px;
-}
-
 .info-text-block {
     min-height: 30px;
     padding: 5px;
@@ -493,110 +485,60 @@ h3.name.editable {
 .image-resize-handle {
     width: 20px;
     height: 20px;
-    background-color: #fff;
+    background-color: #fff; /* filled circle */
     border: 2px solid #007bff;
     border-radius: 50%;
     position: absolute;
     bottom: -10px;
     right: -10px;
     cursor: se-resize;
-    z-index: 10;
+    z-index: 9999; /* ensure on top */
+    pointer-events: all; /* ensure we can grab it */
 }
-.info-image-remove {
+
+/* row of up arrow, drag handle, down arrow, remove icon */
+.controls-row {
     position: absolute;
     top: 5px;
     right: 5px;
-    background-color: red;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    z-index: 9999; 
+}
+.controls-row.unwanted > span {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 5px;
+    background-color: #333; /* so we see them clearly */
     color: white;
     width: 20px;
     height: 20px;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: center;
+    line-height: 18px;
+}
+.remove-icon {
+    top: 28px !important; /* place it slightly below the row */
+    right: 5px !important;
+    z-index: 9999;
+}
+.drag-handle {
+    background-color: #333;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 18px;
+    cursor: move;
+}
+.info-image-up, .info-image-down {
     border-radius: 50%;
     text-align: center;
     line-height: 18px;
     cursor: pointer;
-    z-index: 10;
-}
-
-.image-upload-container {
-    margin: 10px 0;
-}
-.image-upload-button {
-    background-color: #4CAF50;
-    color: white;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin: 5px;
-}
-.image-upload-button:hover {
-    background-color: #45a049;
-}
-#dropzone {
-    border: 2px dashed #007bff;
-    border-radius: 5px;
-    padding: 20px;
-    text-align: center;
-    color: #007bff;
-    cursor: pointer;
-    margin: 10px 0;
-    display: none;
-}
-#dropzone.hover {
-    background-color: #f1f1f1;
-}
-#infoSectionContainer {
-    position: relative;
-}
-#infoSectionContainer .section-remove-icon {
-    display: none;
-    position: absolute;
-    left:10px;
-    top:5px;
-    background-color:red;
-    width:20px;
-    height:20px;
-    border-radius:10px;
-    text-align:center;
-    line-height:18px;
-    color:white;
-    cursor:pointer;
-    font-size:16px;
-    z-index:100;
-}
-#infoSectionContainer:hover .section-remove-icon {
-    display: block;
-}
-
-#optionalSectionContainer {
-    position: relative;
-}
-#optionalSectionContainer .section-remove-icon {
-    display: none;
-    position: absolute;
-    left:10px;
-    top:5px;
-    background-color:red;
-    width:20px;
-    height:20px;
-    border-radius:10px;
-    text-align:center;
-    line-height:18px;
-    color:white;
-    cursor:pointer;
-    font-size:16px;
-    z-index:100;
-}
-#optionalSectionContainer:hover .section-remove-icon {
-    display: block;
-}
-
-.horizontal-line {
-    border: none;
-    border-top: 2px solid black;
-    margin-top: 5px;
-    margin-bottom: 15px;
-    width: 100%;
+    font-size: 16px;
 }
 
 /* main items container remove-icon on hover */
@@ -623,6 +565,62 @@ h3.name.editable {
     display: block;
 }
 
+/* optional items container remove-icon on hover */
+#optionalSectionContainer {
+    position: relative;
+}
+#optionalSectionContainer .section-remove-icon {
+    display: none;
+    position: absolute;
+    left:10px;
+    top:5px;
+    background-color:red;
+    width:20px;
+    height:20px;
+    border-radius:10px;
+    text-align:center;
+    line-height:18px;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+    z-index:100;
+}
+#optionalSectionContainer:hover .section-remove-icon {
+    display: block;
+}
+
+/* info section remove-icon on hover */
+#infoSectionContainer {
+    position: relative;
+}
+#infoSectionContainer .section-remove-icon {
+    display: none;
+    position: absolute;
+    left:10px;
+    top:5px;
+    background-color:red;
+    width:20px;
+    height:20px;
+    border-radius:10px;
+    text-align:center;
+    line-height:18px;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+    z-index:100;
+}
+#infoSectionContainer:hover .section-remove-icon {
+    display: block;
+}
+
+.horizontal-line {
+    border: none;
+    border-top: 2px solid black;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    width: 100%;
+}
+
 /* table block in info section */
 .info-table {
     width: 100%;
@@ -646,6 +644,26 @@ h3.name.editable {
     outline: 2px solid #007bff;
     background-color: #fff;
 }
+
+/* fix the green styling for the image-upload-button, matching .add-button */
+.image-upload-button {
+    background-color: green;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 5px;
+    margin: 5px;
+    font-size: 12pt;
+    cursor: pointer;
+}
+.image-upload-button:hover {
+    background-color: #45a049;
+}
+
+/* Make liveCurrencyRates smaller to 12px */
+#liveCurrencyRates {
+    font-size: 12px !important;
+}
 </style>
 </head>
 <body>
@@ -661,16 +679,21 @@ h3.name.editable {
     <div class="date" id="dateLabel">Datum:
         <span class="editable" contenteditable="true" id="quoteDate"></span>
     </div>
-    <div class="project-number unwanted" id="projectNumberDiv">
+    <!-- set display:none so it's invisible by default -->
+    <div class="project-number unwanted" id="projectNumberDiv" style="display:none;">
         Projekt Nummer:
         <span class="editable" contenteditable="true" id="projectNumber"></span>
     </div>
 
     <div class="checkbox-group unwanted">
-        <label><input type="checkbox" id="showProjectNumber" checked /> Visa Projekt Nummer</label>
+        <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
+        <!-- New "Compress images" checkbox -->
+        <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
     </div>
-    <div class="currency-multiplier unwanted">
+    <div class="currency-multiplier unwanted" style="position: relative;">
+        <!-- Live currency rates container (unwanted => not printed, now at 12px) -->
+        <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px;"></div>
         <label for="currencyMultiplierInput">Valutakurs:</label>
         <input type="number" id="currencyMultiplierInput" value="11.8" step="0.01" />
     </div>
@@ -769,19 +792,18 @@ h3.name.editable {
             <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">
                 Lägg till bild (filuppladdning)
             </button>
-            <button class="image-upload-button" onclick="addImageFromUrl()">
+            <!-- We do NOT remove the code for URL/Drop but we hide the buttons from the UI -->
+            <button class="image-upload-button unwanted" style="display:none;" onclick="addImageFromUrl()">
                 Lägg till bild (URL)
             </button>
-            <button class="image-upload-button" onclick="showDropzone()">
-                Lägg till bild (Dra & Släpp)
-            </button>
+            <!-- dropzone was removed as requested -->
+
             <button class="image-upload-button add-info-text-button" onclick="addInfoText()">
                 Lägg till text
             </button>
             <button class="image-upload-button add-table-button" onclick="addTable()">
                 Lägg till tabell
             </button>
-            <div id="dropzone">Dra och släpp bilder här</div>
         </div>
     </div>
 
@@ -806,7 +828,10 @@ h3.name.editable {
         <br/>
         <div class="status-message" id="statusMessage"></div>
     </div>
-    <button class="unwanted" id="saveJson">Spara JSON</button>
+
+    <!-- Two buttons for saving JSON: "Spara JSON" and "Overwrite JSON" -->
+    <button class="unwanted add-button" id="saveJson">Spara JSON</button>
+    <button class="unwanted add-button" id="overwriteJson">Overwrite JSON</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
@@ -814,11 +839,10 @@ h3.name.editable {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
 <script>
-/* Version 56 additions:
-   - The main items container remove icon now only appears on hover, matching optional section
-   - "Total:" separated into an editable label (#totalLabel) and an auto-updated numeric part (#totalValue)
-   - A new "remove total" checkbox (#removeTotalCheck) to hide the total line entirely
-   - All existing functionality preserved
+/* Version 62 changes:
+   - Removed the <div id="dropzone">Dra och släpp bilder här</div>.
+   - Made #liveCurrencyRates 12px in size.
+   - Added a new button for "Spara som PDF" next to the Print button, which effectively generates a PDF snapshot of the content after hiding .unwanted items (mimicking print).
 */
 
 /*
@@ -885,23 +909,19 @@ const translations = {
   }
 };
 
-/* We'll store the current language and do dynamic changes. */
-let currentLanguage = "sv"; // default
+let currentLanguage = "sv"; 
 let jsonData = null;
 let originalStyles = {};
 let originalElements = {};
+let currentFileName = null; 
 
-// -------------------------
-// Load data from localStorage or init
-// -------------------------
 (function initData(){
     const localData = localStorage.getItem('quoteData');
     if(!localData){
         jsonData={
             quote:{
                 currencyMultiplicator:1,
-                // store user custom label for total so we can preserve it
-                totalLabel: translations.sv.totalLabel // default
+                totalLabel: translations.sv.totalLabel 
             },
             companyA:{},
             companyB:{},
@@ -920,16 +940,12 @@ let originalElements = {};
         if(!Array.isArray(jsonData.terms))jsonData.terms=[];
         if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         if(!jsonData.quote.totalLabel){
-            // in case older data doesn't have it
             jsonData.quote.totalLabel = translations.sv.totalLabel;
         }
     }
 })();
 
-// -------------------------
-// MAIN LOADER
-// -------------------------
-function loadQuoteData(data){
+function loadQuoteData(data, loadedFileName=null){
     jsonData=JSON.parse(JSON.stringify(data));
     if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1,totalLabel:translations.sv.totalLabel};
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
@@ -958,7 +974,9 @@ function loadQuoteData(data){
     document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||1;
     document.getElementById('showDecimals').checked=false;
 
-    // The total label is stored in q.totalLabel
+    document.getElementById('showProjectNumber').checked = false; 
+    document.getElementById('projectNumberDiv').style.display = 'none';
+
     document.getElementById('totalLabel').textContent = q.totalLabel || translations.sv.totalLabel;
 
     updatePrices();
@@ -971,8 +989,10 @@ function loadQuoteData(data){
     calculateTotalPrice();
     initializeDragAndDrop();
 
-    // Make sure language toggles to "sv" at start
     updateLanguage('sv');
+    updateDocumentTitle();
+
+    currentFileName = loadedFileName;
 }
 
 function reRenderLists(){
@@ -986,9 +1006,12 @@ function reRenderLists(){
     initializeDragAndDrop();
 }
 
-// -------------------------
-// LANGUAGE TOGGLE
-// -------------------------
+function updateDocumentTitle(){
+    let baseTitle = (currentLanguage==='sv') ? 'Offert' : 'Quote';
+    let refVal = document.getElementById('reference').textContent.trim();
+    document.title = (refVal) ? (baseTitle + " - " + refVal) : baseTitle;
+}
+
 function updateLanguage(lang){
     currentLanguage = lang;
     document.documentElement.setAttribute('lang', lang);
@@ -996,7 +1019,6 @@ function updateLanguage(lang){
     const t = translations[lang];
     if(!t)return;
 
-    // Update static text/labels
     document.getElementById("quoteTitle").textContent = t.quoteTitle;
     document.getElementById("quoteNumberLabel").childNodes[0].textContent = t.quoteNumberLabel + " ";
     document.getElementById("dateLabel").childNodes[0].textContent = t.dateLabel + " ";
@@ -1011,10 +1033,8 @@ function updateLanguage(lang){
     document.getElementById("optArticleHeader").textContent = t.articleHeader;
     document.getElementById("optQuantityHeader").textContent = t.quantityHeader;
 
-    // Price label depends on custom currency
     updatePriceHeaders();
 
-    // Optional headings & buttons
     if(document.getElementById("addItemButton")) {
       document.getElementById("addItemButton").textContent = t.addItemButton;
     }
@@ -1029,27 +1049,21 @@ function updateLanguage(lang){
     document.getElementById("termsHeading").textContent = t.termsHeading;
     document.getElementById("toggleLanguageBtn").textContent = t.toggleLangBtn;
 
-    // Update "ta bort totalen" label or "remove total"
     if(document.getElementById("removeTotalCheckboxLabel")){
       document.getElementById("removeTotalCheckboxLabel").childNodes[1].textContent = " " + t.removeTotalLabel;
     }
 
-    // If user hasn't customized the totalLabel yet, we set it to the dictionary
-    // But if they've already changed it, we don't forcibly overwrite.
-    // We'll do a small check:
     if(!jsonData.quote.totalLabel || 
        jsonData.quote.totalLabel === translations[currentLanguage === 'sv' ? 'en' : 'sv'].totalLabel)
     {
-      // only then forcibly update it:
       document.getElementById("totalLabel").textContent = t.totalLabel;
       jsonData.quote.totalLabel = t.totalLabel;
     }
 
-    // Recalc total, etc.
     calculateTotalPrice();
+    updateDocumentTitle();
 }
 
-// Helper for price column headers
 function updatePriceHeaders(){
     const customChk = document.getElementById("useCustomCurrencyChk");
     const currencyVal = document.getElementById("customCurrencyInput").value;
@@ -1061,15 +1075,10 @@ function updatePriceHeaders(){
     if(customChk.checked && currencyVal) {
       curSymbol = "(" + currencyVal + ")";
     }
-    // main items
     document.getElementById("priceHeader").textContent = prefix + " " + curSymbol;
-    // optional items
     document.getElementById("optPriceHeader").textContent = prefix + " " + curSymbol;
 }
 
-// -------------------------
-// ITEMS
-// -------------------------
 function loadItems(items, containerId){
     const container=document.getElementById(containerId);
     if(!container)return;
@@ -1157,7 +1166,6 @@ function loadItems(items, containerId){
             itemDiv.appendChild(details);
         }
 
-        // subitems or optionalSubItems
         let subArr = it.subItems || it.optionalSubItems || [];
         subArr.forEach((sItem, sIdx)=>{
             const siNum=sItem.subItemNumber||(`${iNum}.${sIdx+1}`);
@@ -1287,9 +1295,6 @@ function removeDescription(el){
     reRenderLists();
 }
 
-// -------------------------
-// TERMS
-// -------------------------
 function loadTerms(terms){
     const list=document.getElementById('termsList');
     list.innerHTML='';
@@ -1314,9 +1319,6 @@ function removeTerm(i){
     reRenderLists();
 }
 
-// -------------------------
-// INFO / BILDER
-// -------------------------
 function loadInfoImages(){
     const c=document.getElementById('infoImagesList');
     c.innerHTML='';
@@ -1324,19 +1326,38 @@ function loadInfoImages(){
         const block=document.createElement('div');
         block.className='info-block';
         block.dataset.index=idx;
+        block.style.position='relative';
+
+        /* controls row: top-right corner, unwanted so not printed */
+        const controls=document.createElement('div');
+        controls.className='controls-row unwanted';
+
+        const upBtn=document.createElement('span');
+        upBtn.className='info-image-up';
+        upBtn.textContent='▲';
+        upBtn.onclick=()=>moveImageUp(idx);
+        controls.appendChild(upBtn);
 
         const handle=document.createElement('span');
         handle.className='drag-handle';
         handle.textContent='≡';
-        block.appendChild(handle);
+        controls.appendChild(handle);
+
+        const downBtn=document.createElement('span');
+        downBtn.className='info-image-down';
+        downBtn.textContent='▼';
+        downBtn.onclick=()=>moveImageDown(idx);
+        controls.appendChild(downBtn);
 
         const removeIcon=document.createElement('span');
         removeIcon.className='remove-icon';
         removeIcon.textContent='✖';
-        removeIcon.style.right='10px';
-        removeIcon.style.top='5px';
+        removeIcon.style.top='28px'; 
+        removeIcon.style.right='5px';
         removeIcon.onclick=()=>removeInfoItem(idx);
-        block.appendChild(removeIcon);
+        controls.appendChild(removeIcon);
+
+        block.appendChild(controls);
 
         if(obj.type==='text'){
             const txt=document.createElement('div');
@@ -1370,7 +1391,6 @@ function loadInfoImages(){
             block.appendChild(table);
 
         } else {
-            // image
             const imgContainer=document.createElement('div');
             imgContainer.className='info-image-container';
 
@@ -1381,14 +1401,8 @@ function loadInfoImages(){
             const resizeH=document.createElement('div');
             resizeH.className='image-resize-handle unwanted';
 
-            const removeBtn=document.createElement('div');
-            removeBtn.className='info-image-remove unwanted';
-            removeBtn.textContent='✖';
-            removeBtn.onclick=()=>removeInfoItem(idx);
-
             imgContainer.appendChild(img);
             imgContainer.appendChild(resizeH);
-            imgContainer.appendChild(removeBtn);
 
             block.appendChild(imgContainer);
             initializeResize(resizeH,img,idx);
@@ -1444,60 +1458,49 @@ function addImageFromUrl(){
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     const files=ev.target.files;
     for(let f of files){
-        const reader=new FileReader();
-        reader.onload=(e)=>{
-            jsonData.infoImages.push({
-                type:'image',
-                src:e.target.result,
-                width:400,
-                description:''
+        if(document.getElementById('compressImagesChk').checked){
+            compressImage(f, 0.7, 1280, (resultBase64)=>{
+                jsonData.infoImages.push({
+                    type:'image',
+                    src:resultBase64,
+                    width:400,
+                    description:''
+                });
+                saveToLocal();
+                reRenderLists();
             });
-            saveToLocal();
-            reRenderLists();
-        };
-        reader.readAsDataURL(f);
+        } else {
+            const reader=new FileReader();
+            reader.onload=(e)=>{
+                jsonData.infoImages.push({
+                    type:'image',
+                    src:e.target.result,
+                    width:400,
+                    description:''
+                });
+                saveToLocal();
+                reRenderLists();
+            };
+            reader.readAsDataURL(f);
+        }
     }
 });
-function showDropzone(){
-    document.getElementById('dropzone').style.display='block';
-}
-const dropzone=document.getElementById('dropzone');
-dropzone.addEventListener('dragover',e=>{
-    e.preventDefault();
-    dropzone.classList.add('hover');
-});
-dropzone.addEventListener('dragleave',()=>{
-    dropzone.classList.remove('hover');
-});
-dropzone.addEventListener('drop',e=>{
-    e.preventDefault();
-    dropzone.classList.remove('hover');
-    const files=e.dataTransfer.files;
-    for(let f of files){
-        const reader=new FileReader();
-        reader.onload=(ev)=>{
-            jsonData.infoImages.push({
-                type:'image',
-                src:ev.target.result,
-                width:400,
-                description:''
-            });
-            saveToLocal();
-            reRenderLists();
-        };
-        reader.readAsDataURL(f);
-    }
-});
+
 function initializeResize(handle,img,idx){
     let startWidth, startX;
     const onDown=(ev)=>{
+        ev.stopPropagation();
+        ev.preventDefault();
         startWidth=img.offsetWidth;
         startX=ev.clientX;
         document.addEventListener('mousemove',onMove);
         document.addEventListener('mouseup',onUp);
     };
     const onMove=(ev)=>{
+        ev.stopPropagation();
+        ev.preventDefault();
         const w=startWidth+(ev.clientX-startX);
+        if(w<40) return;
         img.style.width=w+'px';
         jsonData.infoImages[idx].width=w;
         saveToLocal();
@@ -1508,6 +1511,7 @@ function initializeResize(handle,img,idx){
     };
     handle.addEventListener('mousedown',onDown);
 }
+
 function removeInfoSection(){
     jsonData.infoImages=[];
     saveToLocal();
@@ -1526,10 +1530,49 @@ function removeMainSection(){
     const sec = document.getElementById('mainItemsSectionContainer');
     if(sec) sec.remove();
 }
+function moveImageUp(idx){
+    if(idx>0){
+        const tmp=jsonData.infoImages[idx];
+        jsonData.infoImages[idx]=jsonData.infoImages[idx-1];
+        jsonData.infoImages[idx-1]=tmp;
+        saveToLocal();
+        reRenderLists();
+    }
+}
+function moveImageDown(idx){
+    if(idx<jsonData.infoImages.length-1){
+        const tmp=jsonData.infoImages[idx];
+        jsonData.infoImages[idx]=jsonData.infoImages[idx+1];
+        jsonData.infoImages[idx+1]=tmp;
+        saveToLocal();
+        reRenderLists();
+    }
+}
 
-// -------------------------
-// PRICES
-// -------------------------
+function compressImage(file, quality, maxWidth, callback){
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+        const img=new Image();
+        img.onload=()=>{
+            const canvas=document.createElement('canvas');
+            const ctx=canvas.getContext('2d');
+            let width=img.width;
+            let height=img.height;
+            if(width>maxWidth){
+                height=Math.round(height*(maxWidth/width));
+                width=maxWidth;
+            }
+            canvas.width=width;
+            canvas.height=height;
+            ctx.drawImage(img,0,0,width,height);
+            const dataUrl=canvas.toDataURL('image/jpeg',quality);
+            callback(dataUrl);
+        };
+        img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
 function updatePrices(){
     const mul=jsonData.quote.currencyMultiplicator||1;
     function handle(arr){
@@ -1566,16 +1609,13 @@ function calculateTotalPrice(){
     const dec=document.getElementById('showDecimals').checked;
     const formatted=dec?total.toFixed(2):Math.round(total).toString();
 
-    // The currency label
     const customChk = document.getElementById("useCustomCurrencyChk");
     let currencyVal = "SEK";
     if(customChk.checked){
       currencyVal = document.getElementById("customCurrencyInput").value.trim() || "SEK";
     }
-    // Update #totalValue (the numeric + currency part)
     document.getElementById('totalValue').textContent= formatNumber(formatted) + " " + currencyVal;
 
-    // If "ta bort totalen" is checked, hide it.
     if(document.getElementById('removeTotalCheck').checked){
         document.getElementById('totalPrice').style.display='none';
     } else {
@@ -1591,9 +1631,6 @@ function formatNumber(numStr){
     return numStr.replace(/\B(?=(\d{3})+(?!\d))/g,' ');
 }
 
-// -------------------------
-// EVENT LISTENERS
-// -------------------------
 document.addEventListener('click',e=>{
     if(e.target.classList.contains('increment-btn')){
         const par=e.target.closest('.quantity');
@@ -1637,7 +1674,7 @@ document.getElementById('swapButton').addEventListener('click',()=>{
   jsonData.companyA = {...jsonData.companyB};
   jsonData.companyB = tempCompany;
   saveToLocal();
-  loadQuoteData(jsonData);
+  loadQuoteData(jsonData, currentFileName);
 });
 
 document.getElementById('showProjectNumber').addEventListener('change',function(){
@@ -1696,6 +1733,20 @@ document.getElementById('addTermButton').addEventListener('click',()=>{
     reRenderLists();
 });
 
+function parseFileName(fileName){
+    const base = fileName.replace(/\.json$/i,'');
+    const re=/^(.*)_(\d{6})_v(\d+)$/;
+    const match=base.match(re);
+    if(!match){
+        return null;
+    }
+    return {
+        prefix: match[1],
+        datePart: match[2],
+        version: parseInt(match[3],10)
+    };
+}
+
 document.getElementById('fileInput').addEventListener('change',function(ev){
     const f=ev.target.files[0];
     if(f && (f.type==='application/json' || f.name.endsWith('.json'))){
@@ -1703,7 +1754,7 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
         r.onload=(e)=>{
             try {
                 const d=JSON.parse(e.target.result);
-                loadQuoteData(d);
+                loadQuoteData(d, f.name);
                 saveToLocal();
             } catch(err){
                 alert('JSON-formatet verkar vara felaktigt.');
@@ -1715,14 +1766,12 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
     }
 });
 
-// Language toggle
 document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{
     const newLang = (currentLanguage === 'sv') ? 'en' : 'sv';
     updateLanguage(newLang);
     reRenderLists();
 });
 
-// Custom currency checkbox
 document.getElementById("useCustomCurrencyChk").addEventListener('change', ()=>{
     const customInput = document.getElementById("customCurrencyInput");
     if(document.getElementById("useCustomCurrencyChk").checked){
@@ -1734,13 +1783,11 @@ document.getElementById("useCustomCurrencyChk").addEventListener('change', ()=>{
     calculateTotalPrice();
 });
 
-// Custom currency input
 document.getElementById("customCurrencyInput").addEventListener('input', ()=>{
     updatePriceHeaders();
     calculateTotalPrice();
 });
 
-// Remove total line
 document.getElementById("removeTotalCheck").addEventListener('change', ()=>{
     if(document.getElementById("removeTotalCheck").checked){
         document.getElementById('totalPrice').style.display='none';
@@ -1749,9 +1796,6 @@ document.getElementById("removeTotalCheck").addEventListener('change', ()=>{
     }
 });
 
-// -------------------------
-// DRAG & DROP (SORTABLE)
-// -------------------------
 let itemsSortable, optionalItemsSortable, termsSortable, infoSortable;
 function initializeDragAndDrop(){
     if(itemsSortable) itemsSortable.destroy();
@@ -1814,7 +1858,7 @@ function initializeDragAndDrop(){
 
     infoSortable=Sortable.create(document.getElementById('infoImagesList'),{
         animation:150,
-        handle:'.drag-handle',
+        handle:'.drag-handle', 
         onEnd(evt){
             const moved=jsonData.infoImages.splice(evt.oldIndex,1)[0];
             jsonData.infoImages.splice(evt.newIndex,0,moved);
@@ -1824,9 +1868,6 @@ function initializeDragAndDrop(){
     });
 }
 
-// -------------------------
-// MAKE FIELDS EDITABLE
-// -------------------------
 function makeEditable(){
     document.querySelectorAll('.editable').forEach(el=>{
         el.removeEventListener('input', onEditableInput);
@@ -1836,6 +1877,7 @@ function makeEditable(){
 function onEditableInput(e){
     const field=e.target.dataset.field;
     const val=e.target.innerHTML.trim();
+
     if(!field){
         if(this.id==='companyA'){
             const lines=this.innerText.split('\n');
@@ -1850,6 +1892,7 @@ function onEditableInput(e){
             jsonData.companyB.postalCode=lines[2]||'';
         } else if(this.id==='reference'){
             jsonData.quote.reference=this.textContent;
+            updateDocumentTitle();
         } else if(this.id==='quoteTitle'){
             jsonData.quote.title=this.textContent;
         } else if(this.id==='quoteNumber'){
@@ -1859,7 +1902,6 @@ function onEditableInput(e){
         } else if(this.id==='projectNumber'){
             jsonData.quote.projectNumber=this.textContent;
         } else if(this.id==='totalLabel'){
-            // store user-changed total label
             jsonData.quote.totalLabel=this.textContent;
         }
         saveToLocal();
@@ -1872,7 +1914,6 @@ function onEditableInput(e){
         return;
     }
 
-    // else it is item or sub item
     const containerId=this.dataset.item;
     const idx=this.dataset.index;
     const sIdx=this.dataset.includedIndex;
@@ -1937,14 +1978,10 @@ function onEditableInput(e){
             break;
     }
     saveToLocal();
-    // Recalc total
     updatePrices();
     calculateTotalPrice();
 }
 
-// -------------------------
-// PDF + JSON
-// -------------------------
 async function generatePDF(){
     const ele=document.getElementById('quoteContent');
     const opt={
@@ -1971,19 +2008,51 @@ async function generatePDF(){
     }
 }
 
+function buildFileName(ref, version){
+    const now=new Date();
+    const yy= String(now.getFullYear()).slice(-2);
+    const mm= String(now.getMonth()+1).padStart(2,'0');
+    const dd= String(now.getDate()).padStart(2,'0');
+    const datePart= yy + mm + dd; 
+    const safeRef= ref.trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50);
+    return `${safeRef}_${datePart}_v${version}.json`;
+}
+
 document.getElementById('saveJson').addEventListener('click',()=>{
+    const refVal = jsonData.quote.reference || 'Unnamed';
+    const fileName=buildFileName(refVal,1);
+    doDownloadJson(fileName);
+});
+
+document.getElementById('overwriteJson').addEventListener('click', ()=>{
+    if(!currentFileName){
+        const refVal = jsonData.quote.reference || 'Unnamed';
+        const fileName=buildFileName(refVal,1);
+        doDownloadJson(fileName);
+        return;
+    }
+    const parsed=parseFileName(currentFileName);
+    if(!parsed){
+        const refVal = jsonData.quote.reference || 'Unnamed';
+        const fileName=buildFileName(refVal,1);
+        doDownloadJson(fileName);
+        return;
+    }
+    parsed.version++;
+    const newName= `${parsed.prefix}_${parsed.datePart}_v${parsed.version}.json`;
+    doDownloadJson(newName);
+});
+
+function doDownloadJson(fileName){
     const dataStr="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(jsonData,null,2));
     const dl=document.createElement('a');
     dl.setAttribute('href',dataStr);
-    dl.setAttribute('download','working.json');
+    dl.setAttribute('download',fileName);
     document.body.appendChild(dl);
     dl.click();
     dl.remove();
-});
+}
 
-// -------------------------
-// SHOW / HIDE unwanted
-// -------------------------
 document.getElementById('makeTransparent').addEventListener('click',()=>{
     storeOriginalStates();
     document.getElementById('statusMessage').textContent='Gör oönskade element transparenta...';
@@ -2029,20 +2098,135 @@ function storeOriginalStates(){
     });
 }
 
-// ADDED: Print button to simulate Ctrl+P
 document.getElementById('printBtn').addEventListener('click', () => {
     window.print();
 });
 
-// -------------------------
-// SAVE + ONLOAD
-// -------------------------
 function saveToLocal(){
     localStorage.setItem('quoteData', JSON.stringify(jsonData));
 }
 window.onload=()=>{
     loadQuoteData(jsonData);
 };
+
+/* Code to display the current USD and EUR to SEK values, placed in the "liveCurrencyRates" container (unwanted => hidden in print). */
+// Smarter currency fetcher: tries up to 10 days back if today's rate is unavailable
+(async () => {
+  const container = document.getElementById('liveCurrencyRates');
+  const baseCurrencies = ['usd', 'eur'];
+  const targetCurrency = 'sek';
+
+  const tryDatesBack = async (daysBack) => {
+    const date = new Date();
+    date.setDate(date.getDate() - daysBack);
+    return date.toISOString().split("T")[0];
+  };
+
+  const fetchRates = async (dateStr, base) => {
+    const url = `https://${dateStr}.currency-api.pages.dev/v1/currencies/${base}.json`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const rate = data?.[base]?.[targetCurrency];
+      return rate ? { rate, dateStr } : null;
+    } catch {
+      return null;
+    }
+  };
+
+  let resultText = '';
+  for (const base of baseCurrencies) {
+    let result = null;
+    for (let i = 0; i < 10 && !result; i++) {
+      const dateStr = await tryDatesBack(i);
+      result = await fetchRates(dateStr, base);
+    }
+
+    if (result) {
+      resultText += `1 ${base.toUpperCase()} = ${result.rate} SEK <br/> (från ${result.dateStr})<br/>`;
+    } else {
+      resultText += `Kunde ej ladda valutakurs för ${base.toUpperCase()}<br/>`;
+    }
+  }
+
+  container.innerHTML = resultText;
+})();
+
+
+/* Add the new "Spara som PDF" button next to "Print" that mimics printing to PDF but using html2pdf. */
+document.addEventListener('DOMContentLoaded', function () {
+    // Create the button
+    const savePdfBtn = document.createElement('button');
+    savePdfBtn.textContent = 'Spara som PDF';
+    savePdfBtn.className = 'add-button';
+    savePdfBtn.style.marginLeft = '10px';
+
+    // Insert it next to the Print button
+    const pdfButtonsSection = document.querySelector('.pdf-buttons');
+    if (pdfButtonsSection) {
+        pdfButtonsSection.appendChild(savePdfBtn);
+    }
+
+    // On click, generate PDF but hide .unwanted elements
+    savePdfBtn.addEventListener('click', async () => {
+        const quoteContent = document.getElementById('quoteContent');
+        if (!quoteContent) {
+            alert("Innehåll saknas – PDF kunde inte skapas.");
+            return;
+        }
+
+        const clone = quoteContent.cloneNode(true);
+
+        // Hide .unwanted in the clone
+        clone.querySelectorAll('.unwanted').forEach(el => {
+            el.style.display = 'none';
+        });
+
+        // Offscreen container
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.width = '210mm';
+        container.appendChild(clone);
+        document.body.appendChild(container);
+
+        const reference = (document.getElementById('reference')?.textContent || 'Offert').trim();
+        const quoteNumber = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
+        const today = new Date().toISOString().split("T")[0];
+
+        const cleanRef = reference.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, '-').substring(0, 40);
+        const cleanQuote = quoteNumber.replace(/[^\w\-]/g, '').substring(0, 20);
+        const fileName = `${cleanRef || 'Offert'}_${cleanQuote || '0000'}_${today}.pdf`;
+
+        try {
+            await html2pdf().set({
+                margin: 10,
+                filename: fileName,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true,
+                    scrollX: 0,
+                    scrollY: 0,
+                    windowWidth: document.documentElement.scrollWidth,
+                    windowHeight: document.documentElement.scrollHeight
+                },
+                jsPDF: {
+                    unit: 'mm',
+                    format: 'a4',
+                    orientation: 'portrait'
+                }
+            }).from(clone).save();
+        } catch (err) {
+            console.error("PDF generation failed:", err);
+            alert("Fel vid skapande av PDF. Försök igen.");
+        } finally {
+            container.remove();
+        }
+    });
+});
 </script>
 </body>
 </html>
