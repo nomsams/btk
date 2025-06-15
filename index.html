@@ -1,4 +1,4 @@
-<!-- Version 62 --> 
+<!-- Version 70 -- Improved Numbering, Controls, Toolbar, and Dash Replacement --> 
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -7,669 +7,148 @@
 <style>
 /* ------------------ PRINT STYLES ------------------ */
 @media print {
-    @page {
-        size: A4;
-        margin: 10mm;
-    }
-    body {
-        font-family: 'Arial', sans-serif;
-        font-size: 10.5pt;
-        line-height: 1.2;
-    }
-    body * {
-        visibility: hidden;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-    }
-    #quoteContent, #quoteContent * {
-        visibility: visible;
-    }
-    #quoteContent {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        padding: 0;
-        margin: 0;
-    }
-    .quote-section {
-        margin: 5mm 0;
-        page-break-inside: avoid !important;
-    }
-    .item-header, .item-meta {
-        display: grid;
-        grid-template-columns: 50px minmax(150px, 1fr) 80px 100px;
-        gap: 5mm;
-        align-items: start;
-    }
-    .item-details, .included-item .item-details {
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-        white-space: normal !important;
-        max-width: calc(100% - 60px);
-        margin-left: 50px;
-        margin-right: 10mm;
-    }
-    .editable, .item-meta div, .term-item {
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-        white-space: normal !important;
-    }
-    .term-item {
-        margin: 1.5mm 0;
-        padding-bottom: 2mm;
-    }
-    .info-text {
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-    }
-    .total-price {
-        margin-top: 4mm;
-        padding-top: 2mm;
-        border-top: 1pt solid #000;
-        text-align: right;
-        padding-right: 2mm;
-        page-break-inside: avoid !important;
-    }
-    h3 {
-        page-break-before: auto !important;
-        page-break-after: avoid !important;
-        margin-top: 6mm;
-        margin-bottom: 3mm !important;
-    }
-    .info-image-container {
-        page-break-inside: avoid !important;
-        margin: 3mm 0;
-    }
-    .info-image-container img {
-        max-width: 100% !important;
-        height: auto !important;
-    }
-    /* all unwanted classes are hidden in print */
-    .unwanted,
-    .remove-icon,
-    .button-container,
-    .description-remove-icon,
-    .image-resize-handle {
-        display: none !important;
-    }
+    @page { size: A4; margin: 10mm; }
+    body { font-family: 'Arial', sans-serif; font-size: 10.5pt; line-height: 1.2; }
+    body * { visibility: hidden; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    #quoteContent, #quoteContent * { visibility: visible; }
+    #quoteContent { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
+    b { font-weight: bold; }
+    i { font-style: italic; }
+    #printMultiplier { display: block !important; position: relative !important; bottom: auto !important; right: auto !important; margin-top: 1mm !important; font-size: 4pt !important; color: white !important; }
+    .quote-section { margin: 5mm 0; page-break-inside: avoid !important; }
+    .item-header, .item-meta { display: grid; grid-template-columns: 50px minmax(150px, 1fr) 80px 100px; gap: 5mm; align-items: start; }
+    .item-details, .included-item .item-details { word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; max-width: calc(100% - 60px); margin-left: 50px; margin-right: 10mm; }
+    .editable, .item-meta div, .term-item { word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }
+    .term-item { margin: 1.5mm 0; padding-bottom: 2mm; }
+    .info-text { word-wrap: break-word !important; overflow-wrap: break-word !important; }
+    .total-price { margin-top: 4mm; padding-top: 2mm; border-top: 1pt solid #000; text-align: right; padding-right: 2mm; page-break-inside: avoid !important; }
+    h3 { page-break-before: auto !important; page-break-after: avoid !important; margin-top: 6mm; margin-bottom: 3mm !important; }
+    .info-image-container { page-break-inside: avoid !important; margin: 3mm 0; }
+    .info-image-container img { max-width: 100% !important; height: auto !important; }
+    .unwanted, .remove-icon, .button-container, .description-remove-icon, .image-resize-handle, .item-tooltip, .formatting-toolbar, .item-actions { display: none !important; }
 }
+
+@media screen {
+  #printMultiplier { display: none !important; }
+}
+
 /* ------------------ SCREEN STYLES ------------------ */
-
-body {
-    font-family: 'Arial', sans-serif;
-    margin: 0;
-    padding: 20px;
-    max-width: 210mm;
-    margin: auto;
-    font-size: 12pt;
-    background-color: #fff;
-}
-
-.targetPrice span, .subItemTargetPrice span {
-    width: 90% !important;
-}
-
-.bold { font-weight: bold; }
-
-.zero-text { color: white !important; /* hides zero on white bg */ }
-
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 20px;
-}
-.header img {
-    max-width: 200px;
-    margin-right: 20px;
-}
-.quote-title {
-    font-size: 24px;
-    font-weight: bold;
-    text-align: right;
-    width: 100%;
-}
-
-.quote-number, .date, .project-number {
-    text-align: right;
-}
-.quote-section {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    align-items: flex-start;
-}
-.quote-section strong {
-    display: block;
-    margin-bottom: 2px;
-}
-.quote-section p {
-    margin-top: 2px;
-}
-.swap-button {
-    font-size: 24px;
-    cursor: pointer;
-    margin: 0 20px;
-    user-select: none;
-}
-
-/* Items + subitems */
-.quote-item {
-    border-bottom: 0px solid #ccc;
-    padding: 5px 0;
-    position: relative;
-    width: 100%;
-    box-sizing: border-box;
-    cursor: move; /* so we can drag these top-level items */
-}
-.quote-item:hover .remove-icon {
-    display: block;
-}
-.included-item {
-    padding: 0px 0;
-    font-weight: normal;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.item-header {
-    display: grid;
-    grid-template-columns: 70px minmax(200px, 1fr) 100px 120px;
-    gap: 10px;
-    font-weight: bold;
-    border-bottom: 2px solid #000;
-    padding-bottom: 10px;
-    margin-top: 20px;
-    align-items: center;
-}
-.item-header > div {
-    padding: 5px;
-}
-.item-meta {
-    display: grid;
-    grid-template-columns: 70px minmax(200px,1fr) 100px 120px;
-    gap: 10px;
-    align-items: center;
-    position: relative;
-    margin: 5px 0;
-    padding-left: 0;
-}
-.item-meta div {
-    display: flex;
-    align-items: center;
-    padding: 5px;
-    justify-content: flex-start;
-}
-
+body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; max-width: 210mm; margin: auto; font-size: 12pt; background-color: #fff; }
+.targetPrice span, .subItemTargetPrice span { width: 90% !important; }
+.bold, b { font-weight: bold; }
+i { font-style: italic; }
+.zero-text { color: white !important; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
+.header img { max-width: 200px; margin-right: 20px; }
+.quote-title { font-size: 24px; font-weight: bold; text-align: right; width: 100%; }
+.quote-number, .date, .project-number { text-align: right; }
+.quote-section { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: flex-start; }
+.quote-section strong { display: block; margin-bottom: 2px; }
+.quote-section p { margin-top: 2px; }
+.swap-button { font-size: 24px; cursor: pointer; margin: 0 20px; user-select: none; }
+.quote-item, .included-item { position: relative; width: 100%; box-sizing: border-box; }
+.quote-item { padding: 5px 0; cursor: move; }
+.included-item { padding: 0px 0; font-weight: normal; }
+.quote-item:hover .item-actions, .included-item:hover .item-actions { display: flex; }
+.item-header { display: grid; grid-template-columns: 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
+.item-header > div { padding: 5px; }
+.item-meta { display: grid; grid-template-columns: 70px minmax(200px,1fr) 100px 120px; gap: 10px; align-items: center; position: relative; margin: 5px 0; padding-left: 0; }
+.included-item .item-meta { background-color: rgba(249, 249, 249, 0.5); margin-left: 30px;}
+.item-meta div { display: flex; align-items: center; padding: 5px; justify-content: flex-start; }
 .item-number { text-align: left; width: 100%; }
-.item-name {
-    text-align: left;
-    padding-right: 10px;
-    word-wrap: break-word;
-}
-.quantity, .quantity-header,
-.targetPrice, .price-header,
-.subItemTargetPrice {
-    text-align: right;
-    padding-right: 15px;
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum";
-    min-width: 80px;
-    white-space: nowrap;
-    position: relative;
-    justify-content: flex-end;
-}
-.input-container {
-    display: inline-flex;
-    align-items: center;
-    position: relative;
-}
-.button-container {
-    position: absolute;
-    bottom: 100%;
-    right: 0;
-    display: none;
-    flex-direction: row;
-    gap: 1px;
-}
-.input-container:hover .button-container {
-    display: flex;
-}
-.button-container button {
-    width: 25px;
-    height: 25px;
-    cursor: pointer;
-    border: 1px solid #ccc;
-    background-color: #f8f8f8;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.button-container button:hover {
-    background-color: #e8e8e8;
-}
-input[type="number"] {
-    width: 60px;
-    padding: 5px;
-    text-align: right;
-    border: none;
-    background-color: transparent;
-    font-size: 12pt;
-    vertical-align: middle;
-}
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-    display: none;
-}
+.item-name { text-align: left; padding-right: 10px; word-wrap: break-word; }
+.quantity, .quantity-header, .targetPrice, .price-header, .subItemTargetPrice { text-align: right; padding-right: 15px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; justify-content: flex-end; }
+.input-container { display: inline-flex; align-items: center; position: relative; }
+.button-container { position: absolute; bottom: 100%; right: 0; display: none; flex-direction: row; gap: 1px; }
+.input-container:hover .button-container { display: flex; }
+.button-container button { width: 25px; height: 25px; cursor: pointer; border: 1px solid #ccc; background-color: #f8f8f8; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+.button-container button:hover { background-color: #e8e8e8; }
+input[type="number"] { width: 60px; padding: 5px; text-align: right; border: none; background-color: transparent; font-size: 12pt; vertical-align: middle; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
 input[type="number"] { -moz-appearance: textfield; }
-
-.included-item .item-meta {
-    grid-template-columns: 70px minmax(200px,1fr) 100px 120px;
-    margin-left: 0;
-    width: 100%;
-    background-color: rgba(249, 249, 249, 0.5);
-    border-left: 0;
-}
-.item-details, .included-item .item-details {
-    margin-top: 5px;
-    font-weight: normal;
-    position: relative;
-    grid-column: 2 / 5;
-    padding-left: 5px;
-    padding-right: 130px;
-    max-width: calc(100% - 200px);
-    word-wrap: break-word;
-    margin-left: 80px;
-}
-
-/* editable fields */
-.editable {
-    border: 1px solid transparent;
-    padding: 5px;
-    width: 100%;
-    word-wrap: break-word;
-}
-.editable:hover {
-    border: 1px solid #ddd;
-    background-color: #f9f9f9;
-}
-.editable:focus {
-    outline: 2px solid #007bff;
-    border-radius: 3px;
-    background-color: #fff;
-}
-
-/* Terms + footer */
+.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 130px; max-width: calc(100% - 200px); word-wrap: break-word; margin-left: 80px; }
+.included-item .item-details { margin-left: 110px; }
+.editable { border: 1px solid transparent; padding: 5px; width: 100%; word-wrap: break-word; }
+.editable:hover { border: 1px solid #ddd; background-color: #f9f9f9; }
+.editable:focus { outline: 2px solid #007bff; border-radius: 3px; background-color: #fff; }
+.p-editable { white-space: pre-wrap; min-height: 1.2em; }
 .terms, .footer { margin-top: 20px; }
 .footer { text-align: center; }
 #fileInput { margin-bottom: 20px; }
-.add-button, .remove-button, .add-optional-button, .add-term-button {
-    cursor: pointer;
-    padding: 5px 10px;
-    background-color: green;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    margin: 5px;
-    font-size: 12pt;
-}
-.remove-button {
-    background-color: red;
-}
-
-/* icons for removing items */
-.remove-icon {
-    display: none;
-    color: white;
-    background-color: red;
-    font-size: 16px;
-    cursor: pointer;
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    text-align: center;
-    line-height: 18px;
-}
-
-.pdf-buttons { margin: 20px 0; }
-.status-message {
-    margin-top: 10px;
-    font-weight: bold;
-    color: green;
-    font-size: 12pt;
-}
-
-/* total price line */
-.total-price {
-    text-align: right;
-    font-weight: bold;
-    margin-top: 20px;
-    font-size: 12pt;
-    padding-right: 15px;
-    margin-right: 0;
-    border-top: 2px solid #000;
-    padding-top: 10px;
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum";
-    width: 100%;
-    position: relative;
-}
-
-/* Terms list */
-.term-item {
-    padding: 2px 0;
-    position: relative;
-}
-.term-item .editable {
-    width: 80%;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    white-space: normal;
-    margin-right: 10px;
-}
-.term-item:hover .remove-icon {
-    display: block;
-}
-
-/* reference block */
+.add-button, .remove-button, .add-optional-button, .add-term-button, .footer-button { cursor: pointer; padding: 5px 10px; background-color: green; color: white; border: none; border-radius: 5px; margin: 5px; font-size: 12pt; }
+.remove-button { background-color: red; }
+.footer-button:hover { background-color: #45a049; }
+.remove-icon { display: none; color: white; background-color: red; font-size: 16px; cursor: pointer; position: absolute; right: 10px; top: 10px; width: 20px; height: 20px; border-radius: 10px; text-align: center; line-height: 18px; }
+.term-item:hover .remove-icon { display: block; }
+.status-message { margin-top: 10px; font-weight: bold; color: green; font-size: 12pt; }
+.total-price { text-align: right; font-weight: bold; margin-top: 20px; font-size: 12pt; padding-right: 15px; margin-right: 0; border-top: 2px solid #000; padding-top: 10px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: 100%; position: relative; }
+.term-item { padding: 2px 0; position: relative; }
+.term-item .editable { width: 80%; }
 .reference { margin: 20px 0; }
-.included-list {
-    margin-left: 0;
-    margin-top: 5px;
-}
-.currency-multiplier {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    text-align: right;
-}
-.currency-multiplier label {
-    font-weight: bold;
-}
-.currency-multiplier input {
-    width: 60px;
-    padding: 5px;
-    font-size: 12pt;
-    text-align: right;
-}
-
-/* remove icon for item details */
-.description-remove-icon {
-    display: none;
-    color: white;
-    background-color: red;
-    font-size: 16px;
-    cursor: pointer;
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    text-align: center;
-    line-height: 18px;
-    position: absolute;
-    right: 10px;
-    top: 10px;
-}
-.item-details:hover .description-remove-icon,
-.included-item:hover .description-remove-icon {
-    display: block;
-}
-
-/* checkboxes for project number and decimals */
-.checkbox-group {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-    margin-bottom: 10px;
-}
-#optionalItemsList {
-    margin-top: 0;
-    padding-top: 0;
-}
-#termsList {
-    margin-top: 0px;
-    padding-top: 10px;
-}
-h3.name.editable {
-    margin-bottom: 0 !important;
-}
-
-/* info images section */
+.currency-multiplier { margin-top: 20px; margin-bottom: 20px; text-align: right; }
+.currency-multiplier label { font-weight: bold; }
+.currency-multiplier input { width: 60px; padding: 5px; font-size: 12pt; text-align: right; }
+.description-remove-icon { display: none; color: white; background-color: red; font-size: 16px; cursor: pointer; width: 20px; height: 20px; border-radius: 10px; text-align: center; line-height: 18px; position: absolute; right: 10px; top: 10px; }
+.item-details:hover .description-remove-icon, .included-item:hover .description-remove-icon { display: block; }
+.checkbox-group { display: flex; gap: 20px; align-items: center; margin-bottom: 10px; }
+#optionalItemsList { margin-top: 0; padding-top: 0; }
+#termsList { margin-top: 0px; padding-top: 10px;}
+h3.name.editable { margin-bottom: 0 !important; }
 .info-images { margin: 20px 0; }
-#infoImagesList {
-    margin: px 0;
-}
-.info-block {
-    position: relative;
-    margin: 10px 0;
-    background-color: transparent;
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 30px; 
-}
-.info-block:hover {
-    background-color: #fafafa;
-}
-.info-block .remove-icon {
-    display: none;
-}
-.info-block:hover .remove-icon {
-    display: inline-block;
-}
-.info-text-block {
-    min-height: 30px;
-    padding: 5px;
-    border: 1px solid transparent;
-}
-.info-text-block:hover {
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
-}
-
-.info-image-container {
-    position: relative;
-    width: auto;
-    margin: 10px 0;
-}
-.info-image-container img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-}
-.image-resize-handle {
-    width: 20px;
-    height: 20px;
-    background-color: #fff; /* filled circle */
-    border: 2px solid #007bff;
-    border-radius: 50%;
-    position: absolute;
-    bottom: -10px;
-    right: -10px;
-    cursor: se-resize;
-    z-index: 9999; /* ensure on top */
-    pointer-events: all; /* ensure we can grab it */
-}
-
-/* row of up arrow, drag handle, down arrow, remove icon */
-.controls-row {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    z-index: 9999; 
-}
-.controls-row.unwanted > span {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 5px;
-    background-color: #333; /* so we see them clearly */
-    color: white;
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    font-size: 16px;
-    text-align: center;
-    line-height: 18px;
-}
-.remove-icon {
-    top: 28px !important; /* place it slightly below the row */
-    right: 5px !important;
-    z-index: 9999;
-}
-.drag-handle {
-    background-color: #333;
-    color: white;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 18px;
-    cursor: move;
-}
-.info-image-up, .info-image-down {
-    border-radius: 50%;
-    text-align: center;
-    line-height: 18px;
-    cursor: pointer;
-    font-size: 16px;
-}
-
-/* main items container remove-icon on hover */
-#mainItemsSectionContainer {
-    position: relative;
-}
-#mainItemsSectionContainer .section-remove-icon {
-    display: none;
-    position: absolute;
-    left:10px;
-    top:5px;
-    background-color:red;
-    width:20px;
-    height:20px;
-    border-radius:10px;
-    text-align:center;
-    line-height:18px;
-    color:white;
-    cursor:pointer;
-    font-size:16px;
-    z-index:100;
-}
-#mainItemsSectionContainer:hover .section-remove-icon {
-    display: block;
-}
-
-/* optional items container remove-icon on hover */
-#optionalSectionContainer {
-    position: relative;
-}
-#optionalSectionContainer .section-remove-icon {
-    display: none;
-    position: absolute;
-    left:10px;
-    top:5px;
-    background-color:red;
-    width:20px;
-    height:20px;
-    border-radius:10px;
-    text-align:center;
-    line-height:18px;
-    color:white;
-    cursor:pointer;
-    font-size:16px;
-    z-index:100;
-}
-#optionalSectionContainer:hover .section-remove-icon {
-    display: block;
-}
-
-/* info section remove-icon on hover */
-#infoSectionContainer {
-    position: relative;
-}
-#infoSectionContainer .section-remove-icon {
-    display: none;
-    position: absolute;
-    left:10px;
-    top:5px;
-    background-color:red;
-    width:20px;
-    height:20px;
-    border-radius:10px;
-    text-align:center;
-    line-height:18px;
-    color:white;
-    cursor:pointer;
-    font-size:16px;
-    z-index:100;
-}
-#infoSectionContainer:hover .section-remove-icon {
-    display: block;
-}
-
-.horizontal-line {
-    border: none;
-    border-top: 2px solid black;
-    margin-top: 5px;
-    margin-bottom: 5px;
-    width: 100%;
-}
-
-/* table block in info section */
-.info-table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: white;
-    margin-top: 10px;
-}
-.info-table td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    min-width: 50px;
-    position: relative;
-}
-.info-table td[contenteditable="true"] {
-    cursor: text;
-}
-.info-table td[contenteditable="true"]:hover {
-    background-color: #f9f9f9;
-}
-.info-table td[contenteditable="true"]:focus {
-    outline: 2px solid #007bff;
-    background-color: #fff;
-}
-
-/* fix the green styling for the image-upload-button, matching .add-button */
-.image-upload-button {
-    background-color: green;
-    color: white;
-    padding: 5px 10px;
-    border: none;
-    border-radius: 5px;
-    margin: 5px;
-    font-size: 12pt;
-    cursor: pointer;
-}
-.image-upload-button:hover {
-    background-color: #45a049;
-}
-
-/* Make liveCurrencyRates smaller to 12px */
-#liveCurrencyRates {
-    font-size: 12px !important;
-}
+.info-block { position: relative; margin: 10px 0; display: block; width: 100%; box-sizing: border-box; min-height: 30px; }
+.info-block:hover { background-color: #fafafa; }
+.info-block .remove-icon { display: none; }
+.info-block:hover .remove-icon { display: inline-block; }
+.info-text-block { min-height: 30px; padding: 5px; border: 1px solid transparent; }
+.info-text-block:hover { background-color: #f9f9f9; border: 1px solid #ddd; }
+.info-image-container { position: relative; width: auto; margin: 10px 0; }
+.info-image-container img { max-width: 100%; height: auto; display: block; }
+.image-resize-handle { width: 20px; height: 20px; background-color: #fff; border: 2px solid #007bff; border-radius: 50%; position: absolute; bottom: -10px; right: -10px; cursor: se-resize; z-index: 9999; pointer-events: all; }
+.controls-row { position: absolute; top: 5px; right: 5px; display: inline-flex; align-items: center; gap: 5px; z-index: 9999; }
+.drag-handle { background-color: #333; color: white; border-radius: 50%; text-align: center; line-height: 18px; cursor: move; }
+.info-image-up, .info-image-down { border-radius: 50%; text-align: center; line-height: 18px; cursor: pointer; font-size: 16px; }
+#mainItemsSectionContainer, #optionalSectionContainer, #infoSectionContainer { position: relative; }
+.section-remove-icon { display: none; position: absolute; left:10px; top:5px; background-color:red; width:20px; height:20px; border-radius:10px; text-align:center; line-height:18px; color:white; cursor:pointer; font-size:16px; z-index:100; }
+#mainItemsSectionContainer:hover .section-remove-icon, #optionalSectionContainer:hover .section-remove-icon, #infoSectionContainer:hover .section-remove-icon { display: block; }
+.horizontal-line { border: none; border-top: 2px solid black; margin: 5px 0; width: 100%; }
+.info-table { width: 100%; border-collapse: collapse; background-color: white; margin-top: 10px; }
+.info-table td { border: 1px solid #ccc; padding: 8px; min-width: 50px; position: relative; }
+.info-table td[contenteditable="true"]:hover { background-color: #f9f9f9; }
+.info-table td[contenteditable="true"]:focus { outline: 2px solid #007bff; background-color: #fff; }
+.image-upload-button { background-color: green; color: white; padding: 5px 10px; border: none; border-radius: 5px; margin: 5px; font-size: 12pt; cursor: pointer; }
+.image-upload-button:hover { background-color: #45a049; }
+#liveCurrencyRates { font-size: 12px !important; }
+#infoImagesList { display: block !important; }
+#infoImagesList .info-block { display: inline-block !important; vertical-align: top !important; width: auto !important; margin: 0 10px 10px 0 !important; }
+#infoImagesList .info-block:has(.info-text-block), #infoImagesList .info-block:has(.info-table) { display: block !important; width: 100% !important; margin: 0 0 10px !important; }
+#infoImagesList .info-image-container { display: inline-block; line-height: 0; margin: 0; }
+#infoImagesList .info-image-container img { display: block; max-width: 100%; width: auto; height: auto; object-fit: cover; }
+.item-meta .item-tooltip { display: none; position: absolute; top: -18px; right: 5px; background: rgba(255, 255, 255, 0.95); border-radius: 4px; padding: 2px 5px; font-size: 11px; display: flex; gap: 8px; align-items: center; z-index: 10; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.item-meta:hover .item-tooltip { display: flex; }
+.item-tooltip .original-price-display, .item-tooltip .margin-display { white-space: nowrap; border: 1px solid transparent; border-radius: 3px; padding: 1px 3px; min-width: 40px; text-align: right; }
+.item-tooltip .original-price-display { color: blue; }
+.item-tooltip .margin-display { color: green; font-weight: bold; }
+.item-tooltip .margin-display.discount { color: #b78a00; }
+.item-tooltip .editable:hover { border-color: #ccc; background-color: #f9f9f9; }
+.item-tooltip .editable:focus { border-color: #007bff; background-color: white; box-shadow: 0 0 0 1px #007bff; }
+.item-actions { display: none; position: absolute; right: -85px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
+.item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
+.item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
+#formatting-toolbar { position: absolute; display: none; z-index: 1000; background: #333; border-radius: 5px; padding: 5px; }
+#formatting-toolbar button { background: #444; color: white; border: 1px solid #555; border-radius: 3px; padding: 5px 10px; cursor: pointer; font-size: 14px; }
+#formatting-toolbar button.active { background: #007bff; border-color: #0056b3; }
+#formatting-toolbar button:hover { background: #555; }
 </style>
 </head>
 <body>
+
+<div id="formatting-toolbar" class="unwanted">
+  <button id="bold-btn" title="Fet (Ctrl+B)"><b>B</b></button>
+  <button id="italic-btn" title="Kursiv (Ctrl+I)"><i>I</i></button>
+</div>
+
 <div id="quoteContent">
     <div class="header">
-        <!-- Company Logo -->
         <img alt="Company Logo" src="logo.png"/>
         <div class="quote-title editable" contenteditable="true" id="quoteTitle">Offert</div>
     </div>
@@ -679,7 +158,6 @@ h3.name.editable {
     <div class="date" id="dateLabel">Datum:
         <span class="editable" contenteditable="true" id="quoteDate"></span>
     </div>
-    <!-- set display:none so it's invisible by default -->
     <div class="project-number unwanted" id="projectNumberDiv" style="display:none;">
         Projekt Nummer:
         <span class="editable" contenteditable="true" id="projectNumber"></span>
@@ -688,37 +166,23 @@ h3.name.editable {
     <div class="checkbox-group unwanted">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
-        <!-- New "Compress images" checkbox -->
         <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
     </div>
     <div class="currency-multiplier unwanted" style="position: relative;">
-        <!-- Live currency rates container (unwanted => not printed, now at 12px) -->
         <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px;"></div>
         <label for="currencyMultiplierInput">Valutakurs:</label>
         <input type="number" id="currencyMultiplierInput" value="11.8" step="0.01" />
+        <label for="marginPercentageInput" id="marginLabel" style="margin-left: 10px;">Påslag (%):</label>
+        <input type="number" id="marginPercentageInput" value="0" step="1" />
     </div>
 
-    <!--
-      Language toggle + custom currency + remove total checkbox
-      Marked as 'unwanted' so not printed
-    -->
     <div class="unwanted" style="text-align:right; margin-bottom:20px;">
-        <!-- Language toggle button -->
         <button id="toggleLanguageBtn">Byt Språk (SV/EN)</button>
-
-        <!-- Custom currency checkbox -->
         <label style="margin-left:15px;">
             <input type="checkbox" id="useCustomCurrencyChk" />
             Använd egen valuta
         </label>
-
-        <!-- Custom currency input (initially hidden/disabled) -->
-        <input type="text" id="customCurrencyInput"
-               value="EUR"
-               style="width:80px; display:none; margin-left:10px;"
-        />
-
-        <!-- Box to remove total line -->
+        <input type="text" id="customCurrencyInput" value="EUR" style="width:80px; display:none; margin-left:10px;"/>
         <label id="removeTotalCheckboxLabel" style="margin-left:15px;">
             <input type="checkbox" id="removeTotalCheck" />
             Ta bort totalen
@@ -726,276 +190,177 @@ h3.name.editable {
     </div>
 
     <div class="quote-section">
-        <div style="margin-bottom: -5px;">
-            <strong id="toLabel">Till:</strong>
-            <p class="editable" contenteditable="true" id="companyA"></p>
-        </div>
-        <div class="swap-button unwanted" id="swapButton" style="margin-bottom: -5px;">&lt;-&gt;</div>
-        <div style="margin-bottom: -5px;">
-            <strong id="fromLabel">Från:</strong>
-            <p class="editable" contenteditable="true" id="companyB"></p>
-        </div>
+        <div style="margin-bottom: -5px;"><strong id="toLabel">Till:</strong><p class="editable p-editable" contenteditable="true" id="companyA"></p></div>
+        <div class="swap-button unwanted" id="swapButton"><-></div>
+        <div style="margin-bottom: -5px;"><strong id="fromLabel">Från:</strong><p class="editable p-editable" contenteditable="true" id="companyB"></p></div>
     </div>
 
-    <div class="reference">
-        <strong id="refLabel">Ref:</strong>
-        <span class="editable" contenteditable="true" id="reference"></span>
-    </div>
+    <div class="reference"><strong id="refLabel">Ref:</strong><span class="editable" contenteditable="true" id="reference"></span></div>
 
-
-    <!-- MAIN items section -->
     <div id="mainItemsSectionContainer">
-        <!-- Same style for remove icon on hover -->
         <span class="section-remove-icon" onclick="removeMainSection()">✖</span>
-
         <div class="item-header">
-            <div class="item-number-header" id="nrHeader">Nr</div>
-            <div class="name-header editable" contenteditable="true" id="articleNameHeader">Artikel / Namn</div>
-            <div class="quantity-header" id="quantityHeader">Antal</div>
-            <div class="price-header" id="priceHeader">Pris (SEK)</div>
+            <div id="nrHeader">Nr</div><div id="articleNameHeader" class="editable" contenteditable="true">Artikel / Namn</div>
+            <div id="quantityHeader">Antal</div><div id="priceHeader">Pris (SEK)</div>
         </div>
         <div id="itemsList"></div>
-
-        <!-- Make the label part editable, numeric part auto-updated. -->
-        <div class="total-price" id="totalPrice">
-            <span id="totalLabel" class="editable" contenteditable="true" data-field="totalLabel">Total:</span>
-            <span id="totalValue">0 SEK</span>
-        </div>
-
+        <div class="total-price" id="totalPrice"><span id="totalLabel" class="editable" contenteditable="true" data-field="totalLabel">Total:</span><span id="totalValue">0 SEK</span></div>
         <button class="add-button unwanted" id="addItemButton">+ Lägg till ny artikel</button>
     </div>
 
-    <!-- Optional items list -->
     <div id="optionalSectionContainer">
-        <h3 class="name editable" contenteditable="true" id="optionalItemsHeading">Alternativ / Ytterligare Artiklar</h3>
+        <h3 id="optionalItemsHeading" class="name editable" contenteditable="true">Alternativ / Ytterligare Artiklar</h3>
         <span class="section-remove-icon" onclick="removeOptionalSection()">✖</span>
         <div class="item-header">
-            <div class="item-number-header" id="optNrHeader">Nr</div>
-            <div class="name-header editable" contenteditable="true" id="optArticleHeader">Artikel / Namn</div>
-            <div class="quantity-header" id="optQuantityHeader">Antal</div>
-            <div class="price-header" id="optPriceHeader">Pris (SEK)</div>
+            <div id="optNrHeader">Nr</div><div id="optArticleHeader" class="editable" contenteditable="true">Artikel / Namn</div>
+            <div id="optQuantityHeader">Antal</div><div id="optPriceHeader">Pris (SEK)</div>
         </div>
         <div id="optionalItemsList"></div>
-        <button class="add-optional-button unwanted" id="addOptionalItemButton">
-            + Lägg till ny artikel
-        </button>
+        <button class="add-optional-button unwanted" id="addOptionalItemButton">+ Lägg till ny artikel</button>
     </div>
 
-    <!-- Info/bilder -->
     <div id="infoSectionContainer">
-        <h3 class="name editable" contenteditable="true" id="infoImagesHeading">Info / Bilder</h3>
-        <hr class="horizontal-line" />
-        <span class="section-remove-icon" onclick="removeInfoSection()">✖</span>
+        <h3 id="infoImagesHeading" class="name editable" contenteditable="true">Info / Bilder</h3>
+        <hr class="horizontal-line" /><span class="section-remove-icon" onclick="removeInfoSection()">✖</span>
         <div id="infoImagesList"></div>
         <div class="image-upload-container unwanted">
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
-            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">
-                Lägg till bild (filuppladdning)
-            </button>
-            <!-- We do NOT remove the code for URL/Drop but we hide the buttons from the UI -->
-            <button class="image-upload-button unwanted" style="display:none;" onclick="addImageFromUrl()">
-                Lägg till bild (URL)
-            </button>
-            <!-- dropzone was removed as requested -->
-
-            <button class="image-upload-button add-info-text-button" onclick="addInfoText()">
-                Lägg till text
-            </button>
-            <button class="image-upload-button add-table-button" onclick="addTable()">
-                Lägg till tabell
-            </button>
+            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (filuppladdning)</button>
+            <button class="image-upload-button unwanted" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
+            <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
+            <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
         </div>
     </div>
 
-    <!-- Terms section -->
-    <h3 class="name editable" contenteditable="true" id="termsHeading">Villkor</h3>
+    <h3 id="termsHeading" class="name editable" contenteditable="true">Villkor</h3>
     <hr class="horizontal-line" />
     <div id="termsList"></div>
     <button class="add-term-button unwanted" id="addTermButton">+ Lägg till villkor</button>
+
+<div id="printMultiplier">currencyMultiplicator: <span id="multiplierValue"></span></div>
+
 </div>
 
 <div class="footer unwanted">
-    <input type="file" id="fileInput" accept=".json" />
-    <div class="pdf-buttons">
-        <!-- Print Button to simulate Ctrl+P -->
-        <button class="unwanted" id="printBtn">Print</button>
-        <br/><br/>
-
-        <button class="unwanted" id="makeTransparent">Make Unwanted Transparent</button>
-        <button class="unwanted" id="setDisplayNone">Hide Unwanted Elements</button>
-        <button class="unwanted" id="removeElements">Remove Unwanted Elements</button>
-        <button class="unwanted" id="resetUnwanted">Reset Unwanted</button>
-        <br/>
-        <div class="status-message" id="statusMessage"></div>
-    </div>
-
-    <!-- Two buttons for saving JSON: "Spara JSON" and "Overwrite JSON" -->
-    <button class="unwanted add-button" id="saveJson">Spara JSON</button>
-    <button class="unwanted add-button" id="overwriteJson">Overwrite JSON</button>
+    <input type="file" id="fileInput" accept=".json" style="display: none;" />
+    <button class="footer-button" onclick="document.getElementById('fileInput').click()">Ladda JSON</button>
+    <button id="saveJson" class="footer-button">Spara JSON</button>
+    <button id="copyJsonBtn" class="footer-button">Kopiera JSON (text)</button>
+    <button class="footer-button" id="uploadPdfBtn">Ladda PDF-offert</button>
+    <input type="file" id="pdfUploadInput" accept=".pdf" style="display:none;" />
+    <button class="footer-button" id="savePdfBtn">Spara som PDF</button>
+    <button id="printBtn" class="footer-button">Print</button>
+    <div class="status-message" id="statusMessage"></div>
 </div>
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>
-/* Version 62 changes:
-   - Removed the <div id="dropzone">Dra och släpp bilder här</div>.
-   - Made #liveCurrencyRates 12px in size.
-   - Added a new button for "Spara som PDF" next to the Print button, which effectively generates a PDF snapshot of the content after hiding .unwanted items (mimicking print).
-*/
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+</script>
 
-/*
-  Translation dictionary:
-*/
+<script>
 const translations = {
   sv: {
-    quoteTitle: "Offert",
-    quoteNumberLabel: "Offert nr:",
-    dateLabel: "Datum:",
-    projectNumberLabel: "Projekt Nummer:",
-    toLabel: "Till:",
-    fromLabel: "Från:",
-    refLabel: "Ref:",
-    nrHeader: "Nr",
-    articleHeader: "Artikel / Namn",
-    quantityHeader: "Antal",
-    priceHeader: "Pris",
-    addItemButton: "+ Lägg till ny artikel",
-    optionalItemsHeading: "Alternativ / Ytterligare Artiklar",
-    infoImagesHeading: "Info / Bilder",
-    termsHeading: "Villkor",
-    addOptionalItemButton: "+ Lägg till ny artikel",
-    addTermButton: "+ Lägg till villkor",
-    customCurrencyLabel: "Använd egen valuta",
-    toggleLangBtn: "Byt Språk (SV/EN)",
-    newTermText: "Nytt villkor: Klicka för att redigera",
-    newArticleName: "Artikel Namn",
-    newAltArticleName: "Alternativ Artikel Namn",
-    newDescription: "Beskrivning",
-    newInfoText: "Klicka för att redigera text",
-    promptImageUrl: "Ange bildens URL:",
-    removeTotalLabel: "Ta bort totalen",
-    totalLabel: "Total:"
+    quoteTitle: "Offert", quoteNumberLabel: "Offert nr:", dateLabel: "Datum:", projectNumberLabel: "Projekt Nummer:",
+    toLabel: "Till:", fromLabel: "Från:", refLabel: "Ref:", nrHeader: "Nr", articleHeader: "Artikel / Namn",
+    quantityHeader: "Antal", priceHeader: "Pris", addItemButton: "+ Lägg till ny artikel",
+    optionalItemsHeading: "Alternativ / Ytterligare Artiklar", infoImagesHeading: "Info / Bilder",
+    termsHeading: "Villkor", addOptionalItemButton: "+ Lägg till ny artikel", addTermButton: "+ Lägg till villkor",
+    customCurrencyLabel: "Använd egen valuta", toggleLangBtn: "Byt Språk (SV/EN)", newTermText: "Nytt villkor: Klicka för att redigera",
+    newArticleName: "Artikel Namn", newAltArticleName: "Alternativ Artikel Namn", newDescription: "Beskrivning",
+    newInfoText: "Klicka för att redigera text", promptImageUrl: "Ange bildens URL:", removeTotalLabel: "Ta bort totalen",
+    totalLabel: "Total:", marginLabel: "Påslag (%):", copyJsonBtn: "Kopiera JSON (text)",
+    statusJsonCopied: "Status: JSON kopierad till urklipp!"
   },
   en: {
-    quoteTitle: "Quote",
-    quoteNumberLabel: "Quote No:",
-    dateLabel: "Date:",
-    projectNumberLabel: "Project Number:",
-    toLabel: "To:",
-    fromLabel: "From:",
-    refLabel: "Ref:",
-    nrHeader: "No",
-    articleHeader: "Article / Name",
-    quantityHeader: "Quantity",
-    priceHeader: "Price",
-    addItemButton: "+ Add new item",
-    optionalItemsHeading: "Alternative / Additional Items",
-    infoImagesHeading: "Info / Images",
-    termsHeading: "Terms",
-    addOptionalItemButton: "+ Add new item",
-    addTermButton: "+ Add a term",
-    customCurrencyLabel: "Use custom currency",
-    toggleLangBtn: "Toggle Language (SV/EN)",
-    newTermText: "New term: Click to edit",
-    newArticleName: "Article Name",
-    newAltArticleName: "Alternative Article Name",
-    newDescription: "Description",
-    newInfoText: "Click to edit text",
-    promptImageUrl: "Enter image URL:",
-    removeTotalLabel: "Remove total",
-    totalLabel: "Total:"
+    quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
+    toLabel: "To:", fromLabel: "From:", refLabel: "Ref:", nrHeader: "No", articleHeader: "Article / Name",
+    quantityHeader: "Quantity", priceHeader: "Price", addItemButton: "+ Add new item",
+    optionalItemsHeading: "Alternative / Additional Items", infoImagesHeading: "Info / Images",
+    termsHeading: "Terms", addOptionalItemButton: "+ Add new item", addTermButton: "+ Add a term",
+    customCurrencyLabel: "Use custom currency", toggleLangBtn: "Toggle Language (SV/EN)", newTermText: "New term: Click to edit",
+    newArticleName: "Article Name", newAltArticleName: "Alternative Article Name", newDescription: "Description",
+    newInfoText: "Click to edit text", promptImageUrl: "Enter image URL:", removeTotalLabel: "Remove total",
+    totalLabel: "Total:", marginLabel: "Margin (%):", copyJsonBtn: "Copy JSON (text)",
+    statusJsonCopied: "Status: JSON copied to clipboard!"
   }
 };
 
 let currentLanguage = "sv"; 
 let jsonData = null;
-let originalStyles = {};
-let originalElements = {};
 let currentFileName = null; 
 
 (function initData(){
     const localData = localStorage.getItem('quoteData');
     if(!localData){
-        jsonData={
-            quote:{
-                currencyMultiplicator:1,
-                totalLabel: translations.sv.totalLabel 
-            },
-            companyA:{},
-            companyB:{},
-            items:[],
-            optionalItems:[],
-            terms:[],
-            infoImages:[]
-        };
+        jsonData={ quote:{ currencyMultiplicator: 1, marginPercentage: 0, totalLabel: translations.sv.totalLabel }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[] };
     } else {
         jsonData=JSON.parse(localData);
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1};
-        if(!jsonData.companyA)jsonData.companyA={};
-        if(!jsonData.companyB)jsonData.companyB={};
-        if(!Array.isArray(jsonData.items))jsonData.items=[];
-        if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
-        if(!Array.isArray(jsonData.terms))jsonData.terms=[];
-        if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
-        if(!jsonData.quote.totalLabel){
-            jsonData.quote.totalLabel = translations.sv.totalLabel;
-        }
+        if(!jsonData.quote) jsonData.quote={currencyMultiplicator:1, marginPercentage: 0};
+        if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0; // Backward compatibility
+        if(!jsonData.companyA)jsonData.companyA={}; if(!jsonData.companyB)jsonData.companyB={};
+        if(!Array.isArray(jsonData.items))jsonData.items=[]; if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
+        if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
+        if(!jsonData.quote.totalLabel) jsonData.quote.totalLabel = translations.sv.totalLabel;
     }
 })();
 
-function loadQuoteData(data, loadedFileName=null){
-    jsonData=JSON.parse(JSON.stringify(data));
-    if(!jsonData.quote)jsonData.quote={currencyMultiplicator:1,totalLabel:translations.sv.totalLabel};
-    if(!Array.isArray(jsonData.terms))jsonData.terms=[];
-
-    const q=jsonData.quote;
-    if(!q.quoteNumber)q.quoteNumber=Math.floor(Math.random()*100000).toString();
-
-    document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
-    document.getElementById('quoteDate').textContent = new Date().toLocaleDateString('sv-SE');
-    document.getElementById('quoteTitle').textContent = q.title || 'Offert';
-    document.getElementById('projectNumber').textContent = q.projectNumber || '';
-
-    document.getElementById('companyA').innerHTML=`
-        ${(jsonData.companyA.name||'')}<br>
-        ${(jsonData.companyA.address||'')}<br>
-        ${(jsonData.companyA.postalCode||'')}<br>
-        ${(jsonData.companyA.attention||'')}
-    `;
-    document.getElementById('companyB').innerHTML=`
-        ${(jsonData.companyB.name||'')}<br>
-        ${(jsonData.companyB.address||'')}<br>
-        ${(jsonData.companyB.postalCode||'')}
-    `;
-    document.getElementById('reference').textContent = q.reference||'';
-
-    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||1;
-    document.getElementById('showDecimals').checked=false;
-
-    document.getElementById('showProjectNumber').checked = false; 
-    document.getElementById('projectNumberDiv').style.display = 'none';
-
-    document.getElementById('totalLabel').textContent = q.totalLabel || translations.sv.totalLabel;
-
-    updatePrices();
-    loadItems(jsonData.items,'itemsList');
-    loadItems(jsonData.optionalItems,'optionalItemsList');
-    loadTerms(jsonData.terms);
-    loadInfoImages();
-
-    makeEditable();
-    calculateTotalPrice();
-    initializeDragAndDrop();
-
-    updateLanguage('sv');
-    updateDocumentTitle();
-
-    currentFileName = loadedFileName;
+function deepTraverseAndGetString(obj) {
+    let result = [];
+    if (typeof obj !== 'object' || obj === null) return [];
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            const value = obj[key];
+            if (typeof value === 'object' && value !== null) {
+                result = result.concat(deepTraverseAndGetString(value));
+            } else if (value) {
+                result.push(value);
+            }
+        }
+    }
+    return result;
 }
 
-function reRenderLists(){
+function formatCompanyInfo(companyObj) {
+    if (!companyObj) return '';
+    return deepTraverseAndGetString(companyObj).join('<br>');
+}
+
+function loadQuoteData(data, loadedFileName=null){
+    jsonData=JSON.parse(JSON.stringify(data));
+    const q = jsonData.quote || {};
+    if(!q.quoteNumber)q.quoteNumber=Math.floor(Math.random()*100000).toString();
+    if(q.marginPercentage === undefined) q.marginPercentage = 0;
+    jsonData.quote = q;
+    if(!Array.isArray(jsonData.terms))jsonData.terms=[];
+
+    document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
+    document.getElementById('quoteDate').textContent = q.date || new Date().toLocaleDateString('sv-SE');
+    document.getElementById('quoteTitle').textContent = q.title || 'Offert';
+    document.getElementById('projectNumber').textContent = q.projectNumber || '';
+    document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
+    document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
+    document.getElementById('reference').textContent = q.reference||'';
+    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||1;
+    document.getElementById('marginPercentageInput').value = q.marginPercentage || 0;
+    document.getElementById('showDecimals').checked=q.showDecimals || false;
+    document.getElementById('showProjectNumber').checked = q.projectNumberVisible || false; 
+    document.getElementById('projectNumberDiv').style.display = (q.projectNumberVisible) ? 'block' : 'none';
+    document.getElementById('totalLabel').textContent = q.totalLabel || translations.sv.totalLabel;
+    
+    currentFileName = loadedFileName;
+    currentLanguage = q.language || 'sv';
+    reRenderAll();
+    updateDocumentTitle();
+}
+
+function reRenderAll(){
+    renumberAllItems();
     updatePrices();
     loadItems(jsonData.items,'itemsList');
     loadItems(jsonData.optionalItems,'optionalItemsList');
@@ -1004,62 +369,35 @@ function reRenderLists(){
     calculateTotalPrice();
     makeEditable();
     initializeDragAndDrop();
+    updateLanguageUI(currentLanguage);
 }
 
 function updateDocumentTitle(){
     let baseTitle = (currentLanguage==='sv') ? 'Offert' : 'Quote';
     let refVal = document.getElementById('reference').textContent.trim();
-    document.title = (refVal) ? (baseTitle + " - " + refVal) : baseTitle;
+    document.title = (refVal) ? `${baseTitle} - ${refVal}` : baseTitle;
 }
 
-function updateLanguage(lang){
-    currentLanguage = lang;
+function updateLanguageUI(lang){
     document.documentElement.setAttribute('lang', lang);
-
     const t = translations[lang];
     if(!t)return;
-
-    document.getElementById("quoteTitle").textContent = t.quoteTitle;
-    document.getElementById("quoteNumberLabel").childNodes[0].textContent = t.quoteNumberLabel + " ";
-    document.getElementById("dateLabel").childNodes[0].textContent = t.dateLabel + " ";
-    document.getElementById("projectNumberDiv").childNodes[0].textContent = t.projectNumberLabel + " ";
-    document.getElementById("toLabel").textContent = t.toLabel;
-    document.getElementById("fromLabel").textContent = t.fromLabel;
-    document.getElementById("refLabel").textContent = t.refLabel;
-    document.getElementById("nrHeader").textContent = t.nrHeader;
-    document.getElementById("articleNameHeader").textContent = t.articleHeader;
-    document.getElementById("quantityHeader").textContent = t.quantityHeader;
-    document.getElementById("optNrHeader").textContent = t.nrHeader;
-    document.getElementById("optArticleHeader").textContent = t.articleHeader;
-    document.getElementById("optQuantityHeader").textContent = t.quantityHeader;
-
+    Object.keys(t).forEach(key => {
+        const el = document.getElementById(key);
+        if (el) {
+            if (key.endsWith('Label')) el.childNodes[0].nodeValue = `${t[key]} `;
+            else el.textContent = t[key]
+        }
+        if(key === 'articleHeader') { ['articleNameHeader', 'optArticleHeader'].forEach(id => document.getElementById(id).textContent = t[key]); }
+        if(key === 'nrHeader') { ['nrHeader', 'optNrHeader'].forEach(id => document.getElementById(id).textContent = t[key]); }
+        if(key === 'quantityHeader') { ['quantityHeader', 'optQuantityHeader'].forEach(id => document.getElementById(id).textContent = t[key]); }
+    });
     updatePriceHeaders();
-
-    if(document.getElementById("addItemButton")) {
-      document.getElementById("addItemButton").textContent = t.addItemButton;
-    }
-    if(document.getElementById("addOptionalItemButton")) {
-      document.getElementById("addOptionalItemButton").textContent = t.addOptionalItemButton;
-    }
-    if(document.getElementById("addTermButton")) {
-      document.getElementById("addTermButton").textContent = t.addTermButton;
-    }
-    document.getElementById("optionalItemsHeading").textContent = t.optionalItemsHeading;
-    document.getElementById("infoImagesHeading").textContent = t.infoImagesHeading;
-    document.getElementById("termsHeading").textContent = t.termsHeading;
-    document.getElementById("toggleLanguageBtn").textContent = t.toggleLangBtn;
-
-    if(document.getElementById("removeTotalCheckboxLabel")){
-      document.getElementById("removeTotalCheckboxLabel").childNodes[1].textContent = " " + t.removeTotalLabel;
-    }
-
-    if(!jsonData.quote.totalLabel || 
-       jsonData.quote.totalLabel === translations[currentLanguage === 'sv' ? 'en' : 'sv'].totalLabel)
-    {
+    if(document.getElementById("removeTotalCheckboxLabel")) document.getElementById("removeTotalCheckboxLabel").childNodes[1].nodeValue = ` ${t.removeTotalLabel}`;
+    if(!jsonData.quote.totalLabel || jsonData.quote.totalLabel === translations[lang === 'sv' ? 'en' : 'sv'].totalLabel) {
       document.getElementById("totalLabel").textContent = t.totalLabel;
       jsonData.quote.totalLabel = t.totalLabel;
     }
-
     calculateTotalPrice();
     updateDocumentTitle();
 }
@@ -1067,506 +405,171 @@ function updateLanguage(lang){
 function updatePriceHeaders(){
     const customChk = document.getElementById("useCustomCurrencyChk");
     const currencyVal = document.getElementById("customCurrencyInput").value;
-    const t = translations[currentLanguage];
-
-    let prefix = t.priceHeader;
-
-    let curSymbol = "(SEK)";
-    if(customChk.checked && currencyVal) {
-      curSymbol = "(" + currencyVal + ")";
-    }
-    document.getElementById("priceHeader").textContent = prefix + " " + curSymbol;
-    document.getElementById("optPriceHeader").textContent = prefix + " " + curSymbol;
+    const prefix = translations[currentLanguage].priceHeader;
+    const curSymbol = (customChk.checked && currencyVal) ? `(${currencyVal})` : "(SEK)";
+    ['priceHeader', 'optPriceHeader'].forEach(id => document.getElementById(id).textContent = `${prefix} ${curSymbol}`);
 }
-
 function loadItems(items, containerId){
-    const container=document.getElementById(containerId);
-    if(!container)return;
-    container.innerHTML='';
-    items.forEach((it, idx)=>{
-        const iNum=it.itemNumber||(`${idx+1}`);
-        const q=it.quantity||0;
-        const p=it.targetPrice||0;
+    const container = document.getElementById(containerId);
+    if(!container) return;
+    container.innerHTML = '';
+    const fallbackCurrency = (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) ? jsonData.quote.customCurrency : 'SEK';
 
-        const qClass=(q===0)?'zero-text':'';
-        const pClass=(p===0)?'zero-text':'';
+    items.forEach((it, idx) => {
+        if (it.marginPercentage === undefined) it.marginPercentage = 0;
+        const margin = parseFloat(it.marginPercentage) || 0;
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'quote-item'; itemDiv.dataset.index = idx;
+        const meta = document.createElement('div'); meta.className = 'item-meta';
 
-        const itemDiv=document.createElement('div');
-        itemDiv.className='quote-item';
-        itemDiv.dataset.index=idx;
-
-        const meta=document.createElement('div');
-        meta.className='item-meta';
-        meta.innerHTML=`
-            <div class="item-number editable"
-                 contenteditable="true"
-                 data-item="${containerId}"
-                 data-index="${idx}"
-                 data-field="itemNumber"
-                 >
-                ${iNum}
+        meta.innerHTML = `
+            <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="itemNumber">${it.itemNumber}</div>
+            <div class="item-name bold editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="name">${it.name||''}</div>
+            <div class="quantity" data-item="${containerId}" data-index="${idx}" data-field="quantity"><div class="input-container"><input type="number" min="0" step="1" value="${it.quantity || 0}" class="${(it.quantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container unwanted"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
+            <div class="targetPrice" data-item="${containerId}" data-index="${idx}" data-field="targetPrice" style="text-align:right;"><span class="${(it.targetPrice || 0) === 0 ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(it.targetPrice || 0)}</span></div>
+            <div class="item-tooltip unwanted">
+                <span class="original-price-display editable" contenteditable="true" data-field="originalPriceAndCurrency" data-item="${containerId}" data-index="${idx}">${it.originalPrice != null ? it.originalPrice : 0} ${it.currencyOrigin || fallbackCurrency}</span>
+                <span class="margin-display editable ${margin < 0 ? 'discount' : ''}" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="marginPercentage">${margin >= 0 ? '+' : ''}${margin}%</span>
             </div>
-            <div class="item-name bold editable"
-                 contenteditable="true"
-                 data-item="${containerId}"
-                 data-index="${idx}"
-                 data-field="name"
-                 >
-                ${it.name||''}
+            <div class="item-actions unwanted">
+                <button class="control-btn" title="Gör till underpost" onclick="toggleItemHierarchy('${containerId}', ${idx})">↳</button>
+                <button class="control-btn" title="Flytta till/från Alternativ" onclick="toggleItemOptionality('${containerId}', ${idx})">⇅</button>
             </div>
-            <div class="quantity"
-                 data-item="${containerId}"
-                 data-index="${idx}"
-                 data-field="quantity"
-                 >
-                <div class="input-container">
-                    <input type="number" min="0" step="1"
-                           value="${q}"
-                           class="${qClass}"
-                    />
-                    <div class="button-container unwanted">
-                        <button type="button" class="increment-btn">+</button>
-                        <button type="button" class="decrement-btn">-</button>
-                    </div>
-                </div>
-            </div>
-            <div class="targetPrice editable"
-                 contenteditable="true"
-                 data-item="${containerId}"
-                 data-index="${idx}"
-                 data-field="targetPrice"
-                 style="text-align:right;"
-                 >
-                <span class="${pClass}"
-                      style="text-align:right;display:inline-block;width:100%;">
-                      ${p===0?'0':formatPrice(p)}
-                </span>
-            </div>
-            <span class="remove-icon" onclick="removeItem('${containerId}',${idx})">✖</span>
         `;
-
-        const details=document.createElement('div');
-        details.className='item-details editable';
-        details.contentEditable=true;
-        details.dataset.item=containerId;
-        details.dataset.index=idx;
-        details.dataset.field='itemDescription';
-        details.innerHTML=it.itemDescription
-            ? it.itemDescription.replace(/\n/g,'<br>')
-            : '';
-
-        const descRemove=document.createElement('span');
-        descRemove.className='description-remove-icon';
-        descRemove.textContent='✖';
-        descRemove.onclick=()=>removeDescription(details);
-        details.appendChild(descRemove);
-
         itemDiv.appendChild(meta);
         if(it.itemDescription){
-            itemDiv.appendChild(details);
+            const details = document.createElement('div');
+            details.className = 'item-details editable'; details.contentEditable = true;
+            details.dataset.item = containerId; details.dataset.index = idx; details.dataset.field = 'itemDescription';
+            details.innerHTML = it.itemDescription.replace(/\n/g,'<br>');
+            const descRemove = document.createElement('span');
+            descRemove.className = 'description-remove-icon'; descRemove.textContent = '✖'; descRemove.onclick = () => removeDescription(details);
+            details.appendChild(descRemove); itemDiv.appendChild(details);
         }
-
-        let subArr = it.subItems || it.optionalSubItems || [];
-        subArr.forEach((sItem, sIdx)=>{
-            const siNum=sItem.subItemNumber||(`${iNum}.${sIdx+1}`);
-            const sq=sItem.subItemQuantity||0;
-            const sp=sItem.subItemTargetPrice||0;
-            const sqClass=(sq===0)?'zero-text':'';
-            const spClass=(sp===0)?'zero-text':'';
-
-            const included=document.createElement('div');
-            included.className='included-item';
-            included.dataset.index=sIdx;
-
-            const sMeta=document.createElement('div');
-            sMeta.className='item-meta';
-            sMeta.innerHTML=`
-                <div class="item-number editable"
-                     contenteditable="true"
-                     data-item="${containerId}"
-                     data-index="${idx}"
-                     data-included-index="${sIdx}"
-                     data-field="subItemNumber"
-                     >
-                    ${siNum}
+        (it.subItems || it.optionalSubItems || []).forEach((sItem, sIdx) => {
+            if (sItem.marginPercentage === undefined) sItem.marginPercentage = 0;
+            const subMargin = parseFloat(sItem.marginPercentage) || 0;
+            const included = document.createElement('div'); included.className = 'included-item';
+            const sMeta = document.createElement('div'); sMeta.className = 'item-meta';
+            sMeta.innerHTML = `
+                <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemNumber">${sItem.subItemNumber}</div>
+                <div class="item-name editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemName">${sItem.subItemName||''}</div>
+                <div class="quantity" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemQuantity"><div class="input-container"><input type="number" min="0" step="1" value="${sItem.subItemQuantity || 0}" class="${(sItem.subItemQuantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container unwanted"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
+                <div class="subItemTargetPrice" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemTargetPrice" style="text-align:right;"><span class="${(sItem.subItemTargetPrice || 0) === 0 ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(sItem.subItemTargetPrice || 0)}</span></div>
+                <div class="item-tooltip unwanted">
+                    <span class="original-price-display editable" contenteditable="true" data-field="originalPriceAndCurrency" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}">${sItem.subItemOriginalPrice != null ? sItem.subItemOriginalPrice : 0} ${sItem.currencyOrigin || it.currencyOrigin || fallbackCurrency}</span>
+                    <span class="margin-display editable ${subMargin < 0 ? 'discount' : ''}" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="marginPercentage">${subMargin >= 0 ? '+' : ''}${subMargin}%</span>
                 </div>
-                <div class="item-name editable"
-                     contenteditable="true"
-                     data-item="${containerId}"
-                     data-index="${idx}"
-                     data-included-index="${sIdx}"
-                     data-field="subItemName"
-                     >
-                    ${sItem.subItemName||''}
-                </div>
-                <div class="quantity"
-                     data-item="${containerId}"
-                     data-index="${idx}"
-                     data-included-index="${sIdx}"
-                     data-field="subItemQuantity"
-                     >
-                    <div class="input-container">
-                        <input type="number" min="0" step="1"
-                               value="${sq}"
-                               class="${sqClass}"
-                        />
-                        <div class="button-container unwanted">
-                            <button type="button" class="increment-btn">+</button>
-                            <button type="button" class="decrement-btn">-</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="subItemTargetPrice editable"
-                     contenteditable="true"
-                     data-item="${containerId}"
-                     data-index="${idx}"
-                     data-included-index="${sIdx}"
-                     data-field="subItemTargetPrice"
-                     style="text-align:right;"
-                     >
-                    <span class="${spClass}"
-                          style="text-align:right;display:inline-block;width:100%;">
-                        ${sp===0?'0':formatPrice(sp)}
-                    </span>
-                </div>
-                <span class="remove-icon"
-                      onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</span>
+                <div class="item-actions unwanted">
+                    <button class="control-btn" title="Gör till huvudpost" onclick="toggleItemHierarchy('${containerId}', ${idx}, ${sIdx})">↰</button>
+                    <button class="control-btn" title="Ta bort rad" style="background-color:red; color:white;" onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</button>
+                 </div>
             `;
-
-            const sDetails=document.createElement('div');
-            sDetails.className='item-details editable';
-            sDetails.contentEditable=true;
-            sDetails.dataset.item=containerId;
-            sDetails.dataset.index=idx;
-            sDetails.dataset.includedIndex=sIdx;
-            sDetails.dataset.field='subItemDescription';
-            sDetails.innerHTML=sItem.subItemDescription
-                ? sItem.subItemDescription.replace(/\n/g,'<br>')
-                : '';
-
-            const sDescRem=document.createElement('span');
-            sDescRem.className='description-remove-icon';
-            sDescRem.textContent='✖';
-            sDescRem.onclick=()=>removeDescription(sDetails);
-            sDetails.appendChild(sDescRem);
-
             included.appendChild(sMeta);
             if(sItem.subItemDescription){
-                included.appendChild(sDetails);
+                const sDetails = document.createElement('div');
+                sDetails.className = 'item-details editable'; sDetails.contentEditable = true;
+                sDetails.dataset.item = containerId; sDetails.dataset.index = idx; sDetails.dataset.includedIndex = sIdx; sDetails.dataset.field = 'subItemDescription';
+                sDetails.innerHTML = sItem.subItemDescription.replace(/\n/g,'<br>');
+                const sDescRem = document.createElement('span');
+                sDescRem.className = 'description-remove-icon'; sDescRem.textContent = '✖'; sDescRem.onclick = () => removeDescription(sDetails);
+                sDetails.appendChild(sDescRem); included.appendChild(sDetails);
             }
             itemDiv.appendChild(included);
         });
-
         container.appendChild(itemDiv);
     });
 }
-
-function removeItem(containerId, idx){
-    if(containerId==='itemsList'){
-        jsonData.items.splice(idx,1);
-    } else {
-        jsonData.optionalItems.splice(idx,1);
-    }
-    saveToLocal();
-    reRenderLists();
-}
-
-function removeSubItem(containerId, idx, sIdx){
-    const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems;
-    let item=arr[idx];
-    let sub=item.subItems||item.optionalSubItems||[];
-    sub.splice(sIdx,1);
-    saveToLocal();
-    reRenderLists();
-}
-
-function removeDescription(el){
-    const arr=(el.dataset.item==='itemsList')?jsonData.items:jsonData.optionalItems;
-    const idx=el.dataset.index;
-    const sIdx=el.dataset.includedIndex;
-    const field=el.dataset.field;
-    if(field==='itemDescription'){
-        arr[idx].itemDescription='';
-    } else if(field==='subItemDescription'){
-        let sub=arr[idx].subItems||arr[idx].optionalSubItems||[];
-        if(sub[sIdx])sub[sIdx].subItemDescription='';
-    }
-    saveToLocal();
-    reRenderLists();
-}
+function removeItem(containerId, idx){ const arr = (containerId ==='itemsList') ? jsonData.items : jsonData.optionalItems; arr.splice(idx,1); saveToLocal(); reRenderAll(); }
+function removeSubItem(containerId, idx, sIdx){ const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems; (arr[idx].subItems || arr[idx].optionalSubItems).splice(sIdx,1); saveToLocal(); reRenderAll(); }
+function removeDescription(el){ const {item: cId, index: i, includedIndex: si, field} = el.dataset; const it = (cId==='itemsList' ? jsonData.items : jsonData.optionalItems)[i]; (si ? (it.subItems||it.optionalSubItems)[si] : it)[field] = ''; saveToLocal(); reRenderAll(); }
 
 function loadTerms(terms){
-    const list=document.getElementById('termsList');
-    list.innerHTML='';
-    terms.forEach((t, i)=>{
-        const div=document.createElement('div');
-        div.className='term-item';
-        div.innerHTML=`
-            <div class="editable" contenteditable="true"
-                 data-field="term"
-                 data-index="${i}"
-            >
-                ${t}
-            </div>
-            <span class="remove-icon" onclick="removeTerm(${i})">✖</span>
-        `;
-        list.appendChild(div);
-    });
+    const list=document.getElementById('termsList'); list.innerHTML='';
+    (terms || []).forEach((t, i)=>{ list.innerHTML += `<div class="term-item"><div class="editable" contenteditable="true" data-field="term" data-index="${i}">${t}</div><span class="remove-icon" onclick="removeTerm(${i})">✖</span></div>`; });
 }
-function removeTerm(i){
-    jsonData.terms.splice(i,1);
-    saveToLocal();
-    reRenderLists();
-}
+function removeTerm(i){ jsonData.terms.splice(i,1); saveToLocal(); reRenderAll(); }
 
 function loadInfoImages(){
-    const c=document.getElementById('infoImagesList');
-    c.innerHTML='';
+    const c=document.getElementById('infoImagesList'); c.innerHTML='';
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
-        block.className='info-block';
-        block.dataset.index=idx;
-        block.style.position='relative';
-
-        /* controls row: top-right corner, unwanted so not printed */
-        const controls=document.createElement('div');
-        controls.className='controls-row unwanted';
-
-        const upBtn=document.createElement('span');
-        upBtn.className='info-image-up';
-        upBtn.textContent='▲';
-        upBtn.onclick=()=>moveImageUp(idx);
-        controls.appendChild(upBtn);
-
-        const handle=document.createElement('span');
-        handle.className='drag-handle';
-        handle.textContent='≡';
-        controls.appendChild(handle);
-
-        const downBtn=document.createElement('span');
-        downBtn.className='info-image-down';
-        downBtn.textContent='▼';
-        downBtn.onclick=()=>moveImageDown(idx);
-        controls.appendChild(downBtn);
-
-        const removeIcon=document.createElement('span');
-        removeIcon.className='remove-icon';
-        removeIcon.textContent='✖';
-        removeIcon.style.top='28px'; 
-        removeIcon.style.right='5px';
-        removeIcon.onclick=()=>removeInfoItem(idx);
-        controls.appendChild(removeIcon);
-
-        block.appendChild(controls);
-
+        block.className='info-block'; block.dataset.index=idx;
+        block.innerHTML = `<div class="controls-row unwanted"><span class="info-image-up" onclick="moveImageUp(${idx})">▲</span><span class="drag-handle">≡</span><span class="info-image-down" onclick="moveImageDown(${idx})">▼</span><span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span></div>`;
         if(obj.type==='text'){
             const txt=document.createElement('div');
-            txt.className='info-text-block editable';
-            txt.contentEditable=true;
-            txt.dataset.index=idx;
-            txt.innerHTML=obj.content||'';
-            txt.addEventListener('input',()=>{
-                jsonData.infoImages[idx].content=txt.innerHTML;
-                saveToLocal();
-            });
+            txt.className='info-text-block editable'; txt.contentEditable=true; txt.dataset.index=idx; txt.innerHTML=obj.content||'';
+            txt.addEventListener('input',()=>{ jsonData.infoImages[idx].content=txt.innerHTML; saveToLocal(); });
             block.appendChild(txt);
-
         } else if(obj.type==='table'){
-            const table=document.createElement('table');
-            table.className='info-table';
+            const table=document.createElement('table'); table.className='info-table';
             for(let r=0;r<obj.rows;r++){
                 const row=document.createElement('tr');
                 for(let cc=0;cc<obj.cols;cc++){
                     const cell=document.createElement('td');
-                    cell.contentEditable=true;
-                    cell.innerHTML=obj.data[r][cc]||'';
-                    cell.addEventListener('input',()=>{
-                        obj.data[r][cc]=cell.innerHTML;
-                        saveToLocal();
-                    });
+                    cell.contentEditable=true; cell.innerHTML=obj.data[r]?.[cc]||'';
+                    cell.addEventListener('input',()=>{ if(!obj.data[r])obj.data[r]=[]; obj.data[r][cc]=cell.innerHTML; saveToLocal(); });
                     row.appendChild(cell);
                 }
                 table.appendChild(row);
             }
             block.appendChild(table);
-
         } else {
             const imgContainer=document.createElement('div');
             imgContainer.className='info-image-container';
-
             const img=document.createElement('img');
-            img.src=obj.src;
-            img.style.width=(obj.width||400)+'px';
-
+            img.src=obj.src; img.style.width=(obj.width||400)+'px';
             const resizeH=document.createElement('div');
             resizeH.className='image-resize-handle unwanted';
-
-            imgContainer.appendChild(img);
-            imgContainer.appendChild(resizeH);
-
-            block.appendChild(imgContainer);
+            imgContainer.append(img, resizeH); block.appendChild(imgContainer);
             initializeResize(resizeH,img,idx);
         }
         c.appendChild(block);
     });
 }
-function removeInfoItem(idx){
-    jsonData.infoImages.splice(idx,1);
-    saveToLocal();
-    reRenderLists();
-}
-function addInfoText(){
-    const t = translations[currentLanguage];
-    jsonData.infoImages.push({ type:'text', content: t.newInfoText });
-    saveToLocal();
-    reRenderLists();
-}
+function removeInfoItem(idx){ jsonData.infoImages.splice(idx,1); saveToLocal(); reRenderAll(); }
+function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText }); saveToLocal(); reRenderAll(); }
 function addTable(){
-    const rows=prompt('Antal rader','3');
-    const cols=prompt('Antal kolumner','3');
+    const rows=prompt('Antal rader','3'); const cols=prompt('Antal kolumner','3');
     if(rows && cols){
-        const r=parseInt(rows)||2;
-        const c=parseInt(cols)||2;
-        const data=[];
-        for(let i=0;i<r;i++){
-            data.push(new Array(c).fill(''));
-        }
-        jsonData.infoImages.push({
-            type:'table',
-            rows:r,
-            cols:c,
-            data:data
-        });
-        saveToLocal();
-        reRenderLists();
+        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')) });
+        saveToLocal(); reRenderAll();
     }
 }
 function addImageFromUrl(){
-    const t = translations[currentLanguage];
-    const url=prompt(t.promptImageUrl);
-    if(url){
-        jsonData.infoImages.push({
-            type:'image',
-            src:url,
-            width:400,
-            description:''
-        });
-        saveToLocal();
-        reRenderLists();
-    }
+    const url=prompt(translations[currentLanguage].promptImageUrl);
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'' }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
-    const files=ev.target.files;
-    for(let f of files){
-        if(document.getElementById('compressImagesChk').checked){
-            compressImage(f, 0.7, 1280, (resultBase64)=>{
-                jsonData.infoImages.push({
-                    type:'image',
-                    src:resultBase64,
-                    width:400,
-                    description:''
-                });
-                saveToLocal();
-                reRenderLists();
-            });
-        } else {
-            const reader=new FileReader();
-            reader.onload=(e)=>{
-                jsonData.infoImages.push({
-                    type:'image',
-                    src:e.target.result,
-                    width:400,
-                    description:''
-                });
-                saveToLocal();
-                reRenderLists();
-            };
-            reader.readAsDataURL(f);
-        }
+    for(let f of ev.target.files){
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'' }); saveToLocal(); reRenderAll(); };
+        if(document.getElementById('compressImagesChk').checked){ compressImage(f, 0.7, 1280, process); }
+        else { const reader=new FileReader(); reader.onload=(e)=>process(e.target.result); reader.readAsDataURL(f); }
     }
 });
-
 function initializeResize(handle,img,idx){
     let startWidth, startX;
-    const onDown=(ev)=>{
-        ev.stopPropagation();
-        ev.preventDefault();
-        startWidth=img.offsetWidth;
-        startX=ev.clientX;
-        document.addEventListener('mousemove',onMove);
-        document.addEventListener('mouseup',onUp);
-    };
-    const onMove=(ev)=>{
-        ev.stopPropagation();
-        ev.preventDefault();
-        const w=startWidth+(ev.clientX-startX);
-        if(w<40) return;
-        img.style.width=w+'px';
-        jsonData.infoImages[idx].width=w;
-        saveToLocal();
-    };
-    const onUp=()=>{
-        document.removeEventListener('mousemove',onMove);
-        document.removeEventListener('mouseup',onUp);
-    };
+    const onDown=(ev)=>{ ev.preventDefault(); startWidth=img.offsetWidth; startX=ev.clientX; document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);};
+    const onMove=(ev)=>{ ev.preventDefault(); const w=startWidth+(ev.clientX-startX); if(w>40){ img.style.width=w+'px'; jsonData.infoImages[idx].width=w; }};
+    const onUp=()=>{ saveToLocal(); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp);};
     handle.addEventListener('mousedown',onDown);
 }
 
-function removeInfoSection(){
-    jsonData.infoImages=[];
-    saveToLocal();
-    const sec=document.getElementById('infoSectionContainer');
-    if(sec)sec.remove();
-}
-function removeOptionalSection(){
-    jsonData.optionalItems=[];
-    saveToLocal();
-    const sec=document.getElementById('optionalSectionContainer');
-    if(sec)sec.remove();
-}
-function removeMainSection(){
-    jsonData.items = [];
-    saveToLocal();
-    const sec = document.getElementById('mainItemsSectionContainer');
-    if(sec) sec.remove();
-}
-function moveImageUp(idx){
-    if(idx>0){
-        const tmp=jsonData.infoImages[idx];
-        jsonData.infoImages[idx]=jsonData.infoImages[idx-1];
-        jsonData.infoImages[idx-1]=tmp;
-        saveToLocal();
-        reRenderLists();
-    }
-}
-function moveImageDown(idx){
-    if(idx<jsonData.infoImages.length-1){
-        const tmp=jsonData.infoImages[idx];
-        jsonData.infoImages[idx]=jsonData.infoImages[idx+1];
-        jsonData.infoImages[idx+1]=tmp;
-        saveToLocal();
-        reRenderLists();
-    }
-}
+function removeInfoSection(){ jsonData.infoImages=[]; saveToLocal(); document.getElementById('infoSectionContainer')?.remove(); }
+function removeOptionalSection(){ jsonData.optionalItems=[]; saveToLocal(); document.getElementById('optionalSectionContainer')?.remove(); }
+function removeMainSection(){ jsonData.items = []; saveToLocal(); document.getElementById('mainItemsSectionContainer')?.remove(); }
+function moveImageUp(idx){ if(idx>0){ [jsonData.infoImages[idx], jsonData.infoImages[idx-1]] = [jsonData.infoImages[idx-1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
+function moveImageDown(idx){ if(idx<jsonData.infoImages.length-1){ [jsonData.infoImages[idx], jsonData.infoImages[idx+1]] = [jsonData.infoImages[idx+1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
 
 function compressImage(file, quality, maxWidth, callback){
     const reader=new FileReader();
     reader.onload=(e)=>{
         const img=new Image();
         img.onload=()=>{
-            const canvas=document.createElement('canvas');
-            const ctx=canvas.getContext('2d');
-            let width=img.width;
-            let height=img.height;
-            if(width>maxWidth){
-                height=Math.round(height*(maxWidth/width));
-                width=maxWidth;
-            }
-            canvas.width=width;
-            canvas.height=height;
-            ctx.drawImage(img,0,0,width,height);
-            const dataUrl=canvas.toDataURL('image/jpeg',quality);
-            callback(dataUrl);
+            const canvas=document.createElement('canvas'); let width=img.width; let height=img.height;
+            if(width>maxWidth){ height=Math.round(height*(maxWidth/width)); width=maxWidth; }
+            canvas.width=width; canvas.height=height; canvas.getContext('2d').drawImage(img,0,0,width,height);
+            callback(canvas.toDataURL('image/jpeg',quality));
         };
         img.src=e.target.result;
     };
@@ -1574,18 +577,23 @@ function compressImage(file, quality, maxWidth, callback){
 }
 
 function updatePrices(){
-    const mul=jsonData.quote.currencyMultiplicator||1;
-    function handle(arr){
-        arr.forEach(it=>{
-            const q=it.quantity||0;
-            if(it.originalPrice){
-                it.targetPrice=it.originalPrice*mul*q;
+    const mul = parseFloat(jsonData.quote.currencyMultiplicator) || 1;
+    const globalMarginMultiplier = 1 + ((parseFloat(jsonData.quote.marginPercentage) || 0) / 100);
+    const handle = (arr) => {
+        const fallback = (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) ? jsonData.quote.customCurrency : 'SEK';
+        arr.forEach(it => {
+            const itemMarginMultiplier = 1 + ((it.marginPercentage || 0) / 100);
+            if (it.originalPrice != null) {
+                let basePrice = it.originalPrice;
+                if ((it.currencyOrigin || fallback).toUpperCase() !== 'SEK') basePrice *= mul;
+                it.targetPrice = (basePrice * globalMarginMultiplier) * itemMarginMultiplier * (it.quantity || 0);
             }
-            let sub=it.subItems||it.optionalSubItems||[];
-            sub.forEach(s=>{
-                const sq=s.subItemQuantity||0;
-                if(s.subItemOriginalPrice){
-                    s.subItemTargetPrice=s.subItemOriginalPrice*mul*sq;
+            (it.subItems || it.optionalSubItems || []).forEach(s => {
+                const subItemMarginMultiplier = 1 + ((s.marginPercentage || 0) / 100);
+                if (s.subItemOriginalPrice != null) {
+                   let subBasePrice = s.subItemOriginalPrice;
+                   if ((s.currencyOrigin || it.currencyOrigin || fallback).toUpperCase() !== 'SEK') subBasePrice *= mul;
+                   s.subItemTargetPrice = (subBasePrice * globalMarginMultiplier) * subItemMarginMultiplier * (s.subItemQuantity || 0);
                 }
             });
         });
@@ -1594,639 +602,341 @@ function updatePrices(){
     handle(jsonData.optionalItems);
 }
 function calculateTotalPrice(){
-    let total=0;
-    function sum(arr){
-        arr.forEach(it=>{
-            total+=(it.targetPrice||0);
-            let sub=it.subItems||it.optionalSubItems||[];
-            sub.forEach(s=>{
-                total+=(s.subItemTargetPrice||0);
-            });
-        });
-    }
-    sum(jsonData.items);
-
-    const dec=document.getElementById('showDecimals').checked;
-    const formatted=dec?total.toFixed(2):Math.round(total).toString();
-
-    const customChk = document.getElementById("useCustomCurrencyChk");
-    let currencyVal = "SEK";
-    if(customChk.checked){
-      currencyVal = document.getElementById("customCurrencyInput").value.trim() || "SEK";
-    }
-    document.getElementById('totalValue').textContent= formatNumber(formatted) + " " + currencyVal;
-
-    if(document.getElementById('removeTotalCheck').checked){
-        document.getElementById('totalPrice').style.display='none';
-    } else {
-        document.getElementById('totalPrice').style.display='';
-    }
+    let total=jsonData.items.reduce((acc, it) => acc + (it.targetPrice || 0) + (it.subItems || []).reduce((sAcc, s) => sAcc + (s.subItemTargetPrice || 0), 0), 0);
+    const dec = document.getElementById('showDecimals').checked;
+    const formatted = dec ? total.toFixed(2) : Math.round(total).toString();
+    const currencyVal = document.getElementById("useCustomCurrencyChk").checked ? (document.getElementById("customCurrencyInput").value.trim() || "SEK") : "SEK";
+    document.getElementById('totalValue').textContent= `${formatNumber(formatted)} ${currencyVal}`;
+    document.getElementById('totalPrice').style.display = document.getElementById('removeTotalCheck').checked ? 'none' : '';
 }
-function formatPrice(price){
-    if(price==null)return'';
-    const dec=document.getElementById('showDecimals').checked;
-    return formatNumber(dec?price.toFixed(2):Math.round(price).toString());
-}
-function formatNumber(numStr){
-    return numStr.replace(/\B(?=(\d{3})+(?!\d))/g,' ');
-}
+function formatPrice(price){ return formatNumber((document.getElementById('showDecimals').checked ? (price || 0).toFixed(2) : Math.round(price || 0).toString())); }
+function formatNumber(numStr){ return numStr.replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
 
 document.addEventListener('click',e=>{
-    if(e.target.classList.contains('increment-btn')){
-        const par=e.target.closest('.quantity');
-        if(!par)return;
-        const inp=par.querySelector('input[type="number"]');
-        let val=parseInt(inp.value)||0;
-        val++;
-        inp.value=val;
-        handleQuantityChange(inp);
-    } else if(e.target.classList.contains('decrement-btn')){
-        const par=e.target.closest('.quantity');
-        if(!par)return;
-        const inp=par.querySelector('input[type="number"]');
-        let val=parseInt(inp.value)||0;
-        val=Math.max(0,val-1);
-        inp.value=val;
-        handleQuantityChange(inp);
-    }
+    if (e.target.matches('#copyJsonBtn')) { copyJsonToClipboard(); return; }
+    const par = e.target.closest('.quantity');
+    if (!par) return;
+    const inp = par.querySelector('input[type="number"]');
+    let val = parseInt(inp.value) || 0;
+    if(e.target.classList.contains('increment-btn')){ inp.value = val + 1; handleQuantityChange(inp); }
+    else if(e.target.classList.contains('decrement-btn')){ inp.value = Math.max(0, val - 1); handleQuantityChange(inp); }
 });
+
+function createHiddenJsonDiv(container) { const div = document.createElement('div'); div.id = 'hidden-json'; div.style.display = 'none'; div.textContent = JSON.stringify(jsonData); (container || document.getElementById('quoteContent')).appendChild(div); }
+function removeHiddenJsonDiv() { document.getElementById('hidden-json')?.remove(); }
+window.addEventListener('beforeprint', () => createHiddenJsonDiv());
+window.addEventListener('afterprint', () => removeHiddenJsonDiv());
 function handleQuantityChange(inp){
-    const par=inp.closest('.quantity');
-    const itemId=par.dataset.item;
-    const idx=par.dataset.index;
-    const sIdx=par.dataset.includedIndex;
-    const arr=(itemId==='itemsList')?jsonData.items:jsonData.optionalItems;
-    const val=parseInt(inp.value)||0;
-    if(sIdx!==undefined){
-        let sub=arr[idx].subItems||arr[idx].optionalSubItems||[];
-        if(sub[sIdx]){
-            sub[sIdx].subItemQuantity=val;
-        }
-    } else {
-        if(arr[idx])arr[idx].quantity=val;
-    }
-    saveToLocal();
-    reRenderLists();
+    const {item: containerId, index: idx, includedIndex: sIdx} = inp.closest('.quantity').dataset;
+    const item = (containerId === 'itemsList' ? jsonData.items : jsonData.optionalItems)[idx];
+    (sIdx ? (item.subItems||item.optionalSubItems)[sIdx] : item)[sIdx ? 'subItemQuantity' : 'quantity'] = parseInt(inp.value) || 0;
+    saveToLocal(); reRenderAll();
 }
 
-document.getElementById('swapButton').addEventListener('click',()=>{
-  const tempCompany = {...jsonData.companyA};
-  jsonData.companyA = {...jsonData.companyB};
-  jsonData.companyB = tempCompany;
-  saveToLocal();
-  loadQuoteData(jsonData, currentFileName);
-});
+document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.companyA, jsonData.companyB] = [jsonData.companyB, jsonData.companyA]; saveToLocal(); loadQuoteData(jsonData, currentFileName); });
+document.getElementById('showProjectNumber').addEventListener('change', function(){ document.getElementById('projectNumberDiv').style.display=this.checked?'block':'none'; jsonData.quote.projectNumberVisible = this.checked; saveToLocal(); });
+document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
+document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
+document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
 
-document.getElementById('showProjectNumber').addEventListener('change',function(){
-    const div=document.getElementById('projectNumberDiv');
-    div.style.display=this.checked?'':'none';
-});
+document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:'', quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
+document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:'', quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
+document.getElementById('addTermButton').addEventListener('click',()=>{ if (!jsonData.terms) jsonData.terms = []; jsonData.terms.push(translations[currentLanguage].newTermText); saveToLocal(); reRenderAll(); });
 
-document.getElementById('currencyMultiplierInput').addEventListener('input',function(){
-    const val=parseFloat(this.value);
-    if(!isNaN(val)){
-        jsonData.quote.currencyMultiplicator=val;
-        saveToLocal();
-        reRenderLists();
-    }
-});
-document.getElementById('showDecimals').addEventListener('change',()=>{
-    reRenderLists();
-});
-
-document.getElementById('addItemButton').addEventListener('click',()=>{
-    const t = translations[currentLanguage];
-    const newItem={
-        itemNumber:'',
-        name: t.newArticleName,
-        itemDescription: t.newDescription,
-        quantity:1,
-        originalPrice:0,
-        targetPrice:0,
-        subItems:[]
-    };
-    jsonData.items.push(newItem);
-    saveToLocal();
-    reRenderLists();
-});
-
-document.getElementById('addOptionalItemButton').addEventListener('click',()=>{
-    const t = translations[currentLanguage];
-    const newItem={
-        itemNumber:'',
-        name: t.newAltArticleName,
-        itemDescription: t.newDescription,
-        quantity:1,
-        originalPrice:0,
-        targetPrice:0,
-        optionalSubItems:[]
-    };
-    jsonData.optionalItems.push(newItem);
-    saveToLocal();
-    reRenderLists();
-});
-
-document.getElementById('addTermButton').addEventListener('click',()=>{
-    const t = translations[currentLanguage];
-    jsonData.terms.push(t.newTermText);
-    saveToLocal();
-    reRenderLists();
-});
-
-function parseFileName(fileName){
-    const base = fileName.replace(/\.json$/i,'');
-    const re=/^(.*)_(\d{6})_v(\d+)$/;
-    const match=base.match(re);
-    if(!match){
-        return null;
-    }
-    return {
-        prefix: match[1],
-        datePart: match[2],
-        version: parseInt(match[3],10)
-    };
-}
-
+function parseFileName(fileName){ const match = fileName.replace(/\.json$/i,'').match(/^(.*)_(\d{6})_v(\d+)$/); return match ? { prefix: match[1], datePart: match[2], version: parseInt(match[3],10) } : null; }
 document.getElementById('fileInput').addEventListener('change',function(ev){
     const f=ev.target.files[0];
     if(f && (f.type==='application/json' || f.name.endsWith('.json'))){
         const r=new FileReader();
-        r.onload=(e)=>{
-            try {
-                const d=JSON.parse(e.target.result);
-                loadQuoteData(d, f.name);
-                saveToLocal();
-            } catch(err){
-                alert('JSON-formatet verkar vara felaktigt.');
-            }
-        };
+        r.onload=(e)=>{ try {
+            const cleanedText = e.target.result.replace(/–/g, '-');
+            loadQuoteData(JSON.parse(cleanedText), f.name);
+            saveToLocal(); 
+        } catch(err){ alert('JSON-formatet verkar vara felaktigt: ' + err); } };
         r.readAsText(f);
-    } else {
-        alert('Vänligen ladda upp en giltig JSON-fil.');
-    }
+    } else { alert('Vänligen ladda upp en giltig JSON-fil.'); }
 });
 
-document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{
-    const newLang = (currentLanguage === 'sv') ? 'en' : 'sv';
-    updateLanguage(newLang);
-    reRenderLists();
+document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{ 
+    currentLanguage = currentLanguage === 'sv' ? 'en' : 'sv';
+    jsonData.quote.language = currentLanguage;
+    saveToLocal();
+    reRenderAll();
 });
-
-document.getElementById("useCustomCurrencyChk").addEventListener('change', ()=>{
-    const customInput = document.getElementById("customCurrencyInput");
-    if(document.getElementById("useCustomCurrencyChk").checked){
-      customInput.style.display = 'inline-block';
-    } else {
-      customInput.style.display = 'none';
-    }
-    updatePriceHeaders();
-    calculateTotalPrice();
-});
-
-document.getElementById("customCurrencyInput").addEventListener('input', ()=>{
-    updatePriceHeaders();
-    calculateTotalPrice();
-});
-
-document.getElementById("removeTotalCheck").addEventListener('change', ()=>{
-    if(document.getElementById("removeTotalCheck").checked){
-        document.getElementById('totalPrice').style.display='none';
-    } else {
-        document.getElementById('totalPrice').style.display='';
-    }
-});
+document.getElementById("useCustomCurrencyChk").addEventListener('change', (e) => { document.getElementById("customCurrencyInput").style.display = e.target.checked ? 'inline-block' : 'none'; jsonData.quote.useCustomCurrency = e.target.checked; saveToLocal(); reRenderAll(); });
+document.getElementById("customCurrencyInput").addEventListener('input', function(){ jsonData.quote.customCurrency = this.value.trim(); saveToLocal(); reRenderAll(); });
+document.getElementById("removeTotalCheck").addEventListener('change', () => calculateTotalPrice());
 
 let itemsSortable, optionalItemsSortable, termsSortable, infoSortable;
 function initializeDragAndDrop(){
-    if(itemsSortable) itemsSortable.destroy();
-    if(optionalItemsSortable) optionalItemsSortable.destroy();
-    if(termsSortable) termsSortable.destroy();
-    if(infoSortable) infoSortable.destroy();
-
-    itemsSortable = Sortable.create(document.getElementById('itemsList'),{
-        group:'sharedItems',
-        animation:150,
-        onEnd(evt){
-            if(evt.to===evt.from){
-                const moved=jsonData.items.splice(evt.oldIndex,1)[0];
-                jsonData.items.splice(evt.newIndex,0,moved);
-            }
-            saveToLocal();
-            reRenderLists();
-        },
-        onAdd(evt){
-            if(evt.from.id==='optionalItemsList'){
-                const moved=jsonData.optionalItems.splice(evt.oldIndex,1)[0];
-                jsonData.items.splice(evt.newIndex,0,moved);
-                saveToLocal();
-                reRenderLists();
-            }
-        }
+    if(itemsSortable) itemsSortable.destroy(); if(optionalItemsSortable) optionalItemsSortable.destroy();
+    if(termsSortable) termsSortable.destroy(); if(infoSortable) infoSortable.destroy();
+    const onSortEnd = (arr, evt) => { const moved = arr.splice(evt.oldIndex, 1)[0]; arr.splice(evt.newIndex, 0, moved); saveToLocal(); reRenderAll(); };
+    itemsSortable = Sortable.create(document.getElementById('itemsList'),{ group:'sharedItems', animation:150, handle: '.quote-item', onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.items, evt); },
+        onAdd: (evt) => { if (evt.from.id === 'optionalItemsList') { const moved = jsonData.optionalItems.splice(evt.oldIndex, 1)[0]; jsonData.items.splice(evt.newIndex, 0, moved); saveToLocal(); reRenderAll(); } }
     });
-
-    optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{
-        group:'sharedItems',
-        animation:150,
-        onEnd(evt){
-            if(evt.to===evt.from){
-                const moved=jsonData.optionalItems.splice(evt.oldIndex,1)[0];
-                jsonData.optionalItems.splice(evt.newIndex,0,moved);
-            }
-            saveToLocal();
-            reRenderLists();
-        },
-        onAdd(evt){
-            if(evt.from.id==='itemsList'){
-                const moved=jsonData.items.splice(evt.oldIndex,1)[0];
-                jsonData.optionalItems.splice(evt.newIndex,0,moved);
-                saveToLocal();
-                reRenderLists();
-            }
-        }
+    optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{ group:'sharedItems', animation:150, handle: '.quote-item', onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.optionalItems, evt); },
+        onAdd: (evt) => { if (evt.from.id === 'itemsList') { const moved = jsonData.items.splice(evt.oldIndex, 1)[0]; jsonData.optionalItems.splice(evt.newIndex, 0, moved); saveToLocal(); reRenderAll(); } }
     });
-
-    termsSortable=Sortable.create(document.getElementById('termsList'),{
-        animation:150,
-        handle:'.term-item',
-        onEnd(evt){
-            const moved=jsonData.terms.splice(evt.oldIndex,1)[0];
-            jsonData.terms.splice(evt.newIndex,0,moved);
-            saveToLocal();
-            reRenderLists();
-        }
-    });
-
-    infoSortable=Sortable.create(document.getElementById('infoImagesList'),{
-        animation:150,
-        handle:'.drag-handle', 
-        onEnd(evt){
-            const moved=jsonData.infoImages.splice(evt.oldIndex,1)[0];
-            jsonData.infoImages.splice(evt.newIndex,0,moved);
-            saveToLocal();
-            reRenderLists();
-        }
-    });
+    termsSortable=Sortable.create(document.getElementById('termsList'),{ animation:150, handle:'.term-item', onEnd: (evt) => onSortEnd(jsonData.terms, evt) });
+    infoSortable=Sortable.create(document.getElementById('infoImagesList'),{ animation:150, handle:'.drag-handle', onEnd: (evt) => onSortEnd(jsonData.infoImages, evt) });
 }
 
+let activeEditingElement = null;
 function makeEditable(){
-    document.querySelectorAll('.editable').forEach(el=>{
-        el.removeEventListener('input', onEditableInput);
+    document.querySelectorAll('.editable').forEach(el=> {
+        el.removeEventListener('input', onEditableInput); 
+        el.addEventListener('blur', onEditableBlur);
         el.addEventListener('input', onEditableInput);
     });
 }
 function onEditableInput(e){
-    const field=e.target.dataset.field;
-    const val=e.target.innerHTML.trim();
+    const target = e.target; 
+    let val = target.id.startsWith('company') ? target.innerHTML : target.textContent.trim();
+    const field=target.dataset.field;
 
-    if(!field){
-        if(this.id==='companyA'){
-            const lines=this.innerText.split('\n');
-            jsonData.companyA.name=lines[0]||'';
-            jsonData.companyA.address=lines[1]||'';
-            jsonData.companyA.postalCode=lines[2]||'';
-            jsonData.companyA.attention=lines[3]||'';
-        } else if(this.id==='companyB'){
-            const lines=this.innerText.split('\n');
-            jsonData.companyB.name=lines[0]||'';
-            jsonData.companyB.address=lines[1]||'';
-            jsonData.companyB.postalCode=lines[2]||'';
-        } else if(this.id==='reference'){
-            jsonData.quote.reference=this.textContent;
-            updateDocumentTitle();
-        } else if(this.id==='quoteTitle'){
-            jsonData.quote.title=this.textContent;
-        } else if(this.id==='quoteNumber'){
-            jsonData.quote.quoteNumber=this.textContent;
-        } else if(this.id==='quoteDate'){
-            jsonData.quote.date=this.textContent;
-        } else if(this.id==='projectNumber'){
-            jsonData.quote.projectNumber=this.textContent;
-        } else if(this.id==='totalLabel'){
-            jsonData.quote.totalLabel=this.textContent;
+    if(!field) {
+        if(target.id === 'companyA' || target.id === 'companyB') {
+            const lines = val.split(/<br\s*\/?>/gi).filter(Boolean);
+            let data = {};
+            lines.forEach((line, index) => { data[`line${index + 1}`] = line.trim(); });
+            jsonData[target.id] = data;
         }
-        saveToLocal();
-        return;
+        else if(target.id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
+        else { jsonData.quote[target.id] = target.textContent; }
+        saveToLocal(); return;
     }
+    if(field === 'term'){ jsonData.terms[target.dataset.index] = target.innerHTML; saveToLocal(); return; }
 
-    if(field==='term'){
-        jsonData.terms[this.dataset.index]=val;
-        saveToLocal();
-        return;
-    }
-
-    const containerId=this.dataset.item;
-    const idx=this.dataset.index;
-    const sIdx=this.dataset.includedIndex;
-    const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems;
-    if(!arr[idx])return;
-
-    switch(field){
-        case 'itemDescription':
-            arr[idx].itemDescription=val.replace(/<br>/g,'\n');
-            break;
-        case 'name':
-            arr[idx].name=val;
-            break;
-        case 'targetPrice':
-            {
-                const n=parseFloat(val.replace(/\s/g,'').replace(',','.'));
-                const mul=jsonData.quote.currencyMultiplicator||1;
-                if(!isNaN(n)){
-                    const q=arr[idx].quantity||0;
-                    arr[idx].targetPrice=n;
-                    arr[idx].originalPrice=(q>0)?(n/(mul*q)):0;
-                }
+    const {item: cId, index: idx, includedIndex: sIdx} = target.dataset;
+    const arr = (cId === 'itemsList') ? jsonData.items : jsonData.optionalItems; if(!arr[idx])return;
+    let item = sIdx !== undefined ? (arr[idx].subItems || arr[idx].optionalSubItems)[sIdx] : arr[idx]; if (!item) return;
+    
+    if (field === 'marginPercentage') {
+        const marginValue = parseFloat(val.replace(/[+%]/g, ''));
+        if (!isNaN(marginValue)) item.marginPercentage = marginValue;
+    } else if (field === 'originalPriceAndCurrency') {
+        const match = val.match(/([0-9.,]+)\s*([a-zA-Z]{3})/);
+        if (match){
+            const price = parseFloat(match[1].replace(',','.')); const currency = match[2].toUpperCase();
+            if(!isNaN(price) && currency.length === 3){
+                if(sIdx !== undefined){ item.subItemOriginalPrice = price; item.currencyOrigin = currency; }
+                else { item.originalPrice = price; item.currencyOrigin = currency; }
             }
-            break;
-        case 'itemNumber':
-            arr[idx].itemNumber=val;
-            break;
-        case 'subItemDescription':
-            {
-                let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
-                if(s[sIdx]) s[sIdx].subItemDescription=val.replace(/<br>/g,'\n');
-            }
-            break;
-        case 'subItemName':
-            {
-                let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
-                if(s[sIdx]) s[sIdx].subItemName=val;
-            }
-            break;
-        case 'subItemTargetPrice':
-            {
-                const n2=parseFloat(val.replace(/\s/g,'').replace(',','.'));
-                const mul2=jsonData.quote.currencyMultiplicator||1;
-                if(!isNaN(n2)){
-                    let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
-                    if(s[sIdx]){
-                        let subIt=s[sIdx];
-                        const sq=subIt.subItemQuantity||0;
-                        subIt.subItemTargetPrice=n2;
-                        subIt.subItemOriginalPrice=(sq>0)?(n2/(mul2*sq)):0;
-                    }
-                }
-            }
-            break;
-        case 'subItemNumber':
-            {
-                let s=arr[idx].subItems||arr[idx].optionalSubItems||[];
-                if(s[sIdx]) s[sIdx].subItemNumber=val;
-            }
-            break;
-        default:
-            break;
-    }
+        }
+    } else if (field.includes('Description')){ item[field] = target.innerHTML.replace(/<br\s*\/?>/gi,'\n');
+    } else { item[field] = val; }
+    
     saveToLocal();
     updatePrices();
     calculateTotalPrice();
+    updateLiveDOMPrices(cId, idx, sIdx);
 }
+function onEditableBlur() {
+    activeEditingElement = null;
+    hideFormattingToolbar();
+    reRenderAll();
+}
+function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
+    const arr = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    if (!arr[mainIndex]) return;
+    const item = (subIndex !== undefined) ? (arr[mainIndex].subItems || arr[mainIndex].optionalSubItems)[subIndex] : arr[mainIndex];
+    if (!item) return;
 
-async function generatePDF(){
-    const ele=document.getElementById('quoteContent');
-    const opt={
-        margin:[10,10,10,10],
-        filename:`offert-${jsonData.quote.quoteNumber}.pdf`,
-        image:{ type:'jpeg', quality:0.98 },
-        html2canvas:{
-            scale:2,
-            useCORS:true,
-            allowTaint:true,
-            scrollX:-window.scrollX,
-            scrollY:-window.scrollY,
-            windowWidth:document.documentElement.offsetWidth,
-            windowHeight:document.documentElement.offsetHeight
-        },
-        jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' }
-    };
-    try{
-        await html2pdf().from(ele).set(opt).save();
-        return true;
-    } catch(e){
-        console.error(e);
-        return false;
+    const priceField = (subIndex !== undefined) ? 'subItemTargetPrice' : 'targetPrice';
+    const selector = `[data-item="${containerId}"][data-index="${mainIndex}"]` + (subIndex !== undefined ? `[data-included-index="${subIndex}"]` : '') + ` div[data-field="${priceField}"] span`;
+    const priceSpan = document.querySelector(selector);
+    if(priceSpan) priceSpan.textContent = formatPrice(item[priceField] || 0);
+}
+function buildFileName(ref, version){ const datePart= new Date().toISOString().slice(2,10).replace(/-/g,''); const safeRef = (ref||'').trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50); return `${safeRef || 'offert'}_${datePart}_v${version}.json`; }
+function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData,null,2)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
+document.getElementById('saveJson').addEventListener('click',()=>{ doDownloadJson(buildFileName(jsonData.quote.reference,1)); });
+
+function copyJsonToClipboard(){
+    const dataToCopy = JSON.parse(JSON.stringify(jsonData));
+    if (dataToCopy.infoImages) {
+        dataToCopy.infoImages.forEach(img => { if(img.type === 'image') delete img.src });
     }
-}
-
-function buildFileName(ref, version){
-    const now=new Date();
-    const yy= String(now.getFullYear()).slice(-2);
-    const mm= String(now.getMonth()+1).padStart(2,'0');
-    const dd= String(now.getDate()).padStart(2,'0');
-    const datePart= yy + mm + dd; 
-    const safeRef= ref.trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50);
-    return `${safeRef}_${datePart}_v${version}.json`;
-}
-
-document.getElementById('saveJson').addEventListener('click',()=>{
-    const refVal = jsonData.quote.reference || 'Unnamed';
-    const fileName=buildFileName(refVal,1);
-    doDownloadJson(fileName);
-});
-
-document.getElementById('overwriteJson').addEventListener('click', ()=>{
-    if(!currentFileName){
-        const refVal = jsonData.quote.reference || 'Unnamed';
-        const fileName=buildFileName(refVal,1);
-        doDownloadJson(fileName);
-        return;
-    }
-    const parsed=parseFileName(currentFileName);
-    if(!parsed){
-        const refVal = jsonData.quote.reference || 'Unnamed';
-        const fileName=buildFileName(refVal,1);
-        doDownloadJson(fileName);
-        return;
-    }
-    parsed.version++;
-    const newName= `${parsed.prefix}_${parsed.datePart}_v${parsed.version}.json`;
-    doDownloadJson(newName);
-});
-
-function doDownloadJson(fileName){
-    const dataStr="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(jsonData,null,2));
-    const dl=document.createElement('a');
-    dl.setAttribute('href',dataStr);
-    dl.setAttribute('download',fileName);
-    document.body.appendChild(dl);
-    dl.click();
-    dl.remove();
-}
-
-document.getElementById('makeTransparent').addEventListener('click',()=>{
-    storeOriginalStates();
-    document.getElementById('statusMessage').textContent='Gör oönskade element transparenta...';
-    document.querySelectorAll('.unwanted').forEach(el=>{
-        el.style.opacity='0';
-    });
-});
-document.getElementById('setDisplayNone').addEventListener('click',()=>{
-    storeOriginalStates();
-    document.getElementById('statusMessage').textContent='Döljer oönskade element...';
-    document.querySelectorAll('.unwanted').forEach(el=>{
-        el.style.display='none';
-    });
-});
-document.getElementById('removeElements').addEventListener('click',()=>{
-    storeOriginalStates();
-    document.getElementById('statusMessage').textContent='Tar bort oönskade element...';
-    document.querySelectorAll('.unwanted').forEach(el=>{
-        el.parentNode.removeChild(el);
-    });
-});
-document.getElementById('resetUnwanted').addEventListener('click',()=>{
-    document.getElementById('statusMessage').textContent='Oönskade element har återställts.';
-    const uw=document.querySelectorAll('.unwanted');
-    uw.forEach(el=>{
-        if(!el.id)return;
-        if(originalStyles[el.id]){
-            el.setAttribute('style', originalStyles[el.id]);
-        } else {
-            el.removeAttribute('style');
-        }
-        if(originalElements[el.id]){
-            el.parentNode.replaceChild(originalElements[el.id], el);
-        }
-    });
-});
-function storeOriginalStates(){
-    const unw=document.querySelectorAll('.unwanted');
-    unw.forEach(el=>{
-        if(!el.id)return;
-        originalStyles[el.id]=el.getAttribute('style')||'';
-        originalElements[el.id]=el.cloneNode(true);
+    navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2)).then(() => {
+        const msgEl = document.getElementById('statusMessage');
+        msgEl.textContent = translations[currentLanguage].statusJsonCopied;
+        setTimeout(() => { msgEl.textContent = '' }, 3000);
     });
 }
-
-document.getElementById('printBtn').addEventListener('click', () => {
-    window.print();
-});
-
-function saveToLocal(){
-    localStorage.setItem('quoteData', JSON.stringify(jsonData));
-}
-window.onload=()=>{
-    loadQuoteData(jsonData);
-};
-
-/* Code to display the current USD and EUR to SEK values, placed in the "liveCurrencyRates" container (unwanted => hidden in print). */
-// Smarter currency fetcher: tries up to 10 days back if today's rate is unavailable
+document.getElementById('printBtn').addEventListener('click', () => window.print());
+function saveToLocal(){ localStorage.setItem('quoteData', JSON.stringify(jsonData)); }
+window.onload=()=>{ loadQuoteData(jsonData); };
 (async () => {
-  const container = document.getElementById('liveCurrencyRates');
-  const baseCurrencies = ['usd', 'eur'];
-  const targetCurrency = 'sek';
-
-  const tryDatesBack = async (daysBack) => {
-    const date = new Date();
-    date.setDate(date.getDate() - daysBack);
-    return date.toISOString().split("T")[0];
-  };
-
-  const fetchRates = async (dateStr, base) => {
-    const url = `https://${dateStr}.currency-api.pages.dev/v1/currencies/${base}.json`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const data = await res.json();
-      const rate = data?.[base]?.[targetCurrency];
-      return rate ? { rate, dateStr } : null;
-    } catch {
-      return null;
-    }
-  };
-
-  let resultText = '';
-  for (const base of baseCurrencies) {
-    let result = null;
-    for (let i = 0; i < 10 && !result; i++) {
-      const dateStr = await tryDatesBack(i);
-      result = await fetchRates(dateStr, base);
-    }
-
-    if (result) {
-      resultText += `1 ${base.toUpperCase()} = ${result.rate} SEK <br/> (från ${result.dateStr})<br/>`;
-    } else {
-      resultText += `Kunde ej ladda valutakurs för ${base.toUpperCase()}<br/>`;
-    }
-  }
-
-  container.innerHTML = resultText;
+    const container = document.getElementById('liveCurrencyRates');
+    const fetchRate = async (base) => {
+        for (let i = 0; i < 10; i++) {
+            const date = new Date(); date.setDate(date.getDate() - i); const dateStr = date.toISOString().split("T")[0];
+            try {
+                const res = await fetch(`https://${dateStr}.currency-api.pages.dev/v1/currencies/${base}.json`); if (!res.ok) continue;
+                const data = await res.json(); const rate = data?.[base]?.['sek'];
+                if (rate) return `1 ${base.toUpperCase()} = ${rate.toFixed(2)} SEK (${dateStr.slice(5)})`;
+            } catch { continue; }
+        }
+        return `Kurs för ${base.toUpperCase()} otillgänglig`;
+    };
+    container.innerHTML = (await Promise.all(['usd', 'eur'].map(fetchRate))).join('<br/>');
 })();
-
-
-/* Add the new "Spara som PDF" button next to "Print" that mimics printing to PDF but using html2pdf. */
 document.addEventListener('DOMContentLoaded', function () {
-    // Create the button
-    const savePdfBtn = document.createElement('button');
-    savePdfBtn.textContent = 'Spara som PDF';
-    savePdfBtn.className = 'add-button';
-    savePdfBtn.style.marginLeft = '10px';
-
-    // Insert it next to the Print button
-    const pdfButtonsSection = document.querySelector('.pdf-buttons');
-    if (pdfButtonsSection) {
-        pdfButtonsSection.appendChild(savePdfBtn);
-    }
-
-    // On click, generate PDF but hide .unwanted elements
+    const savePdfBtn = document.getElementById('savePdfBtn');
     savePdfBtn.addEventListener('click', async () => {
-        const quoteContent = document.getElementById('quoteContent');
-        if (!quoteContent) {
-            alert("Innehåll saknas – PDF kunde inte skapas.");
-            return;
-        }
-
-        const clone = quoteContent.cloneNode(true);
-
-        // Hide .unwanted in the clone
-        clone.querySelectorAll('.unwanted').forEach(el => {
-            el.style.display = 'none';
-        });
-
-        // Offscreen container
-        const container = document.createElement('div');
-        container.style.position = 'fixed';
-        container.style.left = '-9999px';
-        container.style.top = '0';
-        container.style.width = '210mm';
-        container.appendChild(clone);
-        document.body.appendChild(container);
-
-        const reference = (document.getElementById('reference')?.textContent || 'Offert').trim();
-        const quoteNumber = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
-        const today = new Date().toISOString().split("T")[0];
-
-        const cleanRef = reference.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, '-').substring(0, 40);
-        const cleanQuote = quoteNumber.replace(/[^\w\-]/g, '').substring(0, 20);
-        const fileName = `${cleanRef || 'Offert'}_${cleanQuote || '0000'}_${today}.pdf`;
-
+		const quoteContent = document.getElementById('quoteContent'); if (!quoteContent) return alert("Innehåll saknas.");
+        const clone = quoteContent.cloneNode(true); clone.querySelectorAll('.unwanted').forEach(el => el.style.display = 'none');
+		createHiddenJsonDiv(clone);
+        const container = document.createElement('div'); container.style.cssText = 'position:fixed; left:-9999px; top:0; width:210mm;';
+        container.appendChild(clone); document.body.appendChild(container);
+        const ref = (document.getElementById('reference')?.textContent || 'Offert').trim(), qNum = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
+        const fileName = `${ref.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, '-')}_${qNum}_${new Date().toISOString().split("T")[0]}.pdf`;
         try {
-            await html2pdf().set({
-                margin: 10,
-                filename: fileName,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: {
-                    scale: 2,
-                    useCORS: true,
-                    scrollX: 0,
-                    scrollY: 0,
-                    windowWidth: document.documentElement.scrollWidth,
-                    windowHeight: document.documentElement.scrollHeight
-                },
-                jsPDF: {
-                    unit: 'mm',
-                    format: 'a4',
-                    orientation: 'portrait'
-                }
+            await html2pdf().set({ margin: 10, filename: fileName, image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: document.documentElement.scrollWidth, windowHeight: document.documentElement.scrollHeight },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             }).from(clone).save();
-        } catch (err) {
-            console.error("PDF generation failed:", err);
-            alert("Fel vid skapande av PDF. Försök igen.");
-        } finally {
-            container.remove();
-        }
+        } catch (err) { console.error("PDF generation failed:", err); } finally { container.remove(); }
     });
 });
+function updatePrintMultiplier(){ document.getElementById('multiplierValue').textContent = jsonData.quote.currencyMultiplicator ?? 1; }
+window.addEventListener('load', () => {
+    const q = jsonData.quote;
+    q.language = q.language || currentLanguage; q.customCurrency = q.customCurrency || '';
+    q.useCustomCurrency = q.useCustomCurrency === undefined ? !!q.customCurrency : q.useCustomCurrency;
+    currentLanguage = q.language;
+    document.getElementById('customCurrencyInput').value = q.customCurrency;
+    document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency;
+    document.getElementById('useCustomCurrencyChk').dispatchEvent(new Event('change'));
+    updatePrintMultiplier();
+    setupFormattingToolbar();
+});
+document.getElementById('uploadPdfBtn').addEventListener('click', () => document.getElementById('pdfUploadInput').click());
+document.getElementById('pdfUploadInput').addEventListener('change', async function(ev) {
+  const file = ev.target.files[0]; if (!file) return;
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) { const page = await pdf.getPage(i); const content = await page.getTextContent(); fullText += content.items.map(it => it.str).join(''); }
+  const start = fullText.indexOf('{"quote"'); const end = fullText.lastIndexOf('}');
+  if (start >= 0) { try { loadQuoteData(JSON.parse(fullText.substring(start, end + 1)), file.name); saveToLocal(); } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err); }
+  } else { alert('Ingen inbäddad offertdata hittades i PDF-filen.'); }
+});
+
+// --- Formatting & Hierarchy Logic ---
+const toolbar = document.getElementById('formatting-toolbar');
+function setupFormattingToolbar() {
+    document.addEventListener('selectionchange', () => {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0 && !selection.isCollapsed) {
+            const range = selection.getRangeAt(0);
+            if (range.startContainer.parentElement.closest('.editable')) {
+                const rect = range.getBoundingClientRect();
+                toolbar.style.left = `${rect.right + window.scrollX + 5}px`;
+                toolbar.style.top = `${rect.top + window.scrollY}px`;
+                toolbar.style.display = 'flex';
+                return;
+            }
+        }
+        hideFormattingToolbar();
+    });
+
+    document.getElementById('bold-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('bold'); });
+    document.getElementById('italic-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('italic'); });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey) {
+            if (e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
+            if (e.key.toLowerCase() === 'i') { e.preventDefault(); document.execCommand('italic'); }
+        }
+    });
+}
+function hideFormattingToolbar() {
+    if (toolbar) toolbar.style.display = 'none';
+}
+function mapItemToSubItem(item) {
+    return {
+        subItemName: item.name,
+        subItemDescription: item.itemDescription,
+        subItemQuantity: item.quantity,
+        subItemOriginalPrice: item.originalPrice,
+        marginPercentage: item.marginPercentage,
+        currencyOrigin: item.currencyOrigin,
+    };
+}
+function mapSubItemToItem(subItem) {
+    return {
+        name: subItem.subItemName,
+        itemDescription: subItem.subItemDescription,
+        quantity: subItem.subItemQuantity,
+        originalPrice: subItem.subItemOriginalPrice,
+        marginPercentage: subItem.marginPercentage,
+        currencyOrigin: subItem.currencyOrigin,
+        subItems: []
+    };
+}
+
+
+function toggleItemHierarchy(containerId, mainIndex, subIndex) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    if (subIndex !== undefined) { // Promote sub-item to main item
+        const subItem = list[mainIndex].subItems.splice(subIndex, 1)[0];
+        const newMainItem = mapSubItemToItem(subItem);
+        list.splice(mainIndex + 1, 0, newMainItem);
+    } else { // Demote main item to sub-item
+        if (mainIndex > 0) {
+            const itemToMove = list.splice(mainIndex, 1)[0];
+            const parentItem = list[mainIndex - 1];
+            if (!parentItem.subItems) parentItem.subItems = [];
+            
+            const newSubItem = mapItemToSubItem(itemToMove);
+            parentItem.subItems.push(newSubItem);
+        }
+    }
+    saveToLocal();
+    reRenderAll();
+}
+
+function renumberAllItems() {
+    let mainCounter = 1;
+    jsonData.items.forEach(item => {
+        let subCounter = 1;
+        item.itemNumber = `${mainCounter}.1`;
+        if(item.subItems) {
+            item.subItems.forEach(sub => {
+                sub.subItemNumber = `${mainCounter}.1.${subCounter}`;
+                subCounter++;
+            });
+        }
+        mainCounter++;
+    });
+
+    let optMainCounter = 1;
+     jsonData.optionalItems.forEach(item => {
+        let subCounter = 1;
+        item.itemNumber = `${optMainCounter}.1`;
+        if(item.subItems) {
+            item.subItems.forEach(sub => {
+                sub.subItemNumber = `${optMainCounter}.1.${subCounter}`;
+                subCounter++;
+            });
+        }
+        optMainCounter++;
+    });
+}
+
+
+function toggleItemOptionality(containerId, mainIndex) {
+    const sourceList = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const destinationList = (containerId === 'itemsList') ? jsonData.optionalItems : jsonData.items;
+    
+    if (sourceList[mainIndex]) {
+        const [movedItem] = sourceList.splice(mainIndex, 1);
+        destinationList.push(movedItem);
+        saveToLocal();
+        reRenderAll();
+    }
+}
 </script>
 </body>
 </html>
