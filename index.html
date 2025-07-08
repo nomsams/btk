@@ -1,4 +1,4 @@
-<!-- Version 70 -- Improved Numbering, Controls, Toolbar, and Dash Replacement --> 
+<!-- Version 77 -- WYSIWYG Item Numbers, Print Align, Subitem BG/Style/Actions, Default Descs, Numbering Logic Refined -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -14,28 +14,91 @@
     #quoteContent { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
     b { font-weight: bold; }
     i { font-style: italic; }
-    #printMultiplier { display: block !important; position: relative !important; bottom: auto !important; right: auto !important; margin-top: 1mm !important; font-size: 4pt !important; color: white !important; }
+    .print-only { display: block !important; }
+    #printMultiplier { position: relative !important; bottom: auto !important; right: auto !important; margin-top: 1mm !important; font-size: 8pt !important; color: white !important; text-align: right; width:100%; }
     .quote-section { margin: 5mm 0; page-break-inside: avoid !important; }
-    .item-header, .item-meta { display: grid; grid-template-columns: 50px minmax(150px, 1fr) 80px 100px; gap: 5mm; align-items: start; }
-    .item-details, .included-item .item-details { word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; max-width: calc(100% - 60px); margin-left: 50px; margin-right: 10mm; }
-    .editable, .item-meta div, .term-item { word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }
-    .term-item { margin: 1.5mm 0; padding-bottom: 2mm; }
+
+    /* Print alignment: Nr(50px) Name(1fr) Qty(80px) Price(100px) Gap(5mm) */
+    .item-header, .item-meta {
+        display: grid;
+        grid-template-columns: 50px 1fr 80px 100px; /* Main item columns for print */
+        gap: 5mm;
+        align-items: start;
+        padding-bottom: 1.5mm;
+    }
+    .item-header {
+        border-bottom: 1pt solid #000;
+        margin-top: 3mm;
+        font-weight: bold;
+    }
+     .item-header > div, .item-meta > div {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    .item-number { text-align: left; }
+    .item-name { text-align: left; }
+    .quantity, .quantity-header { text-align: right; justify-content: flex-end; padding-right:0; /* Align directly to grid cell edge */ }
+    .targetPrice, .price-header, .subItemTargetPrice { text-align: right; justify-content: flex-end; padding-right:0; }
+
+    .included-item {
+        background-color: rgba(248, 248, 248, 0.85) !important;
+        margin: 2px 0 2px 10mm !important;
+        padding: 2mm !important;
+        border-radius: 0 !important;
+        width: calc(100% - 10mm);
+        box-sizing: border-box;
+    }
+    .included-item .item-meta {
+        margin-left: 0;
+        /* Sub-item columns, adjusted to fit within the indented space and align with parent's Qty/Price right edges */
+        /* Parent Qty starts after 50px + 5mm + 1fr + 5mm. Parent Price starts after that + 80px + 5mm */
+        /* Subitem's parent .included-item is indented 10mm. */
+        /* For sub-items: Nr(calc(50px - 2.5mm)) Name(1fr) Qty(calc(80px - 2.5mm)) Price(100px) Gap(2.5mm) (Rough adjustments) */
+        /* Simpler: let 1fr absorb the difference, keep Qty/Price widths similar to parent for visual consistency if possible */
+        grid-template-columns: 40px 1fr 75px 95px; /* Fine-tuned sub-item columns */
+        gap: 2.5mm; /* Smaller gap for subitems */
+        padding-left: 0;
+    }
+
+
+    .item-details, .included-item .item-details {
+        word-wrap: break-word !important; overflow-wrap: break-word !important;
+        white-space: normal !important;
+        max-width: calc(100% - (50px + 5mm)); 
+        margin-left: calc(50px + 5mm); 
+        margin-right: 0;
+        padding: 1mm 0;
+    }
+     .included-item .item-details {
+        margin-left: calc(40px + 2.5mm); 
+        max-width: calc(100% - (40px + 2.5mm));
+    }
+
+    .term-item { margin: 0.2mm 0; padding-bottom: 0.2mm; } /* Very tight terms */
+    .term-item .editable { width: 100% !important; } 
+
     .info-text { word-wrap: break-word !important; overflow-wrap: break-word !important; }
-    .total-price { margin-top: 4mm; padding-top: 2mm; border-top: 1pt solid #000; text-align: right; padding-right: 2mm; page-break-inside: avoid !important; }
+    .total-price { margin-top: 4mm; padding-top: 2mm; border-top: 1pt solid #000; text-align: right; padding-right: 0; page-break-inside: avoid !important; }
     h3 { page-break-before: auto !important; page-break-after: avoid !important; margin-top: 6mm; margin-bottom: 3mm !important; }
     .info-image-container { page-break-inside: avoid !important; margin: 3mm 0; }
     .info-image-container img { max-width: 100% !important; height: auto !important; }
-    .unwanted, .remove-icon, .button-container, .description-remove-icon, .image-resize-handle, .item-tooltip, .formatting-toolbar, .item-actions { display: none !important; }
+    
+    .screen-only { display: none !important; }
+
+    .controls-row .remove-icon { display: none !important; }
+    #infoImagesList .info-block { padding-left: 0 !important; }
+    #infoImagesList .info-block-image .info-image-container { margin-left: 0 !important; }
+    #projectNumberDiv { /* Style if needed based on showProjectNumber state for print */ }
 }
 
 @media screen {
-  #printMultiplier { display: none !important; }
+  .print-only { display: none !important; }
 }
 
 /* ------------------ SCREEN STYLES ------------------ */
 body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; max-width: 210mm; margin: auto; font-size: 12pt; background-color: #fff; }
 .targetPrice span, .subItemTargetPrice span { width: 90% !important; }
-.bold, b { font-weight: bold; }
+.bold, b { font-weight: bold; } 
 i { font-style: italic; }
 .zero-text { color: white !important; }
 .header { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
@@ -46,28 +109,54 @@ i { font-style: italic; }
 .quote-section strong { display: block; margin-bottom: 2px; }
 .quote-section p { margin-top: 2px; }
 .swap-button { font-size: 24px; cursor: pointer; margin: 0 20px; user-select: none; }
-.quote-item, .included-item { position: relative; width: 100%; box-sizing: border-box; }
-.quote-item { padding: 5px 0; cursor: move; }
-.included-item { padding: 0px 0; font-weight: normal; }
+.quote-item { position: relative; width: 100%; box-sizing: border-box; padding: 5px 0; }
+.included-item { 
+    position: relative; width: calc(100% - 30px); box-sizing: border-box;
+    font-weight: normal; 
+    background-color: rgba(249, 249, 249, 0.85); 
+    margin-left: 30px; 
+    margin-top: 5px; 
+    margin-bottom: 5px; 
+    padding: 8px; 
+    border-radius: 4px; 
+}
 .quote-item:hover .item-actions, .included-item:hover .item-actions { display: flex; }
 .item-header { display: grid; grid-template-columns: 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
 .item-header > div { padding: 5px; }
 .item-meta { display: grid; grid-template-columns: 70px minmax(200px,1fr) 100px 120px; gap: 10px; align-items: center; position: relative; margin: 5px 0; padding-left: 0; }
-.included-item .item-meta { background-color: rgba(249, 249, 249, 0.5); margin-left: 30px;}
+
+.included-item .item-meta { 
+    background-color: transparent; 
+    margin-left: 0; 
+    grid-template-columns: 70px minmax(170px,1fr) 100px 120px; 
+    padding-left: 0; 
+} 
+
 .item-meta div { display: flex; align-items: center; padding: 5px; justify-content: flex-start; }
-.item-number { text-align: left; width: 100%; }
+.item-number { text-align: left; width: 100%; user-select: text; /* Allow text selection for editing */ } /* Removed cursor:pointer, now editable */
 .item-name { text-align: left; padding-right: 10px; word-wrap: break-word; }
+.item-name.bold { font-weight: 700; } 
+.subitem-name-style { font-weight: 600; } 
+
 .quantity, .quantity-header, .targetPrice, .price-header, .subItemTargetPrice { text-align: right; padding-right: 15px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; justify-content: flex-end; }
 .input-container { display: inline-flex; align-items: center; position: relative; }
 .button-container { position: absolute; bottom: 100%; right: 0; display: none; flex-direction: row; gap: 1px; }
 .input-container:hover .button-container { display: flex; }
-.button-container button { width: 25px; height: 25px; cursor: pointer; border: 1px solid #ccc; background-color: #f8f8f8; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+.button-container button { 
+    width: 20px; height: 20px; 
+    font-size: 12px; 
+    line-height: 18px; 
+    cursor: pointer; border: 1px solid #ccc; background-color: #f8f8f8; border-radius: 3px; display: flex; align-items: center; justify-content: center; 
+}
 .button-container button:hover { background-color: #e8e8e8; }
 input[type="number"] { width: 60px; padding: 5px; text-align: right; border: none; background-color: transparent; font-size: 12pt; vertical-align: middle; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
 input[type="number"] { -moz-appearance: textfield; }
-.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 130px; max-width: calc(100% - 200px); word-wrap: break-word; margin-left: 80px; }
-.included-item .item-details { margin-left: 110px; }
+.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 220px; /* Increased for more action buttons */ max-width: calc(100% - (70px + 10px + 220px)); word-wrap: break-word; margin-left: calc(70px + 10px); }
+.included-item .item-details { 
+    margin-left: calc(70px + 10px); 
+    max-width: calc(100% - (70px + 10px + 220px));
+}
 .editable { border: 1px solid transparent; padding: 5px; width: 100%; word-wrap: break-word; }
 .editable:hover { border: 1px solid #ddd; background-color: #f9f9f9; }
 .editable:focus { outline: 2px solid #007bff; border-radius: 3px; background-color: #fff; }
@@ -82,31 +171,76 @@ input[type="number"] { -moz-appearance: textfield; }
 .term-item:hover .remove-icon { display: block; }
 .status-message { margin-top: 10px; font-weight: bold; color: green; font-size: 12pt; }
 .total-price { text-align: right; font-weight: bold; margin-top: 20px; font-size: 12pt; padding-right: 15px; margin-right: 0; border-top: 2px solid #000; padding-top: 10px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: 100%; position: relative; }
-.term-item { padding: 2px 0; position: relative; }
+.term-item { padding: 2px 0; position: relative; margin-bottom: 1px; } 
 .term-item .editable { width: 80%; }
 .reference { margin: 20px 0; }
 .currency-multiplier { margin-top: 20px; margin-bottom: 20px; text-align: right; }
 .currency-multiplier label { font-weight: bold; }
 .currency-multiplier input { width: 60px; padding: 5px; font-size: 12pt; text-align: right; }
+#multipleCurrencyRatesDiv input { width: 80px; }
+#multipleCurrencyRatesDiv div { margin-bottom: 5px;}
 .description-remove-icon { display: none; color: white; background-color: red; font-size: 16px; cursor: pointer; width: 20px; height: 20px; border-radius: 10px; text-align: center; line-height: 18px; position: absolute; right: 10px; top: 10px; }
 .item-details:hover .description-remove-icon, .included-item:hover .description-remove-icon { display: block; }
 .checkbox-group { display: flex; gap: 20px; align-items: center; margin-bottom: 10px; }
 #optionalItemsList { margin-top: 0; padding-top: 0; }
 #termsList { margin-top: 0px; padding-top: 10px;}
 h3.name.editable { margin-bottom: 0 !important; }
+
 .info-images { margin: 20px 0; }
-.info-block { position: relative; margin: 10px 0; display: block; width: 100%; box-sizing: border-box; min-height: 30px; }
+.info-block { position: relative; min-height: 30px; box-sizing: border-box; }
+#infoImagesList .info-block-image {
+    display: inline-block !important; vertical-align: top !important; width: auto !important;
+    margin: 0 10px 10px 0 !important; padding-left: 0;
+}
+#infoImagesList .info-block-fullwidth {
+    display: block !important; width: 100% !important; margin: 0 0 10px !important;
+    padding-left: 30px; 
+}
 .info-block:hover { background-color: #fafafa; }
-.info-block .remove-icon { display: none; }
-.info-block:hover .remove-icon { display: inline-block; }
+.info-block .content-wrapper { position: relative; } 
+
+#infoImagesList .info-block-image .info-image-container {
+    display: inline-block; line-height: 0; margin: 0; position: relative;
+}
+#infoImagesList .info-block-image .info-image-container img {
+    display: block; max-width: 100%; width: auto; height: auto; object-fit: cover; border:1px solid transparent;
+}
+#infoImagesList .info-block-image:hover .info-image-container img { border:1px solid #ddd; }
+
+
 .info-text-block { min-height: 30px; padding: 5px; border: 1px solid transparent; }
 .info-text-block:hover { background-color: #f9f9f9; border: 1px solid #ddd; }
-.info-image-container { position: relative; width: auto; margin: 10px 0; }
 .info-image-container img { max-width: 100%; height: auto; display: block; }
-.image-resize-handle { width: 20px; height: 20px; background-color: #fff; border: 2px solid #007bff; border-radius: 50%; position: absolute; bottom: -10px; right: -10px; cursor: se-resize; z-index: 9999; pointer-events: all; }
-.controls-row { position: absolute; top: 5px; right: 5px; display: inline-flex; align-items: center; gap: 5px; z-index: 9999; }
-.drag-handle { background-color: #333; color: white; border-radius: 50%; text-align: center; line-height: 18px; cursor: move; }
-.info-image-up, .info-image-down { border-radius: 50%; text-align: center; line-height: 18px; cursor: pointer; font-size: 16px; }
+
+.image-resize-handle {
+    width: 20px; height: 20px; background-color: rgba(255,255,255,0.8); border: 2px solid #007bff;
+    border-radius: 50%; position: absolute; bottom: 5px; right: 5px;
+    cursor: se-resize; z-index: 15; pointer-events: all; display:none;
+}
+.info-image-container:hover .image-resize-handle { display: block; }
+
+
+.controls-row { display: none; align-items: center; gap: 5px; z-index: 10; background: rgba(230,230,230,0.85); padding:3px; border-radius: 3px; border:1px solid #ccc; }
+.info-block:hover .controls-row { display: inline-flex; }
+
+#infoImagesList .info-block-image .controls-row {
+    position: absolute; top: 5px; right: 5px; flex-direction: row;
+}
+#infoImagesList .info-block-fullwidth .controls-row {
+    position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column;
+}
+
+.controls-row .remove-icon { 
+    position: static; display: inline-flex; align-items:center; justify-content:center;
+    width: 20px; height: 20px; font-size: 14px; line-height: 20px;
+}
+.info-block:hover .controls-row .remove-icon { display: inline-flex; } 
+
+
+.drag-handle { background-color: #333; color: white; border-radius: 50%; text-align: center; line-height: 18px; cursor: move; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; user-select:none;}
+.info-image-up, .info-image-down { border-radius: 50%; text-align: center; line-height: 18px; cursor: pointer; font-size: 16px; background-color: #f0f0f0; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; border: 1px solid #ccc;}
+.info-image-up:hover, .info-image-down:hover { background-color: #e0e0e0; }
+
 #mainItemsSectionContainer, #optionalSectionContainer, #infoSectionContainer { position: relative; }
 .section-remove-icon { display: none; position: absolute; left:10px; top:5px; background-color:red; width:20px; height:20px; border-radius:10px; text-align:center; line-height:18px; color:white; cursor:pointer; font-size:16px; z-index:100; }
 #mainItemsSectionContainer:hover .section-remove-icon, #optionalSectionContainer:hover .section-remove-icon, #infoSectionContainer:hover .section-remove-icon { display: block; }
@@ -119,10 +253,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 .image-upload-button:hover { background-color: #45a049; }
 #liveCurrencyRates { font-size: 12px !important; }
 #infoImagesList { display: block !important; }
-#infoImagesList .info-block { display: inline-block !important; vertical-align: top !important; width: auto !important; margin: 0 10px 10px 0 !important; }
-#infoImagesList .info-block:has(.info-text-block), #infoImagesList .info-block:has(.info-table) { display: block !important; width: 100% !important; margin: 0 0 10px !important; }
-#infoImagesList .info-image-container { display: inline-block; line-height: 0; margin: 0; }
-#infoImagesList .info-image-container img { display: block; max-width: 100%; width: auto; height: auto; object-fit: cover; }
+
 .item-meta .item-tooltip { display: none; position: absolute; top: -18px; right: 5px; background: rgba(255, 255, 255, 0.95); border-radius: 4px; padding: 2px 5px; font-size: 11px; display: flex; gap: 8px; align-items: center; z-index: 10; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .item-meta:hover .item-tooltip { display: flex; }
 .item-tooltip .original-price-display, .item-tooltip .margin-display { white-space: nowrap; border: 1px solid transparent; border-radius: 3px; padding: 1px 3px; min-width: 40px; text-align: right; }
@@ -131,7 +262,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 .item-tooltip .margin-display.discount { color: #b78a00; }
 .item-tooltip .editable:hover { border-color: #ccc; background-color: #f9f9f9; }
 .item-tooltip .editable:focus { border-color: #007bff; background-color: white; box-shadow: 0 0 0 1px #007bff; }
-.item-actions { display: none; position: absolute; right: -85px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
+.item-actions { display: none; position: absolute; right: -220px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
 .item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
 .item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
 #formatting-toolbar { position: absolute; display: none; z-index: 1000; background: #333; border-radius: 5px; padding: 5px; }
@@ -142,7 +273,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 </head>
 <body>
 
-<div id="formatting-toolbar" class="unwanted">
+<div id="formatting-toolbar" class="screen-only">
   <button id="bold-btn" title="Fet (Ctrl+B)"><b>B</b></button>
   <button id="italic-btn" title="Kursiv (Ctrl+I)"><i>I</i></button>
 </div>
@@ -158,29 +289,47 @@ h3.name.editable { margin-bottom: 0 !important; }
     <div class="date" id="dateLabel">Datum:
         <span class="editable" contenteditable="true" id="quoteDate"></span>
     </div>
-    <div class="project-number unwanted" id="projectNumberDiv" style="display:none;">
+    <div class="project-number screen-only" id="projectNumberDiv" style="display:none;">
         Projekt Nummer:
         <span class="editable" contenteditable="true" id="projectNumber"></span>
     </div>
 
-    <div class="checkbox-group unwanted">
+    <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
         <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
     </div>
-    <div class="currency-multiplier unwanted" style="position: relative;">
-        <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px;"></div>
-        <label for="currencyMultiplierInput">Valutakurs:</label>
-        <input type="number" id="currencyMultiplierInput" value="11.8" step="0.01" />
+    <div class="currency-multiplier screen-only" style="position: relative;">
+        <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px; font-size: 10px;"></div>
+        <div id="singleCurrencyMultiplierDiv">
+            <label for="currencyMultiplierInput">Valutakurs:</label>
+            <input type="number" id="currencyMultiplierInput" value="11.8" step="0.01" />
+        </div>
         <label for="marginPercentageInput" id="marginLabel" style="margin-left: 10px;">Påslag (%):</label>
         <input type="number" id="marginPercentageInput" value="0" step="1" />
+
+        <label style="display:block; margin-top:10px;">
+            <input type="checkbox" id="useMultipleCurrenciesChk" />
+            <span id="useMultipleCurrenciesLabel">Använd multipla valutakurser</span>
+        </label>
+        <div id="multipleCurrencyRatesDiv" style="display:none; margin-top:5px; text-align:left; padding-left:20px;">
+            <div>
+                <label for="usdRateInput" id="usdRateLabel">USD-SEK Kurs:</label>
+                <input type="number" id="usdRateInput" step="0.01" />
+            </div>
+            <div>
+                <label for="eurRateInput" id="eurRateLabel">EUR-SEK Kurs:</label>
+                <input type="number" id="eurRateInput" step="0.01" />
+            </div>
+        </div>
     </div>
 
-    <div class="unwanted" style="text-align:right; margin-bottom:20px;">
+
+    <div class="screen-only" style="text-align:right; margin-bottom:20px;">
         <button id="toggleLanguageBtn">Byt Språk (SV/EN)</button>
         <label style="margin-left:15px;">
             <input type="checkbox" id="useCustomCurrencyChk" />
-            Använd egen valuta
+            <span id="customCurrencyLabel">Använd egen valuta</span>
         </label>
         <input type="text" id="customCurrencyInput" value="EUR" style="width:80px; display:none; margin-left:10px;"/>
         <label id="removeTotalCheckboxLabel" style="margin-left:15px;">
@@ -191,42 +340,42 @@ h3.name.editable { margin-bottom: 0 !important; }
 
     <div class="quote-section">
         <div style="margin-bottom: -5px;"><strong id="toLabel">Till:</strong><p class="editable p-editable" contenteditable="true" id="companyA"></p></div>
-        <div class="swap-button unwanted" id="swapButton"><-></div>
+        <div class="swap-button screen-only" id="swapButton"><-></div>
         <div style="margin-bottom: -5px;"><strong id="fromLabel">Från:</strong><p class="editable p-editable" contenteditable="true" id="companyB"></p></div>
     </div>
 
     <div class="reference"><strong id="refLabel">Ref:</strong><span class="editable" contenteditable="true" id="reference"></span></div>
 
     <div id="mainItemsSectionContainer">
-        <span class="section-remove-icon" onclick="removeMainSection()">✖</span>
+        <span class="section-remove-icon screen-only" onclick="removeMainSection()">✖</span>
         <div class="item-header">
             <div id="nrHeader">Nr</div><div id="articleNameHeader" class="editable" contenteditable="true">Artikel / Namn</div>
-            <div id="quantityHeader">Antal</div><div id="priceHeader">Pris (SEK)</div>
+            <div id="quantityHeader" class="quantity-header">Antal</div><div id="priceHeader" class="price-header">Pris (SEK)</div>
         </div>
         <div id="itemsList"></div>
         <div class="total-price" id="totalPrice"><span id="totalLabel" class="editable" contenteditable="true" data-field="totalLabel">Total:</span><span id="totalValue">0 SEK</span></div>
-        <button class="add-button unwanted" id="addItemButton">+ Lägg till ny artikel</button>
+        <button class="add-button screen-only" id="addItemButton">+ Lägg till ny artikel</button>
     </div>
 
     <div id="optionalSectionContainer">
         <h3 id="optionalItemsHeading" class="name editable" contenteditable="true">Alternativ / Ytterligare Artiklar</h3>
-        <span class="section-remove-icon" onclick="removeOptionalSection()">✖</span>
+        <span class="section-remove-icon screen-only" onclick="removeOptionalSection()">✖</span>
         <div class="item-header">
             <div id="optNrHeader">Nr</div><div id="optArticleHeader" class="editable" contenteditable="true">Artikel / Namn</div>
-            <div id="optQuantityHeader">Antal</div><div id="optPriceHeader">Pris (SEK)</div>
+            <div id="optQuantityHeader" class="quantity-header">Antal</div><div id="optPriceHeader" class="price-header">Pris (SEK)</div>
         </div>
         <div id="optionalItemsList"></div>
-        <button class="add-optional-button unwanted" id="addOptionalItemButton">+ Lägg till ny artikel</button>
+        <button class="add-optional-button screen-only" id="addOptionalItemButton">+ Lägg till ny artikel</button>
     </div>
 
     <div id="infoSectionContainer">
         <h3 id="infoImagesHeading" class="name editable" contenteditable="true">Info / Bilder</h3>
-        <hr class="horizontal-line" /><span class="section-remove-icon" onclick="removeInfoSection()">✖</span>
+        <hr class="horizontal-line" /><span class="section-remove-icon screen-only" onclick="removeInfoSection()">✖</span>
         <div id="infoImagesList"></div>
-        <div class="image-upload-container unwanted">
+        <div class="image-upload-container screen-only">
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
             <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (filuppladdning)</button>
-            <button class="image-upload-button unwanted" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
+            <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
             <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
             <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
         </div>
@@ -235,13 +384,13 @@ h3.name.editable { margin-bottom: 0 !important; }
     <h3 id="termsHeading" class="name editable" contenteditable="true">Villkor</h3>
     <hr class="horizontal-line" />
     <div id="termsList"></div>
-    <button class="add-term-button unwanted" id="addTermButton">+ Lägg till villkor</button>
+    <button class="add-term-button screen-only" id="addTermButton">+ Lägg till villkor</button>
 
-<div id="printMultiplier">currencyMultiplicator: <span id="multiplierValue"></span></div>
+<div id="printMultiplier" class="print-only"><span id="multiplierValue"></span></div>
 
 </div>
 
-<div class="footer unwanted">
+<div class="footer screen-only">
     <input type="file" id="fileInput" accept=".json" style="display: none;" />
     <button class="footer-button" onclick="document.getElementById('fileInput').click()">Ladda JSON</button>
     <button id="saveJson" class="footer-button">Spara JSON</button>
@@ -271,11 +420,21 @@ const translations = {
     quantityHeader: "Antal", priceHeader: "Pris", addItemButton: "+ Lägg till ny artikel",
     optionalItemsHeading: "Alternativ / Ytterligare Artiklar", infoImagesHeading: "Info / Bilder",
     termsHeading: "Villkor", addOptionalItemButton: "+ Lägg till ny artikel", addTermButton: "+ Lägg till villkor",
-    customCurrencyLabel: "Använd egen valuta", toggleLangBtn: "Byt Språk (SV/EN)", newTermText: "Nytt villkor: Klicka för att redigera",
+    customCurrencyLabelText: "Använd egen valuta", toggleLangBtn: "Byt Språk (SV/EN)", newTermText: "Nytt villkor: Klicka för att redigera",
     newArticleName: "Artikel Namn", newAltArticleName: "Alternativ Artikel Namn", newDescription: "Beskrivning",
-    newInfoText: "Klicka för att redigera text", promptImageUrl: "Ange bildens URL:", removeTotalLabel: "Ta bort totalen",
+    newOptionalItemDescription: "Standardbeskrivning för alternativ artikel", 
+    newSubItemName: "Underpost Namn", 
+    newSubItemDescription: "Standardbeskrivning för underpost", 
+    newInfoText: "Klicka för att redigera text", promptImageUrl: "Ange bildens URL:", removeTotalLabelText: "Ta bort totalen",
     totalLabel: "Total:", marginLabel: "Påslag (%):", copyJsonBtn: "Kopiera JSON (text)",
-    statusJsonCopied: "Status: JSON kopierad till urklipp!"
+    statusJsonCopied: "Status: JSON kopierad till urklipp!",
+    duplicateItem: "Duplicera rad", removeRow: "Ta bort rad",
+    moveUp: "Flytta upp", moveDown: "Flytta ner",
+    useMultipleCurrenciesLabelText: "Använd multipla valutakurser",
+    usdRateLabelText: "USD-SEK Kurs:", eurRateLabelText: "EUR-SEK Kurs:",
+    editItemNumberPrompt: "Ange nytt artikelnummer:",
+    addSubItem: "Lägg till underpost", 
+    removeAllSubItems: "Ta bort alla underposter", 
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -283,26 +442,42 @@ const translations = {
     quantityHeader: "Quantity", priceHeader: "Price", addItemButton: "+ Add new item",
     optionalItemsHeading: "Alternative / Additional Items", infoImagesHeading: "Info / Images",
     termsHeading: "Terms", addOptionalItemButton: "+ Add new item", addTermButton: "+ Add a term",
-    customCurrencyLabel: "Use custom currency", toggleLangBtn: "Toggle Language (SV/EN)", newTermText: "New term: Click to edit",
+    customCurrencyLabelText: "Use custom currency", toggleLangBtn: "Toggle Language (SV/EN)", newTermText: "New term: Click to edit",
     newArticleName: "Article Name", newAltArticleName: "Alternative Article Name", newDescription: "Description",
-    newInfoText: "Click to edit text", promptImageUrl: "Enter image URL:", removeTotalLabel: "Remove total",
+    newOptionalItemDescription: "Default description for optional item", 
+    newSubItemName: "Sub Item Name", 
+    newSubItemDescription: "Default description for sub item", 
+    newInfoText: "Click to edit text", promptImageUrl: "Enter image URL:", removeTotalLabelText: "Remove total",
     totalLabel: "Total:", marginLabel: "Margin (%):", copyJsonBtn: "Copy JSON (text)",
-    statusJsonCopied: "Status: JSON copied to clipboard!"
+    statusJsonCopied: "Status: JSON copied to clipboard!",
+    duplicateItem: "Duplicate item", removeRow: "Remove row",
+    moveUp: "Move up", moveDown: "Move down",
+    useMultipleCurrenciesLabelText: "Use multiple currency rates",
+    usdRateLabelText: "USD-SEK Rate:", eurRateLabelText: "EUR-SEK Rate:",
+    editItemNumberPrompt: "Enter new item number:",
+    addSubItem: "Add Sub Item", 
+    removeAllSubItems: "Remove All Sub Items", 
   }
 };
 
 let currentLanguage = "sv"; 
 let jsonData = null;
 let currentFileName = null; 
+window.liveExchangeRates = { usd: null, eur: null };
+
 
 (function initData(){
     const localData = localStorage.getItem('quoteData');
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 1, marginPercentage: 0, totalLabel: translations.sv.totalLabel }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[] };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, totalLabel: translations.sv.totalLabel, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50 }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[] };
     } else {
         jsonData=JSON.parse(localData);
-        if(!jsonData.quote) jsonData.quote={currencyMultiplicator:1, marginPercentage: 0};
-        if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0; // Backward compatibility
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50};
+        if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
+        if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
+        if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
+        if(jsonData.quote.usdToSekRate === undefined) jsonData.quote.usdToSekRate = 10.50;
+        if(jsonData.quote.eurToSekRate === undefined) jsonData.quote.eurToSekRate = 11.50;
         if(!jsonData.companyA)jsonData.companyA={}; if(!jsonData.companyB)jsonData.companyB={};
         if(!Array.isArray(jsonData.items))jsonData.items=[]; if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
@@ -336,6 +511,11 @@ function loadQuoteData(data, loadedFileName=null){
     const q = jsonData.quote || {};
     if(!q.quoteNumber)q.quoteNumber=Math.floor(Math.random()*100000).toString();
     if(q.marginPercentage === undefined) q.marginPercentage = 0;
+    if(q.currencyMultiplicator === undefined) q.currencyMultiplicator = 11.8;
+    if(q.useMultipleCurrencies === undefined) q.useMultipleCurrencies = false;
+    if(q.usdToSekRate === undefined) q.usdToSekRate = 10.50; 
+    if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50; 
+
     jsonData.quote = q;
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
 
@@ -346,12 +526,20 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
     document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
     document.getElementById('reference').textContent = q.reference||'';
-    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||1;
+    
+    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||11.8;
     document.getElementById('marginPercentageInput').value = q.marginPercentage || 0;
+    
+    document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
+    document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
+    document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate || 11.50).toFixed(2);
+    toggleMultipleCurrencyUI(q.useMultipleCurrencies || false);
+
+
     document.getElementById('showDecimals').checked=q.showDecimals || false;
     document.getElementById('showProjectNumber').checked = q.projectNumberVisible || false; 
     document.getElementById('projectNumberDiv').style.display = (q.projectNumberVisible) ? 'block' : 'none';
-    document.getElementById('totalLabel').textContent = q.totalLabel || translations.sv.totalLabel;
+    document.getElementById('totalLabel').textContent = q.totalLabel || translations[currentLanguage].totalLabel;
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -360,16 +548,18 @@ function loadQuoteData(data, loadedFileName=null){
 }
 
 function reRenderAll(){
-    renumberAllItems();
+    renumberAllItems(true); 
     updatePrices();
     loadItems(jsonData.items,'itemsList');
     loadItems(jsonData.optionalItems,'optionalItemsList');
     loadTerms(jsonData.terms);
     loadInfoImages();
     calculateTotalPrice();
-    makeEditable();
+    makeEditable(); 
+    // makeItemNumbersEditable(); // No longer needed as .item-number is editable via global .editable
     initializeDragAndDrop();
     updateLanguageUI(currentLanguage);
+    updatePrintMultiplier(); 
 }
 
 function updateDocumentTitle(){
@@ -385,19 +575,30 @@ function updateLanguageUI(lang){
     Object.keys(t).forEach(key => {
         const el = document.getElementById(key);
         if (el) {
-            if (key.endsWith('Label')) el.childNodes[0].nodeValue = `${t[key]} `;
+            if (key.endsWith('Label') && el.childNodes.length > 0 && el.childNodes[0].nodeType === Node.TEXT_NODE) el.childNodes[0].nodeValue = `${t[key]} `;
+            else if (key.endsWith('LabelText')) el.textContent = t[key]; 
             else el.textContent = t[key]
         }
-        if(key === 'articleHeader') { ['articleNameHeader', 'optArticleHeader'].forEach(id => document.getElementById(id).textContent = t[key]); }
-        if(key === 'nrHeader') { ['nrHeader', 'optNrHeader'].forEach(id => document.getElementById(id).textContent = t[key]); }
-        if(key === 'quantityHeader') { ['quantityHeader', 'optQuantityHeader'].forEach(id => document.getElementById(id).textContent = t[key]); }
+        if(key === 'articleHeader') { ['articleNameHeader', 'optArticleHeader'].forEach(id => {const e=document.getElementById(id); if(e)e.textContent = t[key];}); }
+        if(key === 'nrHeader') { ['nrHeader', 'optNrHeader'].forEach(id => {const e=document.getElementById(id); if(e)e.textContent = t[key];}); }
+        if(key === 'quantityHeader') { ['quantityHeader', 'optQuantityHeader'].forEach(id => {const e=document.getElementById(id); if(e)e.textContent = t[key];}); }
     });
     updatePriceHeaders();
-    if(document.getElementById("removeTotalCheckboxLabel")) document.getElementById("removeTotalCheckboxLabel").childNodes[1].nodeValue = ` ${t.removeTotalLabel}`;
-    if(!jsonData.quote.totalLabel || jsonData.quote.totalLabel === translations[lang === 'sv' ? 'en' : 'sv'].totalLabel) {
-      document.getElementById("totalLabel").textContent = t.totalLabel;
+    const removeTotalLabelEl = document.getElementById("removeTotalCheckboxLabel");
+    if(removeTotalLabelEl && removeTotalLabelEl.childNodes.length > 1) removeTotalLabelEl.childNodes[1].nodeValue = ` ${t.removeTotalLabelText}`;
+    
+    const customCurrencyLabelEl = document.getElementById("customCurrencyLabel");
+    if(customCurrencyLabelEl) customCurrencyLabelEl.textContent = ` ${t.customCurrencyLabelText}`;
+    
+    const totalLabelEl = document.getElementById("totalLabel");
+    if (!jsonData.quote.totalLabel || jsonData.quote.totalLabel === translations[lang === 'sv' ? 'en' : 'sv'].totalLabel) {
+      if(totalLabelEl) totalLabelEl.textContent = t.totalLabel;
       jsonData.quote.totalLabel = t.totalLabel;
+    } else if (totalLabelEl) {
+        totalLabelEl.textContent = jsonData.quote.totalLabel; 
     }
+
+
     calculateTotalPrice();
     updateDocumentTitle();
 }
@@ -407,7 +608,10 @@ function updatePriceHeaders(){
     const currencyVal = document.getElementById("customCurrencyInput").value;
     const prefix = translations[currentLanguage].priceHeader;
     const curSymbol = (customChk.checked && currencyVal) ? `(${currencyVal})` : "(SEK)";
-    ['priceHeader', 'optPriceHeader'].forEach(id => document.getElementById(id).textContent = `${prefix} ${curSymbol}`);
+    ['priceHeader', 'optPriceHeader'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = `${prefix} ${curSymbol}`;
+    });
 }
 function loadItems(items, containerId){
     const container = document.getElementById(containerId);
@@ -419,21 +623,29 @@ function loadItems(items, containerId){
         if (it.marginPercentage === undefined) it.marginPercentage = 0;
         const margin = parseFloat(it.marginPercentage) || 0;
         const itemDiv = document.createElement('div');
-        itemDiv.className = 'quote-item'; itemDiv.dataset.index = idx;
+        itemDiv.className = 'quote-item'; itemDiv.dataset.index = idx; 
+        itemDiv.dataset.itemId = it.id || `item-${containerId}-${idx}`; 
+
         const meta = document.createElement('div'); meta.className = 'item-meta';
 
         meta.innerHTML = `
-            <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="itemNumber">${it.itemNumber}</div>
+            <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="itemNumber" title="Klicka för att redigera nummer">${it.itemNumber}</div>
             <div class="item-name bold editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="name">${it.name||''}</div>
-            <div class="quantity" data-item="${containerId}" data-index="${idx}" data-field="quantity"><div class="input-container"><input type="number" min="0" step="1" value="${it.quantity || 0}" class="${(it.quantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container unwanted"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
+            <div class="quantity" data-item="${containerId}" data-index="${idx}" data-field="quantity"><div class="input-container"><input type="number" min="0" step="1" value="${it.quantity || 0}" class="${(it.quantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container screen-only"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
             <div class="targetPrice" data-item="${containerId}" data-index="${idx}" data-field="targetPrice" style="text-align:right;"><span class="${(it.targetPrice || 0) === 0 ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(it.targetPrice || 0)}</span></div>
-            <div class="item-tooltip unwanted">
+            <div class="item-tooltip screen-only">
                 <span class="original-price-display editable" contenteditable="true" data-field="originalPriceAndCurrency" data-item="${containerId}" data-index="${idx}">${it.originalPrice != null ? it.originalPrice : 0} ${it.currencyOrigin || fallbackCurrency}</span>
                 <span class="margin-display editable ${margin < 0 ? 'discount' : ''}" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="marginPercentage">${margin >= 0 ? '+' : ''}${margin}%</span>
             </div>
-            <div class="item-actions unwanted">
+            <div class="item-actions screen-only">
+                <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveUp}" onclick="moveItemUp('${containerId}', ${idx})">▲</button>
+                <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveDown}" onclick="moveItemDown('${containerId}', ${idx})">▼</button>
+                <button class="control-btn" title="${translations[currentLanguage].addSubItem}" onclick="addSubItemToParent('${containerId}', ${idx})">⊕</button>
+                <button class="control-btn" title="${translations[currentLanguage].removeAllSubItems}" onclick="removeAllSubItems('${containerId}', ${idx})">🗑️</button>
                 <button class="control-btn" title="Gör till underpost" onclick="toggleItemHierarchy('${containerId}', ${idx})">↳</button>
                 <button class="control-btn" title="Flytta till/från Alternativ" onclick="toggleItemOptionality('${containerId}', ${idx})">⇅</button>
+                <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateItem('${containerId}', ${idx})">❏</button>
+                <button class="control-btn" title="${translations[currentLanguage].removeRow}" style="background-color:red; color:white;" onclick="removeItem('${containerId}', ${idx})">✖</button>
             </div>
         `;
         itemDiv.appendChild(meta);
@@ -443,26 +655,29 @@ function loadItems(items, containerId){
             details.dataset.item = containerId; details.dataset.index = idx; details.dataset.field = 'itemDescription';
             details.innerHTML = it.itemDescription.replace(/\n/g,'<br>');
             const descRemove = document.createElement('span');
-            descRemove.className = 'description-remove-icon'; descRemove.textContent = '✖'; descRemove.onclick = () => removeDescription(details);
+            descRemove.className = 'description-remove-icon screen-only'; descRemove.textContent = '✖'; descRemove.onclick = () => removeDescription(details);
             details.appendChild(descRemove); itemDiv.appendChild(details);
         }
-        (it.subItems || it.optionalSubItems || []).forEach((sItem, sIdx) => {
+        (it.subItems || []).forEach((sItem, sIdx) => { 
             if (sItem.marginPercentage === undefined) sItem.marginPercentage = 0;
             const subMargin = parseFloat(sItem.marginPercentage) || 0;
             const included = document.createElement('div'); included.className = 'included-item';
             const sMeta = document.createElement('div'); sMeta.className = 'item-meta';
             sMeta.innerHTML = `
-                <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemNumber">${sItem.subItemNumber}</div>
-                <div class="item-name editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemName">${sItem.subItemName||''}</div>
-                <div class="quantity" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemQuantity"><div class="input-container"><input type="number" min="0" step="1" value="${sItem.subItemQuantity || 0}" class="${(sItem.subItemQuantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container unwanted"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
+                <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemNumber" title="Klicka för att redigera nummer">${sItem.subItemNumber}</div>
+                <div class="item-name editable subitem-name-style" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemName">${sItem.subItemName||''}</div>
+                <div class="quantity" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemQuantity"><div class="input-container"><input type="number" min="0" step="1" value="${sItem.subItemQuantity || 0}" class="${(sItem.subItemQuantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container screen-only"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
                 <div class="subItemTargetPrice" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemTargetPrice" style="text-align:right;"><span class="${(sItem.subItemTargetPrice || 0) === 0 ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(sItem.subItemTargetPrice || 0)}</span></div>
-                <div class="item-tooltip unwanted">
+                <div class="item-tooltip screen-only">
                     <span class="original-price-display editable" contenteditable="true" data-field="originalPriceAndCurrency" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}">${sItem.subItemOriginalPrice != null ? sItem.subItemOriginalPrice : 0} ${sItem.currencyOrigin || it.currencyOrigin || fallbackCurrency}</span>
                     <span class="margin-display editable ${subMargin < 0 ? 'discount' : ''}" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="marginPercentage">${subMargin >= 0 ? '+' : ''}${subMargin}%</span>
                 </div>
-                <div class="item-actions unwanted">
+                <div class="item-actions screen-only">
+                    <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveUp}" onclick="moveSubItemUp('${containerId}', ${idx}, ${sIdx})">▲</button>
+                    <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveDown}" onclick="moveSubItemDown('${containerId}', ${idx}, ${sIdx})">▼</button>
                     <button class="control-btn" title="Gör till huvudpost" onclick="toggleItemHierarchy('${containerId}', ${idx}, ${sIdx})">↰</button>
-                    <button class="control-btn" title="Ta bort rad" style="background-color:red; color:white;" onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</button>
+                    <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateSubItem('${containerId}', ${idx}, ${sIdx})">❏</button>
+                    <button class="control-btn" title="${translations[currentLanguage].removeRow}" style="background-color:red; color:white;" onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</button>
                  </div>
             `;
             included.appendChild(sMeta);
@@ -472,7 +687,7 @@ function loadItems(items, containerId){
                 sDetails.dataset.item = containerId; sDetails.dataset.index = idx; sDetails.dataset.includedIndex = sIdx; sDetails.dataset.field = 'subItemDescription';
                 sDetails.innerHTML = sItem.subItemDescription.replace(/\n/g,'<br>');
                 const sDescRem = document.createElement('span');
-                sDescRem.className = 'description-remove-icon'; sDescRem.textContent = '✖'; sDescRem.onclick = () => removeDescription(sDetails);
+                sDescRem.className = 'description-remove-icon screen-only'; sDescRem.textContent = '✖'; sDescRem.onclick = () => removeDescription(sDetails);
                 sDetails.appendChild(sDescRem); included.appendChild(sDetails);
             }
             itemDiv.appendChild(included);
@@ -481,12 +696,40 @@ function loadItems(items, containerId){
     });
 }
 function removeItem(containerId, idx){ const arr = (containerId ==='itemsList') ? jsonData.items : jsonData.optionalItems; arr.splice(idx,1); saveToLocal(); reRenderAll(); }
-function removeSubItem(containerId, idx, sIdx){ const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems; (arr[idx].subItems || arr[idx].optionalSubItems).splice(sIdx,1); saveToLocal(); reRenderAll(); }
-function removeDescription(el){ const {item: cId, index: i, includedIndex: si, field} = el.dataset; const it = (cId==='itemsList' ? jsonData.items : jsonData.optionalItems)[i]; (si ? (it.subItems||it.optionalSubItems)[si] : it)[field] = ''; saveToLocal(); reRenderAll(); }
+function removeSubItem(containerId, idx, sIdx){ const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems; arr[idx].subItems.splice(sIdx,1); saveToLocal(); reRenderAll(); }
+
+function duplicateItem(containerId, index) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    if (list && list[index]) {
+        const itemToCopy = list[index];
+        const newItem = JSON.parse(JSON.stringify(itemToCopy));
+        delete newItem.id; 
+        list.splice(index + 1, 0, newItem);
+        saveToLocal();
+        reRenderAll();
+    }
+}
+
+function duplicateSubItem(containerId, mainIndex, subIndex) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const parentItem = list[mainIndex];
+    if (parentItem && parentItem.subItems) {
+        const subItemsList = parentItem.subItems;
+        if (subItemsList && subItemsList[subIndex]) {
+            const subItemToCopy = subItemsList[subIndex];
+            const newSubItem = JSON.parse(JSON.stringify(subItemToCopy));
+            subItemsList.splice(subIndex + 1, 0, newSubItem);
+            saveToLocal();
+            reRenderAll();
+        }
+    }
+}
+
+function removeDescription(el){ const {item: cId, index: i, includedIndex: si, field} = el.dataset; const it = (cId==='itemsList' ? jsonData.items : jsonData.optionalItems)[i]; (si ? (it.subItems)[si] : it)[field] = ''; saveToLocal(); reRenderAll(); }
 
 function loadTerms(terms){
     const list=document.getElementById('termsList'); list.innerHTML='';
-    (terms || []).forEach((t, i)=>{ list.innerHTML += `<div class="term-item"><div class="editable" contenteditable="true" data-field="term" data-index="${i}">${t}</div><span class="remove-icon" onclick="removeTerm(${i})">✖</span></div>`; });
+    (terms || []).forEach((t, i)=>{ list.innerHTML += `<div class="term-item"><div class="editable" contenteditable="true" data-field="term" data-index="${i}">${t}</div><span class="remove-icon screen-only" onclick="removeTerm(${i})">✖</span></div>`; });
 }
 function removeTerm(i){ jsonData.terms.splice(i,1); saveToLocal(); reRenderAll(); }
 
@@ -494,14 +737,20 @@ function loadInfoImages(){
     const c=document.getElementById('infoImagesList'); c.innerHTML='';
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
-        block.className='info-block'; block.dataset.index=idx;
-        block.innerHTML = `<div class="controls-row unwanted"><span class="info-image-up" onclick="moveImageUp(${idx})">▲</span><span class="drag-handle">≡</span><span class="info-image-down" onclick="moveImageDown(${idx})">▼</span><span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span></div>`;
+        block.className='info-block'; 
+        block.dataset.index=idx;
+
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'content-wrapper';
+
         if(obj.type==='text'){
+            block.classList.add('info-block-fullwidth');
             const txt=document.createElement('div');
             txt.className='info-text-block editable'; txt.contentEditable=true; txt.dataset.index=idx; txt.innerHTML=obj.content||'';
             txt.addEventListener('input',()=>{ jsonData.infoImages[idx].content=txt.innerHTML; saveToLocal(); });
-            block.appendChild(txt);
+            contentWrapper.appendChild(txt);
         } else if(obj.type==='table'){
+            block.classList.add('info-block-fullwidth');
             const table=document.createElement('table'); table.className='info-table';
             for(let r=0;r<obj.rows;r++){
                 const row=document.createElement('tr');
@@ -513,17 +762,30 @@ function loadInfoImages(){
                 }
                 table.appendChild(row);
             }
-            block.appendChild(table);
-        } else {
+            contentWrapper.appendChild(table);
+        } else { // Image
+            block.classList.add('info-block-image');
             const imgContainer=document.createElement('div');
             imgContainer.className='info-image-container';
             const img=document.createElement('img');
             img.src=obj.src; img.style.width=(obj.width||400)+'px';
             const resizeH=document.createElement('div');
-            resizeH.className='image-resize-handle unwanted';
-            imgContainer.append(img, resizeH); block.appendChild(imgContainer);
+            resizeH.className='image-resize-handle screen-only'; 
+            imgContainer.append(img, resizeH); 
+            contentWrapper.appendChild(imgContainer);
             initializeResize(resizeH,img,idx);
         }
+        
+        const controls = document.createElement('div');
+        controls.className = 'controls-row screen-only'; 
+        controls.innerHTML = `
+            <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
+            <span class="drag-handle">≡</span>
+            <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
+            <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+        
+        block.appendChild(controls); 
+        block.appendChild(contentWrapper); 
         c.appendChild(block);
     });
 }
@@ -548,16 +810,36 @@ document.getElementById('imageUpload').addEventListener('change',function(ev){
     }
 });
 function initializeResize(handle,img,idx){
-    let startWidth, startX;
-    const onDown=(ev)=>{ ev.preventDefault(); startWidth=img.offsetWidth; startX=ev.clientX; document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);};
-    const onMove=(ev)=>{ ev.preventDefault(); const w=startWidth+(ev.clientX-startX); if(w>40){ img.style.width=w+'px'; jsonData.infoImages[idx].width=w; }};
-    const onUp=()=>{ saveToLocal(); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp);};
+    let startWidth, startX, startY, startHeight;
+    const onDown=(ev)=>{ 
+        ev.preventDefault(); 
+        startWidth=img.offsetWidth; 
+        startX=ev.clientX;
+        startY=ev.clientY;
+        startHeight=img.offsetHeight;
+        document.addEventListener('mousemove',onMove); 
+        document.addEventListener('mouseup',onUp);
+    };
+    const onMove=(ev)=>{ 
+        ev.preventDefault(); 
+        const newWidth = startWidth+(ev.clientX-startX);
+        if(newWidth>40){ 
+            img.style.width=newWidth+'px'; 
+            jsonData.infoImages[idx].width=newWidth; 
+        }
+    };
+    const onUp=()=>{ 
+        saveToLocal(); 
+        document.removeEventListener('mousemove',onMove); 
+        document.removeEventListener('mouseup',onUp);
+    };
     handle.addEventListener('mousedown',onDown);
 }
 
-function removeInfoSection(){ jsonData.infoImages=[]; saveToLocal(); document.getElementById('infoSectionContainer')?.remove(); }
-function removeOptionalSection(){ jsonData.optionalItems=[]; saveToLocal(); document.getElementById('optionalSectionContainer')?.remove(); }
-function removeMainSection(){ jsonData.items = []; saveToLocal(); document.getElementById('mainItemsSectionContainer')?.remove(); }
+function removeInfoSection(){ jsonData.infoImages=[]; saveToLocal(); const el = document.getElementById('infoSectionContainer'); if (el) el.style.display = 'none'; reRenderAll(); }
+function removeOptionalSection(){ jsonData.optionalItems=[]; saveToLocal(); const el = document.getElementById('optionalSectionContainer'); if (el) el.style.display = 'none'; reRenderAll(); }
+function removeMainSection(){ jsonData.items = []; saveToLocal(); const el = document.getElementById('mainItemsSectionContainer'); if (el) el.style.display = 'none'; reRenderAll(); }
+
 function moveImageUp(idx){ if(idx>0){ [jsonData.infoImages[idx], jsonData.infoImages[idx-1]] = [jsonData.infoImages[idx-1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
 function moveImageDown(idx){ if(idx<jsonData.infoImages.length-1){ [jsonData.infoImages[idx], jsonData.infoImages[idx+1]] = [jsonData.infoImages[idx+1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
 
@@ -577,22 +859,46 @@ function compressImage(file, quality, maxWidth, callback){
 }
 
 function updatePrices(){
-    const mul = parseFloat(jsonData.quote.currencyMultiplicator) || 1;
     const globalMarginMultiplier = 1 + ((parseFloat(jsonData.quote.marginPercentage) || 0) / 100);
+    const useMultiCurrency = jsonData.quote.useMultipleCurrencies;
+    const singleMultiplier = parseFloat(jsonData.quote.currencyMultiplicator) || 1;
+    const usdRate = parseFloat(jsonData.quote.usdToSekRate) || 10.5;
+    const eurRate = parseFloat(jsonData.quote.eurToSekRate) || 11.5;
+
     const handle = (arr) => {
         const fallback = (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) ? jsonData.quote.customCurrency : 'SEK';
         arr.forEach(it => {
             const itemMarginMultiplier = 1 + ((it.marginPercentage || 0) / 100);
             if (it.originalPrice != null) {
                 let basePrice = it.originalPrice;
-                if ((it.currencyOrigin || fallback).toUpperCase() !== 'SEK') basePrice *= mul;
+                const originCurrency = (it.currencyOrigin || fallback).toUpperCase();
+                
+                if (originCurrency !== 'SEK') {
+                    if (useMultiCurrency) {
+                        if (originCurrency === 'USD') basePrice *= usdRate;
+                        else if (originCurrency === 'EUR') basePrice *= eurRate;
+                        else basePrice *= singleMultiplier; 
+                    } else {
+                        basePrice *= singleMultiplier;
+                    }
+                }
                 it.targetPrice = (basePrice * globalMarginMultiplier) * itemMarginMultiplier * (it.quantity || 0);
             }
-            (it.subItems || it.optionalSubItems || []).forEach(s => {
+            (it.subItems || []).forEach(s => {
                 const subItemMarginMultiplier = 1 + ((s.marginPercentage || 0) / 100);
                 if (s.subItemOriginalPrice != null) {
                    let subBasePrice = s.subItemOriginalPrice;
-                   if ((s.currencyOrigin || it.currencyOrigin || fallback).toUpperCase() !== 'SEK') subBasePrice *= mul;
+                   const subOriginCurrency = (s.currencyOrigin || it.currencyOrigin || fallback).toUpperCase();
+
+                   if (subOriginCurrency !== 'SEK') {
+                       if (useMultiCurrency) {
+                           if (subOriginCurrency === 'USD') subBasePrice *= usdRate;
+                           else if (subOriginCurrency === 'EUR') subBasePrice *= eurRate;
+                           else subBasePrice *= singleMultiplier; 
+                       } else {
+                           subBasePrice *= singleMultiplier;
+                       }
+                   }
                    s.subItemTargetPrice = (subBasePrice * globalMarginMultiplier) * subItemMarginMultiplier * (s.subItemQuantity || 0);
                 }
             });
@@ -629,18 +935,42 @@ window.addEventListener('afterprint', () => removeHiddenJsonDiv());
 function handleQuantityChange(inp){
     const {item: containerId, index: idx, includedIndex: sIdx} = inp.closest('.quantity').dataset;
     const item = (containerId === 'itemsList' ? jsonData.items : jsonData.optionalItems)[idx];
-    (sIdx ? (item.subItems||item.optionalSubItems)[sIdx] : item)[sIdx ? 'subItemQuantity' : 'quantity'] = parseInt(inp.value) || 0;
+    (sIdx ? item.subItems[sIdx] : item)[sIdx ? 'subItemQuantity' : 'quantity'] = parseInt(inp.value) || 0;
     saveToLocal(); reRenderAll();
 }
 
 document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.companyA, jsonData.companyB] = [jsonData.companyB, jsonData.companyA]; saveToLocal(); loadQuoteData(jsonData, currentFileName); });
 document.getElementById('showProjectNumber').addEventListener('change', function(){ document.getElementById('projectNumberDiv').style.display=this.checked?'block':'none'; jsonData.quote.projectNumberVisible = this.checked; saveToLocal(); });
+
 document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
+
+document.getElementById('useMultipleCurrenciesChk').addEventListener('change', function() {
+    jsonData.quote.useMultipleCurrencies = this.checked;
+    toggleMultipleCurrencyUI(this.checked);
+    saveToLocal();
+    reRenderAll();
+});
+document.getElementById('usdRateInput').addEventListener('input', function() {
+    const val = parseFloat(this.value); if(!isNaN(val)) { jsonData.quote.usdToSekRate = val; saveToLocal(); reRenderAll(); }
+});
+document.getElementById('eurRateInput').addEventListener('input', function() {
+    const val = parseFloat(this.value); if(!isNaN(val)) { jsonData.quote.eurToSekRate = val; saveToLocal(); reRenderAll(); }
+});
+
+function toggleMultipleCurrencyUI(isMultiActive) {
+    document.getElementById('multipleCurrencyRatesDiv').style.display = isMultiActive ? 'block' : 'none';
+    document.getElementById('singleCurrencyMultiplierDiv').style.display = isMultiActive ? 'none' : 'block';
+    if(isMultiActive) {
+        updateMultiCurrencyInputsFromLiveRates(false); 
+    }
+}
+
+
 document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
 
-document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:'', quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
-document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:'', quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
+document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
+document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
 document.getElementById('addTermButton').addEventListener('click',()=>{ if (!jsonData.terms) jsonData.terms = []; jsonData.terms.push(translations[currentLanguage].newTermText); saveToLocal(); reRenderAll(); });
 
 function parseFileName(fileName){ const match = fileName.replace(/\.json$/i,'').match(/^(.*)_(\d{6})_v(\d+)$/); return match ? { prefix: match[1], datePart: match[2], version: parseInt(match[3],10) } : null; }
@@ -671,38 +1001,72 @@ let itemsSortable, optionalItemsSortable, termsSortable, infoSortable;
 function initializeDragAndDrop(){
     if(itemsSortable) itemsSortable.destroy(); if(optionalItemsSortable) optionalItemsSortable.destroy();
     if(termsSortable) termsSortable.destroy(); if(infoSortable) infoSortable.destroy();
-    const onSortEnd = (arr, evt) => { const moved = arr.splice(evt.oldIndex, 1)[0]; arr.splice(evt.newIndex, 0, moved); saveToLocal(); reRenderAll(); };
-    itemsSortable = Sortable.create(document.getElementById('itemsList'),{ group:'sharedItems', animation:150, handle: '.quote-item', onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.items, evt); },
-        onAdd: (evt) => { if (evt.from.id === 'optionalItemsList') { const moved = jsonData.optionalItems.splice(evt.oldIndex, 1)[0]; jsonData.items.splice(evt.newIndex, 0, moved); saveToLocal(); reRenderAll(); } }
+    
+    const onSortEnd = (arr, evt) => { 
+        if (evt.oldIndex === undefined || evt.newIndex === undefined) return;
+        const moved = arr.splice(evt.oldIndex, 1)[0]; 
+        arr.splice(evt.newIndex, 0, moved); 
+        saveToLocal(); 
+        reRenderAll(); 
+    };
+
+    itemsSortable = Sortable.create(document.getElementById('itemsList'),{ 
+        group:'sharedItems', 
+        animation:150, 
+        handle: '.quote-item', 
+        onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.items, evt); },
+        onAdd: (evt) => { 
+            if (evt.from.id === 'optionalItemsList') { 
+                const moved = jsonData.optionalItems.splice(evt.oldIndex, 1)[0]; 
+                jsonData.items.splice(evt.newIndex, 0, moved); 
+                saveToLocal(); reRenderAll(); 
+            } 
+        }
     });
-    optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{ group:'sharedItems', animation:150, handle: '.quote-item', onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.optionalItems, evt); },
-        onAdd: (evt) => { if (evt.from.id === 'itemsList') { const moved = jsonData.items.splice(evt.oldIndex, 1)[0]; jsonData.optionalItems.splice(evt.newIndex, 0, moved); saveToLocal(); reRenderAll(); } }
+    optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{ 
+        group:'sharedItems', 
+        animation:150, 
+        handle: '.quote-item', 
+        onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.optionalItems, evt); },
+        onAdd: (evt) => { 
+            if (evt.from.id === 'itemsList') { 
+                const moved = jsonData.items.splice(evt.oldIndex, 1)[0]; 
+                jsonData.optionalItems.splice(evt.newIndex, 0, moved); 
+                saveToLocal(); reRenderAll(); 
+            } 
+        }
     });
     termsSortable=Sortable.create(document.getElementById('termsList'),{ animation:150, handle:'.term-item', onEnd: (evt) => onSortEnd(jsonData.terms, evt) });
-    infoSortable=Sortable.create(document.getElementById('infoImagesList'),{ animation:150, handle:'.drag-handle', onEnd: (evt) => onSortEnd(jsonData.infoImages, evt) });
+    infoSortable=Sortable.create(document.getElementById('infoImagesList'),{ 
+        animation:150, 
+        handle:'.drag-handle', 
+        onEnd: (evt) => onSortEnd(jsonData.infoImages, evt) 
+    });
 }
 
 let activeEditingElement = null;
 function makeEditable(){
-    document.querySelectorAll('.editable').forEach(el=> {
+    document.querySelectorAll('.editable, .item-number[contenteditable="true"]').forEach(el=> { // Include .item-number for direct editing
         el.removeEventListener('input', onEditableInput); 
         el.addEventListener('blur', onEditableBlur);
         el.addEventListener('input', onEditableInput);
     });
 }
+
 function onEditableInput(e){
     const target = e.target; 
-    let val = target.id.startsWith('company') ? target.innerHTML : target.textContent.trim();
+    let val = target.id.startsWith('company') ? target.innerHTML : (target.classList.contains('p-editable') ? target.innerHTML : target.textContent.trim());
     const field=target.dataset.field;
 
-    if(!field) {
+    if(!field) { 
         if(target.id === 'companyA' || target.id === 'companyB') {
-            const lines = val.split(/<br\s*\/?>/gi).filter(Boolean);
+            const lines = target.innerHTML.split(/<br\s*\/?>/gi).map(line => line.trim()).filter(Boolean); 
             let data = {};
-            lines.forEach((line, index) => { data[`line${index + 1}`] = line.trim(); });
+            lines.forEach((line, index) => { data[`line${index + 1}`] = line; }); 
             jsonData[target.id] = data;
         }
         else if(target.id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
+        else if (target.id === 'totalLabel') { jsonData.quote.totalLabel = target.textContent; }
         else { jsonData.quote[target.id] = target.textContent; }
         saveToLocal(); return;
     }
@@ -710,9 +1074,11 @@ function onEditableInput(e){
 
     const {item: cId, index: idx, includedIndex: sIdx} = target.dataset;
     const arr = (cId === 'itemsList') ? jsonData.items : jsonData.optionalItems; if(!arr[idx])return;
-    let item = sIdx !== undefined ? (arr[idx].subItems || arr[idx].optionalSubItems)[sIdx] : arr[idx]; if (!item) return;
+    let item = sIdx !== undefined ? arr[idx].subItems[sIdx] : arr[idx]; if (!item) return;
     
-    if (field === 'marginPercentage') {
+    if(field === "itemNumber" || field === "subItemNumber") {
+        item[field] = val; // Directly update the number from contenteditable div
+    } else if (field === 'marginPercentage') {
         const marginValue = parseFloat(val.replace(/[+%]/g, ''));
         if (!isNaN(marginValue)) item.marginPercentage = marginValue;
     } else if (field === 'originalPriceAndCurrency') {
@@ -725,22 +1091,40 @@ function onEditableInput(e){
             }
         }
     } else if (field.includes('Description')){ item[field] = target.innerHTML.replace(/<br\s*\/?>/gi,'\n');
-    } else { item[field] = val; }
+    } else { item[field] = val; } 
     
     saveToLocal();
-    updatePrices();
-    calculateTotalPrice();
-    updateLiveDOMPrices(cId, idx, sIdx);
+    // For itemNumber changes, we don't want immediate re-render of everything, just update the current display.
+    // But if other fields change, prices might need recalculation.
+    if (field !== "itemNumber" && field !== "subItemNumber") {
+        updatePrices(); 
+        calculateTotalPrice();
+        updateLiveDOMPrices(cId, idx, sIdx);
+    } else {
+        // If it's an item number, only the text content of the target needs to reflect 'val'
+        // but the DOM is already updated by contenteditable. No further action needed here for display.
+    }
 }
-function onEditableBlur() {
+function onEditableBlur(e) {
     activeEditingElement = null;
     hideFormattingToolbar();
-    reRenderAll();
+    const target = e.target;
+    const field = target.dataset.field;
+
+    if (document.body.contains(target)) {
+        // If an item number was edited, re-render to ensure numbering consistency and update sub-item numbers if a parent's number changed.
+        if (field === "itemNumber" || field === "subItemNumber") {
+            renumberAllItems(false); // false = try to respect manual edits but fix inconsistencies
+            reRenderAll(); // Full re-render to apply all changes
+        } else {
+            reRenderAll(); 
+        }
+    }
 }
 function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
     const arr = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
     if (!arr[mainIndex]) return;
-    const item = (subIndex !== undefined) ? (arr[mainIndex].subItems || arr[mainIndex].optionalSubItems)[subIndex] : arr[mainIndex];
+    const item = (subIndex !== undefined) ? arr[mainIndex].subItems[subIndex] : arr[mainIndex];
     if (!item) return;
 
     const priceField = (subIndex !== undefined) ? 'subItemTargetPrice' : 'targetPrice';
@@ -765,28 +1149,75 @@ function copyJsonToClipboard(){
 }
 document.getElementById('printBtn').addEventListener('click', () => window.print());
 function saveToLocal(){ localStorage.setItem('quoteData', JSON.stringify(jsonData)); }
-window.onload=()=>{ loadQuoteData(jsonData); };
-(async () => {
+
+window.onload=()=>{ 
+    loadQuoteData(jsonData); 
+    fetchLiveCurrencyRates(); 
+};
+
+function updateMultiCurrencyInputsFromLiveRates(overwriteManual = false) {
+    const usdInput = document.getElementById('usdRateInput');
+    const eurInput = document.getElementById('eurRateInput');
+    const currentJsonUsd = parseFloat(jsonData.quote.usdToSekRate).toFixed(2);
+    const currentJsonEur = parseFloat(jsonData.quote.eurToSekRate).toFixed(2);
+
+    if (window.liveExchangeRates.usd !== null) {
+        const liveUsdRateWithMargin = (parseFloat(window.liveExchangeRates.usd) + 0.4).toFixed(2);
+        if (overwriteManual || parseFloat(usdInput.value).toFixed(2) === currentJsonUsd || usdInput.value === "") { 
+             usdInput.value = liveUsdRateWithMargin;
+             jsonData.quote.usdToSekRate = parseFloat(liveUsdRateWithMargin);
+        }
+    }
+    if (window.liveExchangeRates.eur !== null) {
+        const liveEurRateWithMargin = (parseFloat(window.liveExchangeRates.eur) + 0.4).toFixed(2);
+         if (overwriteManual || parseFloat(eurInput.value).toFixed(2) === currentJsonEur || eurInput.value === "") {
+            eurInput.value = liveEurRateWithMargin;
+            jsonData.quote.eurToSekRate = parseFloat(liveEurRateWithMargin);
+        }
+    }
+    if (jsonData.quote.useMultipleCurrencies && (parseFloat(jsonData.quote.usdToSekRate).toFixed(2) !== currentJsonUsd || parseFloat(jsonData.quote.eurToSekRate).toFixed(2) !== currentJsonEur ) ) { 
+        saveToLocal(); 
+        reRenderAll(); 
+    }
+}
+
+
+async function fetchLiveCurrencyRates() {
     const container = document.getElementById('liveCurrencyRates');
+    container.innerHTML = 'Laddar kurser...';
+    let displayHtml = [];
+
     const fetchRate = async (base) => {
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 10; i++) { 
             const date = new Date(); date.setDate(date.getDate() - i); const dateStr = date.toISOString().split("T")[0];
             try {
-                const res = await fetch(`https://${dateStr}.currency-api.pages.dev/v1/currencies/${base}.json`); if (!res.ok) continue;
-                const data = await res.json(); const rate = data?.[base]?.['sek'];
-                if (rate) return `1 ${base.toUpperCase()} = ${rate.toFixed(2)} SEK (${dateStr.slice(5)})`;
-            } catch { continue; }
+                const res = await fetch(`https://${dateStr}.currency-api.pages.dev/v1/currencies/${base.toLowerCase()}.json`); 
+                if (!res.ok) continue;
+                const data = await res.json(); 
+                const rate = data?.[base.toLowerCase()]?.['sek'];
+                if (rate) {
+                    window.liveExchangeRates[base.toLowerCase()] = parseFloat(rate);
+                    return `1 ${base.toUpperCase()} = ${rate.toFixed(2)} SEK (${dateStr.slice(5)})`;
+                }
+            } catch (err) { console.warn(`Failed to fetch ${base} for ${dateStr}:`, err); continue; }
         }
         return `Kurs för ${base.toUpperCase()} otillgänglig`;
     };
-    container.innerHTML = (await Promise.all(['usd', 'eur'].map(fetchRate))).join('<br/>');
-})();
+
+    displayHtml = await Promise.all(['usd', 'eur'].map(fetchRate));
+    container.innerHTML = displayHtml.join('<br/>');
+    if (jsonData.quote.useMultipleCurrencies) { 
+      updateMultiCurrencyInputsFromLiveRates(false); 
+    }
+}
+
+
 document.addEventListener('DOMContentLoaded', function () {
     const savePdfBtn = document.getElementById('savePdfBtn');
     savePdfBtn.addEventListener('click', async () => {
 		const quoteContent = document.getElementById('quoteContent'); if (!quoteContent) return alert("Innehåll saknas.");
-        const clone = quoteContent.cloneNode(true); clone.querySelectorAll('.unwanted').forEach(el => el.style.display = 'none');
-		createHiddenJsonDiv(clone);
+        const clone = quoteContent.cloneNode(true); clone.querySelectorAll('.screen-only').forEach(el => el.style.display = 'none');
+		createHiddenJsonDiv(clone); 
         const container = document.createElement('div'); container.style.cssText = 'position:fixed; left:-9999px; top:0; width:210mm;';
         container.appendChild(clone); document.body.appendChild(container);
         const ref = (document.getElementById('reference')?.textContent || 'Offert').trim(), qNum = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
@@ -798,18 +1229,54 @@ document.addEventListener('DOMContentLoaded', function () {
             }).from(clone).save();
         } catch (err) { console.error("PDF generation failed:", err); } finally { container.remove(); }
     });
+
+    document.addEventListener('keydown', function(event) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+            event.preventDefault();
+            if (jsonData && jsonData.quote && typeof buildFileName === 'function' && typeof doDownloadJson === 'function') {
+                doDownloadJson(buildFileName(jsonData.quote.reference, 1));
+            } else {
+                console.warn("Cannot save: jsonData or helper functions not ready.");
+            }
+        }
+         if (event.ctrlKey || event.metaKey) { 
+            if (event.key.toLowerCase() === 'b' && document.activeElement.isContentEditable) { event.preventDefault(); document.execCommand('bold'); }
+            if (event.key.toLowerCase() === 'i' && document.activeElement.isContentEditable) { event.preventDefault(); document.execCommand('italic'); }
+        }
+    });
 });
-function updatePrintMultiplier(){ document.getElementById('multiplierValue').textContent = jsonData.quote.currencyMultiplicator ?? 1; }
-window.addEventListener('load', () => {
+
+function updatePrintMultiplier(){ 
+    const multiplierSpan = document.getElementById('multiplierValue');
+    if (!multiplierSpan) return;
+
+    if (jsonData.quote.useMultipleCurrencies) {
+        let ratesText = [];
+        if (jsonData.quote.usdToSekRate) ratesText.push(`USD: ${parseFloat(jsonData.quote.usdToSekRate).toFixed(2)}`);
+        if (jsonData.quote.eurToSekRate) ratesText.push(`EUR: ${parseFloat(jsonData.quote.eurToSekRate).toFixed(2)}`);
+        multiplierSpan.textContent = ratesText.length > 0 ? `Kurser: ${ratesText.join(', ')} SEK` : "Multipla kurser aktiva";
+    } else {
+        multiplierSpan.textContent = `Valutakurs: ${jsonData.quote.currencyMultiplicator ?? 1}`; 
+    }
+}
+
+window.addEventListener('load', () => { 
     const q = jsonData.quote;
     q.language = q.language || currentLanguage; q.customCurrency = q.customCurrency || '';
     q.useCustomCurrency = q.useCustomCurrency === undefined ? !!q.customCurrency : q.useCustomCurrency;
     currentLanguage = q.language;
     document.getElementById('customCurrencyInput').value = q.customCurrency;
     document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency;
-    document.getElementById('useCustomCurrencyChk').dispatchEvent(new Event('change'));
+    document.getElementById('useCustomCurrencyChk').dispatchEvent(new Event('change')); 
+    
+    document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies;
+    toggleMultipleCurrencyUI(q.useMultipleCurrencies);
+    document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
+    document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate || 11.50).toFixed(2);
+
     updatePrintMultiplier();
     setupFormattingToolbar();
+    reRenderAll(); 
 });
 document.getElementById('uploadPdfBtn').addEventListener('click', () => document.getElementById('pdfUploadInput').click());
 document.getElementById('pdfUploadInput').addEventListener('change', async function(ev) {
@@ -819,7 +1286,12 @@ document.getElementById('pdfUploadInput').addEventListener('change', async funct
   let fullText = '';
   for (let i = 1; i <= pdf.numPages; i++) { const page = await pdf.getPage(i); const content = await page.getTextContent(); fullText += content.items.map(it => it.str).join(''); }
   const start = fullText.indexOf('{"quote"'); const end = fullText.lastIndexOf('}');
-  if (start >= 0) { try { loadQuoteData(JSON.parse(fullText.substring(start, end + 1)), file.name); saveToLocal(); } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err); }
+  if (start >= 0 && end > start) { 
+    try { 
+        const extractedJson = fullText.substring(start, end + 1);
+        loadQuoteData(JSON.parse(extractedJson), file.name); 
+        saveToLocal(); 
+    } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err + '\nData:\n' + extractedJson.substring(0,200)); }
   } else { alert('Ingen inbäddad offertdata hittades i PDF-filen.'); }
 });
 
@@ -830,7 +1302,8 @@ function setupFormattingToolbar() {
         const selection = window.getSelection();
         if (selection.rangeCount > 0 && !selection.isCollapsed) {
             const range = selection.getRangeAt(0);
-            if (range.startContainer.parentElement.closest('.editable')) {
+            const parentEditable = range.startContainer.parentElement.closest('.editable');
+            if (parentEditable && parentEditable.isContentEditable) { 
                 const rect = range.getBoundingClientRect();
                 toolbar.style.left = `${rect.right + window.scrollX + 5}px`;
                 toolbar.style.top = `${rect.top + window.scrollY}px`;
@@ -844,12 +1317,6 @@ function setupFormattingToolbar() {
     document.getElementById('bold-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('bold'); });
     document.getElementById('italic-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('italic'); });
 
-    document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey) {
-            if (e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
-            if (e.key.toLowerCase() === 'i') { e.preventDefault(); document.execCommand('italic'); }
-        }
-    });
 }
 function hideFormattingToolbar() {
     if (toolbar) toolbar.style.display = 'none';
@@ -862,6 +1329,7 @@ function mapItemToSubItem(item) {
         subItemOriginalPrice: item.originalPrice,
         marginPercentage: item.marginPercentage,
         currencyOrigin: item.currencyOrigin,
+        subItems: item.subItems || [] 
     };
 }
 function mapSubItemToItem(subItem) {
@@ -872,18 +1340,18 @@ function mapSubItemToItem(subItem) {
         originalPrice: subItem.subItemOriginalPrice,
         marginPercentage: subItem.marginPercentage,
         currencyOrigin: subItem.currencyOrigin,
-        subItems: []
+        subItems: subItem.subItems || [] 
     };
 }
 
 
 function toggleItemHierarchy(containerId, mainIndex, subIndex) {
     const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
-    if (subIndex !== undefined) { // Promote sub-item to main item
+    if (subIndex !== undefined) { 
         const subItem = list[mainIndex].subItems.splice(subIndex, 1)[0];
         const newMainItem = mapSubItemToItem(subItem);
         list.splice(mainIndex + 1, 0, newMainItem);
-    } else { // Demote main item to sub-item
+    } else { 
         if (mainIndex > 0) {
             const itemToMove = list.splice(mainIndex, 1)[0];
             const parentItem = list[mainIndex - 1];
@@ -891,38 +1359,64 @@ function toggleItemHierarchy(containerId, mainIndex, subIndex) {
             
             const newSubItem = mapItemToSubItem(itemToMove);
             parentItem.subItems.push(newSubItem);
+        } else {
+            alert("Första artikeln kan inte göras om till en underpost utan en huvudpost ovanför.");
         }
     }
     saveToLocal();
     reRenderAll();
 }
 
-function renumberAllItems() {
-    let mainCounter = 1;
-    jsonData.items.forEach(item => {
-        let subCounter = 1;
-        item.itemNumber = `${mainCounter}.1`;
-        if(item.subItems) {
-            item.subItems.forEach(sub => {
-                sub.subItemNumber = `${mainCounter}.1.${subCounter}`;
-                subCounter++;
-            });
-        }
-        mainCounter++;
-    });
+function makeItemNumbersEditable() {
+    // This function is no longer strictly necessary as .item-number divs are now part of the generic .editable handling
+    // However, if specific logic for item numbers beyond simple text update was needed, it would go here.
+    // For now, it's handled by the global .editable listeners.
+}
 
-    let optMainCounter = 1;
-     jsonData.optionalItems.forEach(item => {
-        let subCounter = 1;
-        item.itemNumber = `${optMainCounter}.1`;
-        if(item.subItems) {
-            item.subItems.forEach(sub => {
-                sub.subItemNumber = `${optMainCounter}.1.${subCounter}`;
-                subCounter++;
-            });
-        }
-        optMainCounter++;
-    });
+// Removed handleItemNumberClick as .item-number is now handled by the generic .editable logic.
+
+function renumberAllItems(forceFullRenumber = false) {
+    const processList = (list, prefix, isOptional, depth = 1) => {
+        let itemCounter = 0;
+        list.forEach(item => {
+            itemCounter++;
+            let baseNumber;
+            if (isOptional) { // Optional items always start with "A" + their own sequence at the top level
+                baseNumber = prefix ? `${prefix}.${itemCounter}` : `A${itemCounter}.1`; // A1.1, A1.1.1, A2.1 etc.
+            } else { // Regular items or sub-items of regular items
+                baseNumber = prefix ? `${prefix}.${itemCounter}` : `${itemCounter}.1`;
+            }
+            
+            let currentPattern;
+            if (isOptional && depth === 1) { // Top-level optional item
+                currentPattern = /^A\d+\.1$/; // e.g., A1.1
+            } else if (!isOptional && depth === 1) { // Top-level main item
+                currentPattern = /^\d+\.1$/; // e.g., 1.1
+            } else { // Sub-items (any depth)
+                // Matches something like 1.1.1, A1.1.1, 1.1.1.1 etc.
+                currentPattern = new RegExp(`^${prefix.replace(/\./g, '\\.')}\\.\\d+$`); 
+            }
+
+            if (forceFullRenumber || !item.itemNumber || !currentPattern.test(item.itemNumber)) {
+                item.itemNumber = baseNumber;
+            } else {
+                // Check if the prefix matches the expected prefix for this item's position
+                const expectedPrefixForCurrentPosition = prefix ? prefix : (isOptional ? `A${itemCounter}`: `${itemCounter}`);
+                if (depth > 1 && !item.itemNumber.startsWith(expectedPrefixForCurrentPosition + ".")) {
+                    item.itemNumber = baseNumber;
+                } else if (depth === 1 && !item.itemNumber.startsWith(expectedPrefixForCurrentPosition)) {
+                     item.itemNumber = baseNumber;
+                }
+            }
+
+            if (item.subItems && item.subItems.length > 0) {
+                processList(item.subItems, item.itemNumber, false, depth + 1); // Subitems are never "Optional" type directly
+            }
+        });
+    };
+
+    processList(jsonData.items, '', false, 1);
+    processList(jsonData.optionalItems, '', true, 1); 
 }
 
 
@@ -932,11 +1426,84 @@ function toggleItemOptionality(containerId, mainIndex) {
     
     if (sourceList[mainIndex]) {
         const [movedItem] = sourceList.splice(mainIndex, 1);
-        destinationList.push(movedItem);
+        destinationList.push(movedItem); 
+        saveToLocal();
+        reRenderAll(); 
+    }
+}
+
+// Item/Sub-item Movement Functions
+function moveItemUp(containerId, index) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    if (index > 0) {
+        [list[index], list[index - 1]] = [list[index - 1], list[index]];
+        saveToLocal();
+        reRenderAll(); 
+    }
+}
+function moveItemDown(containerId, index) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    if (index < list.length - 1) {
+        [list[index], list[index + 1]] = [list[index + 1], list[index]];
+        saveToLocal();
+        reRenderAll(); 
+    }
+}
+function moveSubItemUp(containerId, mainIndex, subIndex) {
+    const parentItem = (containerId === 'itemsList') ? jsonData.items[mainIndex] : jsonData.optionalItems[mainIndex];
+    if (parentItem && parentItem.subItems && subIndex > 0) {
+        const subList = parentItem.subItems;
+        [subList[subIndex], subList[subIndex - 1]] = [subList[subIndex - 1], subList[subIndex]];
+        saveToLocal();
+        reRenderAll(); 
+    }
+}
+function moveSubItemDown(containerId, mainIndex, subIndex) {
+    const parentItem = (containerId === 'itemsList') ? jsonData.items[mainIndex] : jsonData.optionalItems[mainIndex];
+    if (parentItem && parentItem.subItems) {
+        const subList = parentItem.subItems;
+        if (subIndex < subList.length - 1) {
+            [subList[subIndex], subList[subIndex + 1]] = [subList[subIndex + 1], subList[subIndex]];
+            saveToLocal();
+            reRenderAll(); 
+        }
+    }
+}
+
+function addSubItemToParent(containerId, parentIndex) {
+    const parentList = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const parentItem = parentList[parentIndex];
+    if (parentItem) {
+        if (!parentItem.subItems) {
+            parentItem.subItems = [];
+        }
+        const newSubItem = {
+            subItemName: translations[currentLanguage].newSubItemName,
+            subItemDescription: translations[currentLanguage].newSubItemDescription,
+            subItemQuantity: 1,
+            subItemOriginalPrice: 0,
+            marginPercentage: 0,
+            // subItemNumber will be assigned by renumberAllItems
+        };
+        parentItem.subItems.push(newSubItem);
         saveToLocal();
         reRenderAll();
     }
 }
+
+function removeAllSubItems(containerId, parentIndex) {
+    const parentList = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const parentItem = parentList[parentIndex];
+    if (parentItem && parentItem.subItems && parentItem.subItems.length > 0) {
+        if (confirm(`Är du säker på att du vill ta bort alla underposter för "${parentItem.name}"?`)) {
+            parentItem.subItems = [];
+            saveToLocal();
+            reRenderAll();
+        }
+    }
+}
+
+
 </script>
 </body>
 </html>
