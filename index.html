@@ -1,4 +1,4 @@
-<!-- Version 77 -- WYSIWYG Item Numbers, Print Align, Subitem BG/Style/Actions, Default Descs, Numbering Logic Refined -->
+<!-- Version 83 -- Persistent Labels, Section Visibility Controls -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -50,11 +50,6 @@
     }
     .included-item .item-meta {
         margin-left: 0;
-        /* Sub-item columns, adjusted to fit within the indented space and align with parent's Qty/Price right edges */
-        /* Parent Qty starts after 50px + 5mm + 1fr + 5mm. Parent Price starts after that + 80px + 5mm */
-        /* Subitem's parent .included-item is indented 10mm. */
-        /* For sub-items: Nr(calc(50px - 2.5mm)) Name(1fr) Qty(calc(80px - 2.5mm)) Price(100px) Gap(2.5mm) (Rough adjustments) */
-        /* Simpler: let 1fr absorb the difference, keep Qty/Price widths similar to parent for visual consistency if possible */
         grid-template-columns: 40px 1fr 75px 95px; /* Fine-tuned sub-item columns */
         gap: 2.5mm; /* Smaller gap for subitems */
         padding-left: 0;
@@ -89,6 +84,7 @@
     #infoImagesList .info-block { padding-left: 0 !important; }
     #infoImagesList .info-block-image .info-image-container { margin-left: 0 !important; }
     #projectNumberDiv { /* Style if needed based on showProjectNumber state for print */ }
+    #signatureSection { margin-top: 10mm; page-break-before: auto; }
 }
 
 @media screen {
@@ -133,10 +129,11 @@ i { font-style: italic; }
 } 
 
 .item-meta div { display: flex; align-items: center; padding: 5px; justify-content: flex-start; }
-.item-number { text-align: left; width: 100%; user-select: text; /* Allow text selection for editing */ } /* Removed cursor:pointer, now editable */
+.item-number { text-align: left; width: 100%; user-select: text; }
 .item-name { text-align: left; padding-right: 10px; word-wrap: break-word; }
 .item-name.bold { font-weight: 700; } 
 .subitem-name-style { font-weight: 600; } 
+.baked-in-icon { margin-left: 8px; cursor: help; }
 
 .quantity, .quantity-header, .targetPrice, .price-header, .subItemTargetPrice { text-align: right; padding-right: 15px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; justify-content: flex-end; }
 .input-container { display: inline-flex; align-items: center; position: relative; }
@@ -152,10 +149,10 @@ i { font-style: italic; }
 input[type="number"] { width: 60px; padding: 5px; text-align: right; border: none; background-color: transparent; font-size: 12pt; vertical-align: middle; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
 input[type="number"] { -moz-appearance: textfield; }
-.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 220px; /* Increased for more action buttons */ max-width: calc(100% - (70px + 10px + 220px)); word-wrap: break-word; margin-left: calc(70px + 10px); }
+.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 260px; max-width: calc(100% - (70px + 10px + 260px)); word-wrap: break-word; margin-left: calc(70px + 10px); }
 .included-item .item-details { 
     margin-left: calc(70px + 10px); 
-    max-width: calc(100% - (70px + 10px + 220px));
+    max-width: calc(100% - (70px + 10px + 260px));
 }
 .editable { border: 1px solid transparent; padding: 5px; width: 100%; word-wrap: break-word; }
 .editable:hover { border: 1px solid #ddd; background-color: #f9f9f9; }
@@ -181,7 +178,7 @@ input[type="number"] { -moz-appearance: textfield; }
 #multipleCurrencyRatesDiv div { margin-bottom: 5px;}
 .description-remove-icon { display: none; color: white; background-color: red; font-size: 16px; cursor: pointer; width: 20px; height: 20px; border-radius: 10px; text-align: center; line-height: 18px; position: absolute; right: 10px; top: 10px; }
 .item-details:hover .description-remove-icon, .included-item:hover .description-remove-icon { display: block; }
-.checkbox-group { display: flex; gap: 20px; align-items: center; margin-bottom: 10px; }
+.checkbox-group { display: flex; gap: 20px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
 #optionalItemsList { margin-top: 0; padding-top: 0; }
 #termsList { margin-top: 0px; padding-top: 10px;}
 h3.name.editable { margin-bottom: 0 !important; }
@@ -241,9 +238,9 @@ h3.name.editable { margin-bottom: 0 !important; }
 .info-image-up, .info-image-down { border-radius: 50%; text-align: center; line-height: 18px; cursor: pointer; font-size: 16px; background-color: #f0f0f0; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; border: 1px solid #ccc;}
 .info-image-up:hover, .info-image-down:hover { background-color: #e0e0e0; }
 
-#mainItemsSectionContainer, #optionalSectionContainer, #infoSectionContainer { position: relative; }
+#mainItemsSectionContainer, #optionalSectionContainer, #infoSectionContainer, #termsSectionContainer { position: relative; }
 .section-remove-icon { display: none; position: absolute; left:10px; top:5px; background-color:red; width:20px; height:20px; border-radius:10px; text-align:center; line-height:18px; color:white; cursor:pointer; font-size:16px; z-index:100; }
-#mainItemsSectionContainer:hover .section-remove-icon, #optionalSectionContainer:hover .section-remove-icon, #infoSectionContainer:hover .section-remove-icon { display: block; }
+#mainItemsSectionContainer:hover .section-remove-icon, #optionalSectionContainer:hover .section-remove-icon, #infoSectionContainer:hover .section-remove-icon, #termsSectionContainer:hover .section-remove-icon { display: block; }
 .horizontal-line { border: none; border-top: 2px solid black; margin: 5px 0; width: 100%; }
 .info-table { width: 100%; border-collapse: collapse; background-color: white; margin-top: 10px; }
 .info-table td { border: 1px solid #ccc; padding: 8px; min-width: 50px; position: relative; }
@@ -262,13 +259,20 @@ h3.name.editable { margin-bottom: 0 !important; }
 .item-tooltip .margin-display.discount { color: #b78a00; }
 .item-tooltip .editable:hover { border-color: #ccc; background-color: #f9f9f9; }
 .item-tooltip .editable:focus { border-color: #007bff; background-color: white; box-shadow: 0 0 0 1px #007bff; }
-.item-actions { display: none; position: absolute; right: -220px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
+.item-actions { display: none; position: absolute; right: -260px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
 .item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
 .item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
 #formatting-toolbar { position: absolute; display: none; z-index: 1000; background: #333; border-radius: 5px; padding: 5px; }
 #formatting-toolbar button { background: #444; color: white; border: 1px solid #555; border-radius: 3px; padding: 5px 10px; cursor: pointer; font-size: 14px; }
 #formatting-toolbar button.active { background: #007bff; border-color: #0056b3; }
 #formatting-toolbar button:hover { background: #555; }
+#signatureSection { display: none; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; }
+.signature-date { margin-bottom: 40px; }
+.signature-row { display: flex; justify-content: space-between; text-align: center; }
+.signature-block { width: 40%; position: relative; }
+.signature-line { border-bottom: 1px solid black; min-height: 40px; margin-bottom: 5px; }
+#sectionVisibilityControls { border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+#sectionVisibilityControls span { font-weight: bold; }
 </style>
 </head>
 <body>
@@ -281,7 +285,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 <div id="quoteContent">
     <div class="header">
         <img alt="Company Logo" src="logo.png"/>
-        <div class="quote-title editable" contenteditable="true" id="quoteTitle">Offert</div>
+        <div class="quote-title editable" contenteditable="true" id="quoteTitle" data-field="quoteTitle">Offert</div>
     </div>
     <div class="quote-number" id="quoteNumberLabel">Offert nr:
         <span class="editable" contenteditable="true" id="quoteNumber"></span>
@@ -297,7 +301,30 @@ h3.name.editable { margin-bottom: 0 !important; }
     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
-        <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
+        <div id="compressionOptionsWrapper" style="display: inline-flex; align-items: center; gap: 5px;">
+             <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
+             <div id="compressionOptions" style="display: inline-flex; align-items: center; gap: 5px;">
+                <label for="compressionQuality" style="font-size: 10pt;">Kvalitet:</label>
+                <input type="number" id="compressionQuality" value="0.7" min="0.1" max="1.0" step="0.1" style="width: 50px; font-size: 10pt; padding: 2px;">
+                <label for="compressionMaxWidth" style="font-size: 10pt;">Max bredd:</label>
+                <input type="number" id="compressionMaxWidth" value="1280" min="100" step="100" style="width: 60px; font-size: 10pt; padding: 2px;">
+             </div>
+        </div>
+        <label id="removeTotalCheckboxLabel">
+            <input type="checkbox" id="removeTotalCheck" /> Ta bort totalen
+        </label>
+        <label id="addSignatureCheckboxLabel">
+            <input type="checkbox" id="addSignatureCheck" /> Lägg till signatur
+        </label>
+        <label id="toggleTillLabel">
+            <input type="checkbox" id="toggleTillSectionChk" checked /> Visa 'Till'
+        </label>
+    </div>
+    <div id="sectionVisibilityControls" class="checkbox-group screen-only">
+        <span id="showSectionsLabel">Visa sektioner:</span>
+        <label><input type="checkbox" id="showOptionalSectionChk" data-section="optional" /><span id="showOptionalLabel">Alternativ</span></label>
+        <label><input type="checkbox" id="showInfoSectionChk" data-section="info" /><span id="showInfoLabel">Info/Bilder</span></label>
+        <label><input type="checkbox" id="showTermsSectionChk" data-section="terms" /><span id="showTermsLabel">Villkor</span></label>
     </div>
     <div class="currency-multiplier screen-only" style="position: relative;">
         <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px; font-size: 10px;"></div>
@@ -332,16 +359,12 @@ h3.name.editable { margin-bottom: 0 !important; }
             <span id="customCurrencyLabel">Använd egen valuta</span>
         </label>
         <input type="text" id="customCurrencyInput" value="EUR" style="width:80px; display:none; margin-left:10px;"/>
-        <label id="removeTotalCheckboxLabel" style="margin-left:15px;">
-            <input type="checkbox" id="removeTotalCheck" />
-            Ta bort totalen
-        </label>
     </div>
 
-    <div class="quote-section">
-        <div style="margin-bottom: -5px;"><strong id="toLabel">Till:</strong><p class="editable p-editable" contenteditable="true" id="companyA"></p></div>
+    <div class="quote-section" id="quoteSection">
+        <div id="companyA_wrapper"><strong id="toLabel">Till:</strong><p class="editable p-editable" contenteditable="true" id="companyA"></p></div>
         <div class="swap-button screen-only" id="swapButton"><-></div>
-        <div style="margin-bottom: -5px;"><strong id="fromLabel">Från:</strong><p class="editable p-editable" contenteditable="true" id="companyB"></p></div>
+        <div><strong id="fromLabel">Från:</strong><p class="editable p-editable" contenteditable="true" id="companyB"></p></div>
     </div>
 
     <div class="reference"><strong id="refLabel">Ref:</strong><span class="editable" contenteditable="true" id="reference"></span></div>
@@ -349,8 +372,10 @@ h3.name.editable { margin-bottom: 0 !important; }
     <div id="mainItemsSectionContainer">
         <span class="section-remove-icon screen-only" onclick="removeMainSection()">✖</span>
         <div class="item-header">
-            <div id="nrHeader">Nr</div><div id="articleNameHeader" class="editable" contenteditable="true">Artikel / Namn</div>
-            <div id="quantityHeader" class="quantity-header">Antal</div><div id="priceHeader" class="price-header">Pris (SEK)</div>
+            <div id="nrHeader" class="editable" contenteditable="true" data-field="nrHeader">Nr</div>
+            <div id="articleNameHeader" class="editable" contenteditable="true" data-field="articleNameHeader">Artikel / Namn</div>
+            <div id="quantityHeader" class="quantity-header editable" contenteditable="true" data-field="quantityHeader">Antal</div>
+            <div id="priceHeader" class="price-header editable" contenteditable="true" data-field="priceHeader">Pris (SEK)</div>
         </div>
         <div id="itemsList"></div>
         <div class="total-price" id="totalPrice"><span id="totalLabel" class="editable" contenteditable="true" data-field="totalLabel">Total:</span><span id="totalValue">0 SEK</span></div>
@@ -358,33 +383,65 @@ h3.name.editable { margin-bottom: 0 !important; }
     </div>
 
     <div id="optionalSectionContainer">
-        <h3 id="optionalItemsHeading" class="name editable" contenteditable="true">Alternativ / Ytterligare Artiklar</h3>
-        <span class="section-remove-icon screen-only" onclick="removeOptionalSection()">✖</span>
+        <h3 id="optionalItemsHeading" class="name editable" contenteditable="true" data-field="optionalItemsHeading">Alternativ / Ytterligare Artiklar</h3>
+        <span class="section-remove-icon screen-only" onclick="hideOptionalSection()">✖</span>
         <div class="item-header">
-            <div id="optNrHeader">Nr</div><div id="optArticleHeader" class="editable" contenteditable="true">Artikel / Namn</div>
-            <div id="optQuantityHeader" class="quantity-header">Antal</div><div id="optPriceHeader" class="price-header">Pris (SEK)</div>
+            <div id="optNrHeader" class="editable" contenteditable="true" data-field="optNrHeader">Nr</div>
+            <div id="optArticleHeader" class="editable" contenteditable="true" data-field="optArticleHeader">Artikel / Namn</div>
+            <div id="optQuantityHeader" class="quantity-header editable" contenteditable="true" data-field="optQuantityHeader">Antal</div>
+            <div id="optPriceHeader" class="price-header editable" contenteditable="true" data-field="optPriceHeader">Pris (SEK)</div>
         </div>
         <div id="optionalItemsList"></div>
         <button class="add-optional-button screen-only" id="addOptionalItemButton">+ Lägg till ny artikel</button>
     </div>
 
     <div id="infoSectionContainer">
-        <h3 id="infoImagesHeading" class="name editable" contenteditable="true">Info / Bilder</h3>
-        <hr class="horizontal-line" /><span class="section-remove-icon screen-only" onclick="removeInfoSection()">✖</span>
+        <h3 id="infoImagesHeading" class="name editable" contenteditable="true" data-field="infoImagesHeading">Info / Bilder</h3>
+        <hr class="horizontal-line" /><span class="section-remove-icon screen-only" onclick="hideInfoSection()">✖</span>
         <div id="infoImagesList"></div>
         <div class="image-upload-container screen-only">
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
-            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (filuppladdning)</button>
+            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
+            <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
             <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
             <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
             <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
         </div>
     </div>
 
-    <h3 id="termsHeading" class="name editable" contenteditable="true">Villkor</h3>
-    <hr class="horizontal-line" />
-    <div id="termsList"></div>
-    <button class="add-term-button screen-only" id="addTermButton">+ Lägg till villkor</button>
+    <div id="termsSectionContainer">
+        <h3 id="termsHeading" class="name editable" contenteditable="true" data-field="termsHeading">Villkor</h3>
+        <span class="section-remove-icon screen-only" onclick="hideTermsSection()">✖</span>
+        <hr class="horizontal-line" />
+        <div id="termsList"></div>
+        <button class="add-term-button screen-only" id="addTermButton">+ Lägg till villkor</button>
+    </div>
+
+    <div id="signatureSection">
+        <div class="signature-date">
+            <span id="signatureDateLabel">Datum</span>:
+            <span class="editable" contenteditable="true" id="signatureDate" style="border-bottom: 1px solid black; padding: 0 10px;">                    </span>
+        </div>
+        <div id="signatureBlocksContainer" class="signature-row">
+            <div class="signature-block info-block">
+                 <div class="controls-row screen-only" style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%);">
+                    <span class="drag-handle">≡</span>
+                    <span class="remove-icon" onclick="removeSignatureBlock(0)">✖</span>
+                </div>
+                <div class="signature-line editable" contenteditable="true" data-field="signatureLessorLine"></div>
+                <div id="signatureLessorLabel" class="editable" contenteditable="true" data-field="signatureLessorText">Uthyrare</div>
+            </div>
+            <div class="signature-block info-block">
+                 <div class="controls-row screen-only" style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%);">
+                    <span class="drag-handle">≡</span>
+                    <span class="remove-icon" onclick="removeSignatureBlock(1)">✖</span>
+                </div>
+                <div class="signature-line editable" contenteditable="true" data-field="signatureLesseeLine"></div>
+                <div id="signatureLesseeLabel" class="editable" contenteditable="true" data-field="signatureLesseeText">Hyrestagare</div>
+            </div>
+        </div>
+    </div>
+
 
 <div id="printMultiplier" class="print-only"><span id="multiplierValue"></span></div>
 
@@ -416,7 +473,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 const translations = {
   sv: {
     quoteTitle: "Offert", quoteNumberLabel: "Offert nr:", dateLabel: "Datum:", projectNumberLabel: "Projekt Nummer:",
-    toLabel: "Till:", fromLabel: "Från:", refLabel: "Ref:", nrHeader: "Nr", articleHeader: "Artikel / Namn",
+    toLabel: "Till:", fromLabel: "Från:", refLabel: "Ref:", nrHeader: "Nr", articleNameHeader: "Artikel / Namn",
     quantityHeader: "Antal", priceHeader: "Pris", addItemButton: "+ Lägg till ny artikel",
     optionalItemsHeading: "Alternativ / Ytterligare Artiklar", infoImagesHeading: "Info / Bilder",
     termsHeading: "Villkor", addOptionalItemButton: "+ Lägg till ny artikel", addTermButton: "+ Lägg till villkor",
@@ -426,19 +483,26 @@ const translations = {
     newSubItemName: "Underpost Namn", 
     newSubItemDescription: "Standardbeskrivning för underpost", 
     newInfoText: "Klicka för att redigera text", promptImageUrl: "Ange bildens URL:", removeTotalLabelText: "Ta bort totalen",
+    addSignatureLabelText: "Lägg till signatur",
+    hideTillSectionLabelText: "Visa 'Till'", bakeInPriceLabel: "Baka in pris i andra artiklar",
+    bakedInPriceTooltip: "Priset för denna artikel har fördelats på andra artiklar.",
+    signatureDateLabel: "Datum", signatureLessorLabel: "Uthyrare", signatureLesseeLabel: "Hyrestagare",
     totalLabel: "Total:", marginLabel: "Påslag (%):", copyJsonBtn: "Kopiera JSON (text)",
     statusJsonCopied: "Status: JSON kopierad till urklipp!",
+    statusRecompressing: "Komprimerar om bilder...", statusRecompressDone: "Alla bilder har komprimerats om.",
     duplicateItem: "Duplicera rad", removeRow: "Ta bort rad",
     moveUp: "Flytta upp", moveDown: "Flytta ner",
     useMultipleCurrenciesLabelText: "Använd multipla valutakurser",
     usdRateLabelText: "USD-SEK Kurs:", eurRateLabelText: "EUR-SEK Kurs:",
     editItemNumberPrompt: "Ange nytt artikelnummer:",
     addSubItem: "Lägg till underpost", 
-    removeAllSubItems: "Ta bort alla underposter", 
+    removeAllSubItems: "Ta bort alla underposter",
+    showSectionsLabel: "Visa sektioner:", showOptionalLabel: "Alternativ", showInfoLabel: "Info/Bilder", showTermsLabel: "Villkor",
+    optNrHeader: "Nr", optArticleHeader: "Artikel / Namn", optQuantityHeader: "Antal", optPriceHeader: "Pris",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
-    toLabel: "To:", fromLabel: "From:", refLabel: "Ref:", nrHeader: "No", articleHeader: "Article / Name",
+    toLabel: "To:", fromLabel: "From:", refLabel: "Ref:", nrHeader: "No", articleNameHeader: "Article / Name",
     quantityHeader: "Quantity", priceHeader: "Price", addItemButton: "+ Add new item",
     optionalItemsHeading: "Alternative / Additional Items", infoImagesHeading: "Info / Images",
     termsHeading: "Terms", addOptionalItemButton: "+ Add new item", addTermButton: "+ Add a term",
@@ -448,15 +512,22 @@ const translations = {
     newSubItemName: "Sub Item Name", 
     newSubItemDescription: "Default description for sub item", 
     newInfoText: "Click to edit text", promptImageUrl: "Enter image URL:", removeTotalLabelText: "Remove total",
+    addSignatureLabelText: "Add signature",
+    hideTillSectionLabelText: "Show 'To'", bakeInPriceLabel: "Bake price into other items",
+    bakedInPriceTooltip: "The price for this item has been distributed to other items.",
+    signatureDateLabel: "Date", signatureLessorLabel: "Lessor", signatureLesseeLabel: "Lessee",
     totalLabel: "Total:", marginLabel: "Margin (%):", copyJsonBtn: "Copy JSON (text)",
     statusJsonCopied: "Status: JSON copied to clipboard!",
+    statusRecompressing: "Re-compressing images...", statusRecompressDone: "All images have been re-compressed.",
     duplicateItem: "Duplicate item", removeRow: "Remove row",
     moveUp: "Move up", moveDown: "Move down",
     useMultipleCurrenciesLabelText: "Use multiple currency rates",
     usdRateLabelText: "USD-SEK Rate:", eurRateLabelText: "EUR-SEK Rate:",
     editItemNumberPrompt: "Enter new item number:",
     addSubItem: "Add Sub Item", 
-    removeAllSubItems: "Remove All Sub Items", 
+    removeAllSubItems: "Remove All Sub Items",
+    showSectionsLabel: "Show sections:", showOptionalLabel: "Optional", showInfoLabel: "Info/Images", showTermsLabel: "Terms",
+    optNrHeader: "No", optArticleHeader: "Article / Name", optQuantityHeader: "Quantity", optPriceHeader: "Price",
   }
 };
 
@@ -469,19 +540,30 @@ window.liveExchangeRates = { usd: null, eur: null };
 (function initData(){
     const localData = localStorage.getItem('quoteData');
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, totalLabel: translations.sv.totalLabel, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50 }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[] };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
         jsonData=JSON.parse(localData);
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50};
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
         if(jsonData.quote.usdToSekRate === undefined) jsonData.quote.usdToSekRate = 10.50;
         if(jsonData.quote.eurToSekRate === undefined) jsonData.quote.eurToSekRate = 11.50;
+        if(jsonData.quote.showSignature === undefined) jsonData.quote.showSignature = false;
+        if(jsonData.quote.showTillSection === undefined) jsonData.quote.showTillSection = true;
+        if(!jsonData.quote.labels) jsonData.quote.labels = {};
+        if (jsonData.quote.totalLabel) { // Migrate old totalLabel
+            jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
+            delete jsonData.quote.totalLabel;
+        }
+        if (!jsonData.quote.visibility) {
+            jsonData.quote.visibility = { optional: true, info: true, terms: true };
+        }
         if(!jsonData.companyA)jsonData.companyA={}; if(!jsonData.companyB)jsonData.companyB={};
-        if(!Array.isArray(jsonData.items))jsonData.items=[]; if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
+        if(!Array.isArray(jsonData.items))jsonData.items=[]; jsonData.items.forEach(it => { if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; });
+        if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
-        if(!jsonData.quote.totalLabel) jsonData.quote.totalLabel = translations.sv.totalLabel;
+        if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
 })();
 
@@ -515,13 +597,25 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.useMultipleCurrencies === undefined) q.useMultipleCurrencies = false;
     if(q.usdToSekRate === undefined) q.usdToSekRate = 10.50; 
     if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50; 
+    if(q.showSignature === undefined) q.showSignature = false;
+    if(q.showTillSection === undefined) q.showTillSection = true;
+    if(!q.labels) q.labels = {};
+    if (q.totalLabel) { // Migrate old totalLabel from loaded file
+        q.labels.totalLabel = q.totalLabel;
+        delete q.totalLabel;
+    }
+    if (!q.visibility) { // Backward compatibility for section visibility
+        q.visibility = { optional: true, info: true, terms: true };
+    }
 
     jsonData.quote = q;
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
+    if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
+    (jsonData.items || []).forEach(it => { if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; });
+
 
     document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
     document.getElementById('quoteDate').textContent = q.date || new Date().toLocaleDateString('sv-SE');
-    document.getElementById('quoteTitle').textContent = q.title || 'Offert';
     document.getElementById('projectNumber').textContent = q.projectNumber || '';
     document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
     document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
@@ -539,7 +633,10 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('showDecimals').checked=q.showDecimals || false;
     document.getElementById('showProjectNumber').checked = q.projectNumberVisible || false; 
     document.getElementById('projectNumberDiv').style.display = (q.projectNumberVisible) ? 'block' : 'none';
-    document.getElementById('totalLabel').textContent = q.totalLabel || translations[currentLanguage].totalLabel;
+    document.getElementById('addSignatureCheck').checked = q.showSignature || false;
+    document.getElementById('signatureSection').style.display = (q.showSignature) ? 'block' : 'none';
+    document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
+    applyTillSectionVisibility();
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -548,18 +645,20 @@ function loadQuoteData(data, loadedFileName=null){
 }
 
 function reRenderAll(){
-    renumberAllItems(true); 
+    renumberAllItems(); 
     updatePrices();
     loadItems(jsonData.items,'itemsList');
     loadItems(jsonData.optionalItems,'optionalItemsList');
     loadTerms(jsonData.terms);
     loadInfoImages();
+    loadSignature();
     calculateTotalPrice();
     makeEditable(); 
-    // makeItemNumbersEditable(); // No longer needed as .item-number is editable via global .editable
     initializeDragAndDrop();
     updateLanguageUI(currentLanguage);
     updatePrintMultiplier(); 
+    applySectionVisibility();
+    updateSectionVisibilityCheckboxes();
 }
 
 function updateDocumentTitle(){
@@ -571,47 +670,80 @@ function updateDocumentTitle(){
 function updateLanguageUI(lang){
     document.documentElement.setAttribute('lang', lang);
     const t = translations[lang];
+    const labels = jsonData.quote.labels || {};
+
     if(!t)return;
-    Object.keys(t).forEach(key => {
-        const el = document.getElementById(key);
-        if (el) {
-            if (key.endsWith('Label') && el.childNodes.length > 0 && el.childNodes[0].nodeType === Node.TEXT_NODE) el.childNodes[0].nodeValue = `${t[key]} `;
-            else if (key.endsWith('LabelText')) el.textContent = t[key]; 
-            else el.textContent = t[key]
+
+    // Set labels from translations, with override from jsonData
+    document.getElementById('quoteTitle').textContent = labels.quoteTitle || t.quoteTitle;
+    document.getElementById('quoteNumberLabel').childNodes[0].nodeValue = `${t.quoteNumberLabel} `;
+    document.getElementById('dateLabel').childNodes[0].nodeValue = `${t.dateLabel} `;
+    document.getElementById('toLabel').textContent = t.toLabel;
+    document.getElementById('fromLabel').textContent = t.fromLabel;
+    document.getElementById('refLabel').textContent = t.refLabel;
+    document.getElementById('articleNameHeader').textContent = labels.articleNameHeader || t.articleNameHeader;
+    document.getElementById('nrHeader').textContent = labels.nrHeader || t.nrHeader;
+    document.getElementById('quantityHeader').textContent = labels.quantityHeader || t.quantityHeader;
+    document.getElementById('optionalItemsHeading').textContent = labels.optionalItemsHeading || t.optionalItemsHeading;
+    document.getElementById('optArticleHeader').textContent = labels.optArticleHeader || t.optArticleHeader;
+    document.getElementById('optNrHeader').textContent = labels.optNrHeader || t.optNrHeader;
+    document.getElementById('optQuantityHeader').textContent = labels.optQuantityHeader || t.optQuantityHeader;
+    document.getElementById('infoImagesHeading').textContent = labels.infoImagesHeading || t.infoImagesHeading;
+    document.getElementById('termsHeading').textContent = labels.termsHeading || t.termsHeading;
+    document.getElementById('totalLabel').textContent = labels.totalLabel || t.totalLabel;
+    
+    // Buttons and other static text
+    document.getElementById('addItemButton').textContent = t.addItemButton;
+    document.getElementById('addOptionalItemButton').textContent = t.addOptionalItemButton;
+    document.getElementById('addTermButton').textContent = t.addTermButton;
+    document.getElementById('toggleLanguageBtn').textContent = t.toggleLangBtn;
+    document.getElementById('marginLabel').textContent = `${t.marginLabel} `;
+    document.getElementById('copyJsonBtn').textContent = t.copyJsonBtn;
+    
+    // Checkbox labels
+    document.querySelector('#removeTotalCheckboxLabel').lastChild.nodeValue = ` ${t.removeTotalLabelText}`;
+    document.querySelector('#addSignatureCheckboxLabel').lastChild.nodeValue = ` ${t.addSignatureLabelText}`;
+    document.querySelector('#toggleTillLabel').lastChild.nodeValue = ` ${t.hideTillSectionLabelText}`;
+    document.querySelector('#customCurrencyLabel').textContent = ` ${t.customCurrencyLabelText}`;
+    document.querySelector('#useMultipleCurrenciesLabel').textContent = ` ${t.useMultipleCurrenciesLabelText}`;
+    document.querySelector('#usdRateLabel').textContent = `${t.usdRateLabelText} `;
+    document.querySelector('#eurRateLabel').textContent = `${t.eurRateLabelText} `;
+
+    // Section visibility controls
+    document.getElementById('showSectionsLabel').textContent = t.showSectionsLabel;
+    document.getElementById('showOptionalLabel').textContent = t.showOptionalLabel;
+    document.getElementById('showInfoLabel').textContent = t.showInfoLabel;
+    document.getElementById('showTermsLabel').textContent = t.showTermsLabel;
+
+    // Signature (check if custom text exists, otherwise use translation)
+    if (jsonData.signature) {
+        if (!jsonData.signature.lessorText || jsonData.signature.lessorText === translations[lang === 'sv' ? 'en' : 'sv'].signatureLessorLabel) {
+            jsonData.signature.lessorText = t.signatureLessorLabel;
         }
-        if(key === 'articleHeader') { ['articleNameHeader', 'optArticleHeader'].forEach(id => {const e=document.getElementById(id); if(e)e.textContent = t[key];}); }
-        if(key === 'nrHeader') { ['nrHeader', 'optNrHeader'].forEach(id => {const e=document.getElementById(id); if(e)e.textContent = t[key];}); }
-        if(key === 'quantityHeader') { ['quantityHeader', 'optQuantityHeader'].forEach(id => {const e=document.getElementById(id); if(e)e.textContent = t[key];}); }
-    });
-    updatePriceHeaders();
-    const removeTotalLabelEl = document.getElementById("removeTotalCheckboxLabel");
-    if(removeTotalLabelEl && removeTotalLabelEl.childNodes.length > 1) removeTotalLabelEl.childNodes[1].nodeValue = ` ${t.removeTotalLabelText}`;
-    
-    const customCurrencyLabelEl = document.getElementById("customCurrencyLabel");
-    if(customCurrencyLabelEl) customCurrencyLabelEl.textContent = ` ${t.customCurrencyLabelText}`;
-    
-    const totalLabelEl = document.getElementById("totalLabel");
-    if (!jsonData.quote.totalLabel || jsonData.quote.totalLabel === translations[lang === 'sv' ? 'en' : 'sv'].totalLabel) {
-      if(totalLabelEl) totalLabelEl.textContent = t.totalLabel;
-      jsonData.quote.totalLabel = t.totalLabel;
-    } else if (totalLabelEl) {
-        totalLabelEl.textContent = jsonData.quote.totalLabel; 
+        if (!jsonData.signature.lesseeText || jsonData.signature.lesseeText === translations[lang === 'sv' ? 'en' : 'sv'].signatureLesseeLabel) {
+            jsonData.signature.lesseeText = t.signatureLesseeLabel;
+        }
     }
 
-
+    updatePriceHeaders();
     calculateTotalPrice();
     updateDocumentTitle();
+    loadSignature();
 }
 
 function updatePriceHeaders(){
     const customChk = document.getElementById("useCustomCurrencyChk");
     const currencyVal = document.getElementById("customCurrencyInput").value;
-    const prefix = translations[currentLanguage].priceHeader;
+    const labels = jsonData.quote.labels || {};
+    const t = translations[currentLanguage];
+    
+    const priceHeaderText = labels.priceHeader || t.priceHeader;
+    const optPriceHeaderText = labels.optPriceHeader || t.optPriceHeader;
+
     const curSymbol = (customChk.checked && currencyVal) ? `(${currencyVal})` : "(SEK)";
-    ['priceHeader', 'optPriceHeader'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = `${prefix} ${curSymbol}`;
-    });
+    
+    document.getElementById('priceHeader').textContent = `${priceHeaderText} ${curSymbol}`;
+    document.getElementById('optPriceHeader').textContent = `${optPriceHeaderText} ${curSymbol}`;
 }
 function loadItems(items, containerId){
     const container = document.getElementById(containerId);
@@ -620,6 +752,7 @@ function loadItems(items, containerId){
     const fallbackCurrency = (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) ? jsonData.quote.customCurrency : 'SEK';
 
     items.forEach((it, idx) => {
+        if (it.isPriceBakedIn === undefined) it.isPriceBakedIn = false;
         if (it.marginPercentage === undefined) it.marginPercentage = 0;
         const margin = parseFloat(it.marginPercentage) || 0;
         const itemDiv = document.createElement('div');
@@ -628,11 +761,14 @@ function loadItems(items, containerId){
 
         const meta = document.createElement('div'); meta.className = 'item-meta';
 
+        const bakeInButtonHTML = containerId === 'itemsList' ? `<button class="control-btn" title="${translations[currentLanguage].bakeInPriceLabel}" onclick="toggleBakeInPrice('${containerId}', ${idx})">👨‍🍳</button>` : '';
+        const bakedInIconHTML = it.isPriceBakedIn ? `<span class="screen-only baked-in-icon" title="${translations[currentLanguage].bakedInPriceTooltip}">👨‍🍳</span>` : '';
+
         meta.innerHTML = `
             <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="itemNumber" title="Klicka för att redigera nummer">${it.itemNumber}</div>
-            <div class="item-name bold editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="name">${it.name||''}</div>
+            <div class="item-name bold editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="name">${it.name||''} ${bakedInIconHTML}</div>
             <div class="quantity" data-item="${containerId}" data-index="${idx}" data-field="quantity"><div class="input-container"><input type="number" min="0" step="1" value="${it.quantity || 0}" class="${(it.quantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container screen-only"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
-            <div class="targetPrice" data-item="${containerId}" data-index="${idx}" data-field="targetPrice" style="text-align:right;"><span class="${(it.targetPrice || 0) === 0 ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(it.targetPrice || 0)}</span></div>
+            <div class="targetPrice" data-item="${containerId}" data-index="${idx}" data-field="targetPrice" style="text-align:right;"><span class="${(it.targetPrice || 0) === 0 && !it.isPriceBakedIn ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(it.targetPrice || 0)}</span></div>
             <div class="item-tooltip screen-only">
                 <span class="original-price-display editable" contenteditable="true" data-field="originalPriceAndCurrency" data-item="${containerId}" data-index="${idx}">${it.originalPrice != null ? it.originalPrice : 0} ${it.currencyOrigin || fallbackCurrency}</span>
                 <span class="margin-display editable ${margin < 0 ? 'discount' : ''}" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="marginPercentage">${margin >= 0 ? '+' : ''}${margin}%</span>
@@ -642,6 +778,7 @@ function loadItems(items, containerId){
                 <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveDown}" onclick="moveItemDown('${containerId}', ${idx})">▼</button>
                 <button class="control-btn" title="${translations[currentLanguage].addSubItem}" onclick="addSubItemToParent('${containerId}', ${idx})">⊕</button>
                 <button class="control-btn" title="${translations[currentLanguage].removeAllSubItems}" onclick="removeAllSubItems('${containerId}', ${idx})">🗑️</button>
+                ${bakeInButtonHTML}
                 <button class="control-btn" title="Gör till underpost" onclick="toggleItemHierarchy('${containerId}', ${idx})">↳</button>
                 <button class="control-btn" title="Flytta till/från Alternativ" onclick="toggleItemOptionality('${containerId}', ${idx})">⇅</button>
                 <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateItem('${containerId}', ${idx})">❏</button>
@@ -789,6 +926,24 @@ function loadInfoImages(){
         c.appendChild(block);
     });
 }
+function loadSignature() {
+    if (!jsonData.signature) return;
+    const sig = jsonData.signature;
+    document.getElementById('signatureDateLabel').textContent = translations[currentLanguage].signatureDateLabel;
+    document.getElementById('signatureDate').innerHTML = sig.date || '                    ';
+    
+    const lessorBlock = document.querySelector('.signature-block:first-child');
+    if (lessorBlock) {
+        lessorBlock.querySelector('.signature-line').innerHTML = sig.lessorLine || '';
+        lessorBlock.querySelector('.editable[data-field="signatureLessorText"]').innerHTML = sig.lessorText || translations[currentLanguage].signatureLessorLabel;
+    }
+
+    const lesseeBlock = document.querySelector('.signature-block:last-child');
+     if (lesseeBlock) {
+        lesseeBlock.querySelector('.signature-line').innerHTML = sig.lesseeLine || '';
+        lesseeBlock.querySelector('.editable[data-field="signatureLesseeText"]').innerHTML = sig.lesseeText || translations[currentLanguage].signatureLesseeLabel;
+    }
+}
 function removeInfoItem(idx){ jsonData.infoImages.splice(idx,1); saveToLocal(); reRenderAll(); }
 function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText }); saveToLocal(); reRenderAll(); }
 function addTable(){
@@ -805,8 +960,15 @@ function addImageFromUrl(){
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
         const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'' }); saveToLocal(); reRenderAll(); };
-        if(document.getElementById('compressImagesChk').checked){ compressImage(f, 0.7, 1280, process); }
-        else { const reader=new FileReader(); reader.onload=(e)=>process(e.target.result); reader.readAsDataURL(f); }
+        if(document.getElementById('compressImagesChk').checked){
+            const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
+            const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
+            compressImageFromFile(f, quality, maxWidth, process); 
+        } else { 
+            const reader=new FileReader(); 
+            reader.onload=(e)=>process(e.target.result); 
+            reader.readAsDataURL(f); 
+        }
     }
 });
 function initializeResize(handle,img,idx){
@@ -836,26 +998,80 @@ function initializeResize(handle,img,idx){
     handle.addEventListener('mousedown',onDown);
 }
 
-function removeInfoSection(){ jsonData.infoImages=[]; saveToLocal(); const el = document.getElementById('infoSectionContainer'); if (el) el.style.display = 'none'; reRenderAll(); }
-function removeOptionalSection(){ jsonData.optionalItems=[]; saveToLocal(); const el = document.getElementById('optionalSectionContainer'); if (el) el.style.display = 'none'; reRenderAll(); }
-function removeMainSection(){ jsonData.items = []; saveToLocal(); const el = document.getElementById('mainItemsSectionContainer'); if (el) el.style.display = 'none'; reRenderAll(); }
+function hideInfoSection(){ jsonData.quote.visibility.info = false; saveToLocal(); applySectionVisibility(); updateSectionVisibilityCheckboxes(); }
+function hideOptionalSection(){ jsonData.quote.visibility.optional = false; saveToLocal(); applySectionVisibility(); updateSectionVisibilityCheckboxes(); }
+function hideTermsSection(){ jsonData.quote.visibility.terms = false; saveToLocal(); applySectionVisibility(); updateSectionVisibilityCheckboxes(); }
+function removeMainSection(){ if(confirm('Är du säker på att du vill ta bort ALLA artiklar från huvudlistan?')) { jsonData.items = []; saveToLocal(); reRenderAll(); } }
+function removeSignatureBlock(index) {
+    alert("This block cannot be removed, only hidden by unchecking 'Lägg till signatur'.");
+}
+
 
 function moveImageUp(idx){ if(idx>0){ [jsonData.infoImages[idx], jsonData.infoImages[idx-1]] = [jsonData.infoImages[idx-1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
 function moveImageDown(idx){ if(idx<jsonData.infoImages.length-1){ [jsonData.infoImages[idx], jsonData.infoImages[idx+1]] = [jsonData.infoImages[idx+1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
 
-function compressImage(file, quality, maxWidth, callback){
+function compressImageFromFile(file, quality, maxWidth, callback){
     const reader=new FileReader();
     reader.onload=(e)=>{
-        const img=new Image();
-        img.onload=()=>{
-            const canvas=document.createElement('canvas'); let width=img.width; let height=img.height;
-            if(width>maxWidth){ height=Math.round(height*(maxWidth/width)); width=maxWidth; }
-            canvas.width=width; canvas.height=height; canvas.getContext('2d').drawImage(img,0,0,width,height);
-            callback(canvas.toDataURL('image/jpeg',quality));
-        };
-        img.src=e.target.result;
+        compressImageDataUrl(e.target.result, quality, maxWidth).then(callback);
     };
     reader.readAsDataURL(file);
+}
+
+function compressImageDataUrl(dataUrl, quality, maxWidth) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height = Math.round(height * (maxWidth / width));
+                width = maxWidth;
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = (err) => {
+            console.error("Image load error:", err);
+            reject("Kunde inte ladda bild för komprimering.");
+        };
+        img.src = dataUrl;
+    });
+}
+
+async function recompressAllImages() {
+    const statusEl = document.getElementById('statusMessage');
+    statusEl.textContent = translations[currentLanguage].statusRecompressing;
+
+    const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
+    const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
+
+    const compressionPromises = jsonData.infoImages
+        .map((imgObject, index) => {
+            if (imgObject.type === 'image' && imgObject.src) {
+                return compressImageDataUrl(imgObject.src, quality, maxWidth)
+                    .then(newSrc => {
+                        jsonData.infoImages[index].src = newSrc;
+                    })
+                    .catch(error => {
+                        console.error(`Failed to recompress image at index ${index}:`, error);
+                    });
+            }
+            return Promise.resolve(); // Resolve immediately for non-image types
+        });
+
+    await Promise.all(compressionPromises);
+
+    saveToLocal();
+    reRenderAll();
+    
+    statusEl.textContent = translations[currentLanguage].statusRecompressDone;
+    setTimeout(() => { statusEl.textContent = '' }, 4000);
 }
 
 function updatePrices(){
@@ -865,50 +1081,74 @@ function updatePrices(){
     const usdRate = parseFloat(jsonData.quote.usdToSekRate) || 10.5;
     const eurRate = parseFloat(jsonData.quote.eurToSekRate) || 11.5;
 
-    const handle = (arr) => {
-        const fallback = (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) ? jsonData.quote.customCurrency : 'SEK';
-        arr.forEach(it => {
-            const itemMarginMultiplier = 1 + ((it.marginPercentage || 0) / 100);
-            if (it.originalPrice != null) {
-                let basePrice = it.originalPrice;
-                const originCurrency = (it.currencyOrigin || fallback).toUpperCase();
-                
-                if (originCurrency !== 'SEK') {
-                    if (useMultiCurrency) {
-                        if (originCurrency === 'USD') basePrice *= usdRate;
-                        else if (originCurrency === 'EUR') basePrice *= eurRate;
-                        else basePrice *= singleMultiplier; 
-                    } else {
-                        basePrice *= singleMultiplier;
-                    }
-                }
-                it.targetPrice = (basePrice * globalMarginMultiplier) * itemMarginMultiplier * (it.quantity || 0);
+    // Helper to calculate price for a single item/subitem without quantity
+    const calculatePreBakePrice = (item, parentCurrencyOrigin) => {
+        const itemMarginMultiplier = 1 + ((item.marginPercentage || 0) / 100);
+        let originalPrice = item.originalPrice ?? item.subItemOriginalPrice ?? 0;
+        let currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) || 'SEK').toUpperCase();
+        
+        let basePriceInSEK = originalPrice;
+        if (currencyOrigin !== 'SEK') {
+            if (useMultiCurrency) {
+                if (currencyOrigin === 'USD') basePriceInSEK *= usdRate;
+                else if (currencyOrigin === 'EUR') basePriceInSEK *= eurRate;
+                else basePriceInSEK *= singleMultiplier; 
+            } else {
+                basePriceInSEK *= singleMultiplier;
             }
-            (it.subItems || []).forEach(s => {
-                const subItemMarginMultiplier = 1 + ((s.marginPercentage || 0) / 100);
-                if (s.subItemOriginalPrice != null) {
-                   let subBasePrice = s.subItemOriginalPrice;
-                   const subOriginCurrency = (s.currencyOrigin || it.currencyOrigin || fallback).toUpperCase();
+        }
+        return (basePriceInSEK * globalMarginMultiplier) * itemMarginMultiplier;
+    };
 
-                   if (subOriginCurrency !== 'SEK') {
-                       if (useMultiCurrency) {
-                           if (subOriginCurrency === 'USD') subBasePrice *= usdRate;
-                           else if (subOriginCurrency === 'EUR') subBasePrice *= eurRate;
-                           else subBasePrice *= singleMultiplier; 
-                       } else {
-                           subBasePrice *= singleMultiplier;
-                       }
-                   }
-                   s.subItemTargetPrice = (subBasePrice * globalMarginMultiplier) * subItemMarginMultiplier * (s.subItemQuantity || 0);
-                }
-            });
+    let totalToDistribute = 0;
+    let distributionPoolTotal = 0;
+    
+    jsonData.items.forEach(item => {
+        let parentPrice = calculatePreBakePrice(item, null) * (item.quantity || 0);
+        let subItemsPrice = 0;
+        (item.subItems || []).forEach(s => {
+            s.preBakeTargetPrice = calculatePreBakePrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
+            subItemsPrice += s.preBakeTargetPrice;
         });
-    }
-    handle(jsonData.items);
-    handle(jsonData.optionalItems);
+        item.preBakeTargetPrice = parentPrice + subItemsPrice;
+
+        if (item.isPriceBakedIn) {
+            totalToDistribute += item.preBakeTargetPrice;
+        } else {
+            distributionPoolTotal += item.preBakeTargetPrice;
+        }
+    });
+    
+    const distributionRatio = distributionPoolTotal > 0 ? 1 + (totalToDistribute / distributionPoolTotal) : 1;
+
+    jsonData.items.forEach(item => {
+        if (item.isPriceBakedIn) {
+            item.targetPrice = 0;
+            (item.subItems || []).forEach(s => s.subItemTargetPrice = 0);
+        } else {
+             let parentPrice = calculatePreBakePrice(item, null) * (item.quantity || 0);
+             item.targetPrice = parentPrice * distributionRatio;
+             let subTotal = 0;
+            (item.subItems || []).forEach(s => {
+                s.subItemTargetPrice = s.preBakeTargetPrice * distributionRatio;
+                subTotal += s.subItemTargetPrice;
+            });
+            item.targetPrice += subTotal;
+        }
+    });
+
+    jsonData.optionalItems.forEach(item => {
+        item.targetPrice = calculatePreBakePrice(item, null) * (item.quantity || 0);
+        let subTotal = 0;
+        (item.subItems || []).forEach(s => {
+            s.subItemTargetPrice = calculatePreBakePrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
+            subTotal += s.subItemTargetPrice;
+        });
+        item.targetPrice += subTotal;
+    });
 }
 function calculateTotalPrice(){
-    let total=jsonData.items.reduce((acc, it) => acc + (it.targetPrice || 0) + (it.subItems || []).reduce((sAcc, s) => sAcc + (s.subItemTargetPrice || 0), 0), 0);
+    let total=jsonData.items.reduce((acc, it) => acc + (it.targetPrice || 0), 0);
     const dec = document.getElementById('showDecimals').checked;
     const formatted = dec ? total.toFixed(2) : Math.round(total).toString();
     const currencyVal = document.getElementById("useCustomCurrencyChk").checked ? (document.getElementById("customCurrencyInput").value.trim() || "SEK") : "SEK";
@@ -941,6 +1181,8 @@ function handleQuantityChange(inp){
 
 document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.companyA, jsonData.companyB] = [jsonData.companyB, jsonData.companyA]; saveToLocal(); loadQuoteData(jsonData, currentFileName); });
 document.getElementById('showProjectNumber').addEventListener('change', function(){ document.getElementById('projectNumberDiv').style.display=this.checked?'block':'none'; jsonData.quote.projectNumberVisible = this.checked; saveToLocal(); });
+document.getElementById('addSignatureCheck').addEventListener('change', function(){ document.getElementById('signatureSection').style.display=this.checked?'block':'none'; jsonData.quote.showSignature = this.checked; saveToLocal(); });
+document.getElementById('toggleTillSectionChk').addEventListener('change', function(){ jsonData.quote.showTillSection = this.checked; applyTillSectionVisibility(); saveToLocal(); });
 
 document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
@@ -969,7 +1211,7 @@ function toggleMultipleCurrencyUI(isMultiActive) {
 
 document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
 
-document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
+document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false }); saveToLocal(); reRenderAll(); });
 document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
 document.getElementById('addTermButton').addEventListener('click',()=>{ if (!jsonData.terms) jsonData.terms = []; jsonData.terms.push(translations[currentLanguage].newTermText); saveToLocal(); reRenderAll(); });
 
@@ -997,14 +1239,16 @@ document.getElementById("useCustomCurrencyChk").addEventListener('change', (e) =
 document.getElementById("customCurrencyInput").addEventListener('input', function(){ jsonData.quote.customCurrency = this.value.trim(); saveToLocal(); reRenderAll(); });
 document.getElementById("removeTotalCheck").addEventListener('change', () => calculateTotalPrice());
 
-let itemsSortable, optionalItemsSortable, termsSortable, infoSortable;
+
+let itemsSortable, optionalItemsSortable, termsSortable, infoSortable, signatureSortable;
 function initializeDragAndDrop(){
     if(itemsSortable) itemsSortable.destroy(); if(optionalItemsSortable) optionalItemsSortable.destroy();
     if(termsSortable) termsSortable.destroy(); if(infoSortable) infoSortable.destroy();
+    if(signatureSortable) signatureSortable.destroy();
     
     const onSortEnd = (arr, evt) => { 
         if (evt.oldIndex === undefined || evt.newIndex === undefined) return;
-        const moved = arr.splice(evt.oldIndex, 1)[0]; 
+        const [moved] = arr.splice(evt.oldIndex, 1); 
         arr.splice(evt.newIndex, 0, moved); 
         saveToLocal(); 
         reRenderAll(); 
@@ -1013,11 +1257,11 @@ function initializeDragAndDrop(){
     itemsSortable = Sortable.create(document.getElementById('itemsList'),{ 
         group:'sharedItems', 
         animation:150, 
-        handle: '.quote-item', 
+        handle: '.item-meta', 
         onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.items, evt); },
         onAdd: (evt) => { 
             if (evt.from.id === 'optionalItemsList') { 
-                const moved = jsonData.optionalItems.splice(evt.oldIndex, 1)[0]; 
+                const [moved] = jsonData.optionalItems.splice(evt.oldIndex, 1); 
                 jsonData.items.splice(evt.newIndex, 0, moved); 
                 saveToLocal(); reRenderAll(); 
             } 
@@ -1026,11 +1270,11 @@ function initializeDragAndDrop(){
     optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{ 
         group:'sharedItems', 
         animation:150, 
-        handle: '.quote-item', 
+        handle: '.item-meta', 
         onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.optionalItems, evt); },
         onAdd: (evt) => { 
             if (evt.from.id === 'itemsList') { 
-                const moved = jsonData.items.splice(evt.oldIndex, 1)[0]; 
+                const [moved] = jsonData.items.splice(evt.oldIndex, 1); 
                 jsonData.optionalItems.splice(evt.newIndex, 0, moved); 
                 saveToLocal(); reRenderAll(); 
             } 
@@ -1042,42 +1286,78 @@ function initializeDragAndDrop(){
         handle:'.drag-handle', 
         onEnd: (evt) => onSortEnd(jsonData.infoImages, evt) 
     });
+     signatureSortable=Sortable.create(document.getElementById('signatureBlocksContainer'), {
+        animation: 150,
+        handle: '.drag-handle',
+        onEnd: (evt) => {
+            const parent = evt.from;
+            const item = parent.children[evt.oldIndex];
+            const other = parent.children[evt.newIndex];
+            if (evt.oldIndex > evt.newIndex) {
+               parent.insertBefore(item, other);
+            } else {
+               parent.insertBefore(item, other.nextSibling);
+            }
+        }
+    });
 }
 
 let activeEditingElement = null;
 function makeEditable(){
-    document.querySelectorAll('.editable, .item-number[contenteditable="true"]').forEach(el=> { // Include .item-number for direct editing
+    document.querySelectorAll('.editable').forEach(el=> {
         el.removeEventListener('input', onEditableInput); 
-        el.addEventListener('blur', onEditableBlur);
+        el.removeEventListener('blur', onEditableBlur);
         el.addEventListener('input', onEditableInput);
+        el.addEventListener('blur', onEditableBlur);
     });
 }
 
 function onEditableInput(e){
     const target = e.target; 
-    let val = target.id.startsWith('company') ? target.innerHTML : (target.classList.contains('p-editable') ? target.innerHTML : target.textContent.trim());
     const field=target.dataset.field;
 
+    // Handle custom labels for headings, titles, etc.
+    if (field && (field.endsWith('Heading') || field.endsWith('Header') || field.endsWith('Label') || field === 'quoteTitle')) {
+        if (!jsonData.quote.labels) jsonData.quote.labels = {};
+        jsonData.quote.labels[field] = target.textContent;
+        saveToLocal();
+        if (field.includes('Price')) updatePriceHeaders(); // Update currency symbol if price header changes
+        return;
+    }
+
     if(!field) { 
-        if(target.id === 'companyA' || target.id === 'companyB') {
+        const id=target.id;
+        if(id === 'companyA' || id === 'companyB') {
             const lines = target.innerHTML.split(/<br\s*\/?>/gi).map(line => line.trim()).filter(Boolean); 
             let data = {};
             lines.forEach((line, index) => { data[`line${index + 1}`] = line; }); 
-            jsonData[target.id] = data;
+            jsonData[id] = data;
         }
-        else if(target.id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
-        else if (target.id === 'totalLabel') { jsonData.quote.totalLabel = target.textContent; }
-        else { jsonData.quote[target.id] = target.textContent; }
+        else if(id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
+        else if (id === 'signatureDate') { jsonData.signature.date = target.innerHTML; }
+        else { jsonData.quote[id] = target.textContent; }
         saveToLocal(); return;
     }
+
     if(field === 'term'){ jsonData.terms[target.dataset.index] = target.innerHTML; saveToLocal(); return; }
+
+    if (field.startsWith('signature')) {
+        if(field === 'signatureLessorLine') jsonData.signature.lessorLine = target.innerHTML;
+        if(field === 'signatureLesseeLine') jsonData.signature.lesseeLine = target.innerHTML;
+        if(field === 'signatureLessorText') jsonData.signature.lessorText = target.innerHTML;
+        if(field === 'signatureLesseeText') jsonData.signature.lesseeText = target.innerHTML;
+        saveToLocal();
+        return;
+    }
 
     const {item: cId, index: idx, includedIndex: sIdx} = target.dataset;
     const arr = (cId === 'itemsList') ? jsonData.items : jsonData.optionalItems; if(!arr[idx])return;
     let item = sIdx !== undefined ? arr[idx].subItems[sIdx] : arr[idx]; if (!item) return;
     
+    let val = target.classList.contains('p-editable') || field.includes('Description') ? target.innerHTML : target.textContent;
+
     if(field === "itemNumber" || field === "subItemNumber") {
-        item[field] = val; // Directly update the number from contenteditable div
+        item[field] = val; 
     } else if (field === 'marginPercentage') {
         const marginValue = parseFloat(val.replace(/[+%]/g, ''));
         if (!isNaN(marginValue)) item.marginPercentage = marginValue;
@@ -1091,34 +1371,22 @@ function onEditableInput(e){
             }
         }
     } else if (field.includes('Description')){ item[field] = target.innerHTML.replace(/<br\s*\/?>/gi,'\n');
-    } else { item[field] = val; } 
+    } else { item[field] = val.replace(/<span.*>.*<\/span>$/, '').trim(); } 
     
     saveToLocal();
-    // For itemNumber changes, we don't want immediate re-render of everything, just update the current display.
-    // But if other fields change, prices might need recalculation.
-    if (field !== "itemNumber" && field !== "subItemNumber") {
+    if (field === 'marginPercentage' || field === 'originalPriceAndCurrency') {
         updatePrices(); 
         calculateTotalPrice();
         updateLiveDOMPrices(cId, idx, sIdx);
-    } else {
-        // If it's an item number, only the text content of the target needs to reflect 'val'
-        // but the DOM is already updated by contenteditable. No further action needed here for display.
     }
 }
+
 function onEditableBlur(e) {
     activeEditingElement = null;
     hideFormattingToolbar();
-    const target = e.target;
-    const field = target.dataset.field;
-
-    if (document.body.contains(target)) {
-        // If an item number was edited, re-render to ensure numbering consistency and update sub-item numbers if a parent's number changed.
-        if (field === "itemNumber" || field === "subItemNumber") {
-            renumberAllItems(false); // false = try to respect manual edits but fix inconsistencies
-            reRenderAll(); // Full re-render to apply all changes
-        } else {
-            reRenderAll(); 
-        }
+    const field = e.target.dataset.field;
+    if (field === 'originalPriceAndCurrency' || field === 'marginPercentage') {
+        reRenderAll();
     }
 }
 function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
@@ -1130,7 +1398,7 @@ function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
     const priceField = (subIndex !== undefined) ? 'subItemTargetPrice' : 'targetPrice';
     const selector = `[data-item="${containerId}"][data-index="${mainIndex}"]` + (subIndex !== undefined ? `[data-included-index="${subIndex}"]` : '') + ` div[data-field="${priceField}"] span`;
     const priceSpan = document.querySelector(selector);
-    if(priceSpan) priceSpan.textContent = formatPrice(item[priceField] || 0);
+    if(priceSpan) priceSpan.textContent = formatPrice((item[priceField] || 0));
 }
 function buildFileName(ref, version){ const datePart= new Date().toISOString().slice(2,10).replace(/-/g,''); const safeRef = (ref||'').trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50); return `${safeRef || 'offert'}_${datePart}_v${version}.json`; }
 function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData,null,2)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
@@ -1152,7 +1420,15 @@ function saveToLocal(){ localStorage.setItem('quoteData', JSON.stringify(jsonDat
 
 window.onload=()=>{ 
     loadQuoteData(jsonData); 
-    fetchLiveCurrencyRates(); 
+    fetchLiveCurrencyRates();
+
+    const compressChk = document.getElementById('compressImagesChk');
+    const compressOpts = document.getElementById('compressionOptions');
+    const toggleCompressionOpts = () => {
+        compressOpts.style.display = compressChk.checked ? 'inline-flex' : 'none';
+    };
+    compressChk.addEventListener('change', toggleCompressionOpts);
+    toggleCompressionOpts();
 };
 
 function updateMultiCurrencyInputsFromLiveRates(overwriteManual = false) {
@@ -1181,7 +1457,6 @@ function updateMultiCurrencyInputsFromLiveRates(overwriteManual = false) {
     }
 }
 
-
 async function fetchLiveCurrencyRates() {
     const container = document.getElementById('liveCurrencyRates');
     container.innerHTML = 'Laddar kurser...';
@@ -1197,7 +1472,7 @@ async function fetchLiveCurrencyRates() {
                 const rate = data?.[base.toLowerCase()]?.['sek'];
                 if (rate) {
                     window.liveExchangeRates[base.toLowerCase()] = parseFloat(rate);
-                    return `1 ${base.toUpperCase()} = ${rate.toFixed(2)} SEK (${dateStr.slice(5)})`;
+                    return `1 ${base.toUpperCase()} = ${parseFloat(rate).toFixed(2)} SEK (${dateStr.slice(5)})`;
                 }
             } catch (err) { console.warn(`Failed to fetch ${base} for ${dateStr}:`, err); continue; }
         }
@@ -1274,6 +1549,12 @@ window.addEventListener('load', () => {
     document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
     document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate || 11.50).toFixed(2);
 
+    document.getElementById('addSignatureCheck').checked = q.showSignature;
+    document.getElementById('addSignatureCheck').dispatchEvent(new Event('change'));
+    
+    document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
+    applyTillSectionVisibility();
+
     updatePrintMultiplier();
     setupFormattingToolbar();
     reRenderAll(); 
@@ -1340,7 +1621,8 @@ function mapSubItemToItem(subItem) {
         originalPrice: subItem.subItemOriginalPrice,
         marginPercentage: subItem.marginPercentage,
         currencyOrigin: subItem.currencyOrigin,
-        subItems: subItem.subItems || [] 
+        subItems: subItem.subItems || [] ,
+        isPriceBakedIn: false
     };
 }
 
@@ -1348,12 +1630,12 @@ function mapSubItemToItem(subItem) {
 function toggleItemHierarchy(containerId, mainIndex, subIndex) {
     const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
     if (subIndex !== undefined) { 
-        const subItem = list[mainIndex].subItems.splice(subIndex, 1)[0];
+        const [subItem] = list[mainIndex].subItems.splice(subIndex, 1);
         const newMainItem = mapSubItemToItem(subItem);
         list.splice(mainIndex + 1, 0, newMainItem);
     } else { 
         if (mainIndex > 0) {
-            const itemToMove = list.splice(mainIndex, 1)[0];
+            const [itemToMove] = list.splice(mainIndex, 1);
             const parentItem = list[mainIndex - 1];
             if (!parentItem.subItems) parentItem.subItems = [];
             
@@ -1367,58 +1649,30 @@ function toggleItemHierarchy(containerId, mainIndex, subIndex) {
     reRenderAll();
 }
 
-function makeItemNumbersEditable() {
-    // This function is no longer strictly necessary as .item-number divs are now part of the generic .editable handling
-    // However, if specific logic for item numbers beyond simple text update was needed, it would go here.
-    // For now, it's handled by the global .editable listeners.
-}
-
-// Removed handleItemNumberClick as .item-number is now handled by the generic .editable logic.
-
-function renumberAllItems(forceFullRenumber = false) {
-    const processList = (list, prefix, isOptional, depth = 1) => {
+function renumberAllItems() {
+    const processList = (list, prefix, isOptional, isTopLevel) => {
         let itemCounter = 0;
-        list.forEach(item => {
+        (list || []).forEach(item => {
             itemCounter++;
             let baseNumber;
-            if (isOptional) { // Optional items always start with "A" + their own sequence at the top level
-                baseNumber = prefix ? `${prefix}.${itemCounter}` : `A${itemCounter}.1`; // A1.1, A1.1.1, A2.1 etc.
-            } else { // Regular items or sub-items of regular items
-                baseNumber = prefix ? `${prefix}.${itemCounter}` : `${itemCounter}.1`;
-            }
-            
-            let currentPattern;
-            if (isOptional && depth === 1) { // Top-level optional item
-                currentPattern = /^A\d+\.1$/; // e.g., A1.1
-            } else if (!isOptional && depth === 1) { // Top-level main item
-                currentPattern = /^\d+\.1$/; // e.g., 1.1
-            } else { // Sub-items (any depth)
-                // Matches something like 1.1.1, A1.1.1, 1.1.1.1 etc.
-                currentPattern = new RegExp(`^${prefix.replace(/\./g, '\\.')}\\.\\d+$`); 
-            }
-
-            if (forceFullRenumber || !item.itemNumber || !currentPattern.test(item.itemNumber)) {
+            if (isTopLevel) {
+                baseNumber = (isOptional ? 'A' : '') + itemCounter + ".1";
                 item.itemNumber = baseNumber;
             } else {
-                // Check if the prefix matches the expected prefix for this item's position
-                const expectedPrefixForCurrentPosition = prefix ? prefix : (isOptional ? `A${itemCounter}`: `${itemCounter}`);
-                if (depth > 1 && !item.itemNumber.startsWith(expectedPrefixForCurrentPosition + ".")) {
-                    item.itemNumber = baseNumber;
-                } else if (depth === 1 && !item.itemNumber.startsWith(expectedPrefixForCurrentPosition)) {
-                     item.itemNumber = baseNumber;
-                }
+                baseNumber = prefix + "." + itemCounter;
+                item.subItemNumber = baseNumber;
             }
 
             if (item.subItems && item.subItems.length > 0) {
-                processList(item.subItems, item.itemNumber, false, depth + 1); // Subitems are never "Optional" type directly
+                processList(item.subItems, baseNumber, false, false);
             }
         });
     };
 
-    processList(jsonData.items, '', false, 1);
-    processList(jsonData.optionalItems, '', true, 1); 
+    processList(jsonData.items, '', false, true);
+    processList(jsonData.optionalItems, '', true, true);
+    saveToLocal();
 }
-
 
 function toggleItemOptionality(containerId, mainIndex) {
     const sourceList = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
@@ -1483,7 +1737,6 @@ function addSubItemToParent(containerId, parentIndex) {
             subItemQuantity: 1,
             subItemOriginalPrice: 0,
             marginPercentage: 0,
-            // subItemNumber will be assigned by renumberAllItems
         };
         parentItem.subItems.push(newSubItem);
         saveToLocal();
@@ -1503,6 +1756,49 @@ function removeAllSubItems(containerId, parentIndex) {
     }
 }
 
+function applyTillSectionVisibility() {
+    const show = document.getElementById('toggleTillSectionChk').checked;
+    const tillWrapper = document.getElementById('companyA_wrapper');
+    const swapButton = document.getElementById('swapButton');
+    const quoteSection = document.getElementById('quoteSection');
+    
+    tillWrapper.style.display = show ? '' : 'none';
+    swapButton.style.display = show ? '' : 'none';
+    quoteSection.style.justifyContent = show ? 'space-between' : 'flex-end';
+}
+function toggleBakeInPrice(containerId, index) {
+    if (containerId !== 'itemsList') return;
+    const item = jsonData.items[index];
+    item.isPriceBakedIn = !item.isPriceBakedIn;
+    saveToLocal();
+    reRenderAll();
+}
+
+// --- Section Visibility ---
+function applySectionVisibility() {
+    const visibility = jsonData.quote.visibility || {};
+    document.getElementById('optionalSectionContainer').style.display = visibility.optional ? '' : 'none';
+    document.getElementById('infoSectionContainer').style.display = visibility.info ? '' : 'none';
+    document.getElementById('termsSectionContainer').style.display = visibility.terms ? '' : 'none';
+}
+
+function updateSectionVisibilityCheckboxes() {
+    const visibility = jsonData.quote.visibility || {};
+    document.getElementById('showOptionalSectionChk').checked = !!visibility.optional;
+    document.getElementById('showInfoSectionChk').checked = !!visibility.info;
+    document.getElementById('showTermsSectionChk').checked = !!visibility.terms;
+}
+
+document.getElementById('sectionVisibilityControls').addEventListener('change', (e) => {
+    if (e.target.type === 'checkbox') {
+        const section = e.target.dataset.section;
+        if (section && jsonData.quote.visibility.hasOwnProperty(section)) {
+            jsonData.quote.visibility[section] = e.target.checked;
+            saveToLocal();
+            applySectionVisibility();
+        }
+    }
+});
 
 </script>
 </body>
