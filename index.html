@@ -37,8 +37,8 @@
     }
     .item-number { text-align: left; }
     .item-name { text-align: left; }
-    .quantity, .quantity-header { text-align: right; justify-content: flex-end; padding-right:0; /* Align directly to grid cell edge */ }
-    .targetPrice, .price-header, .subItemTargetPrice { text-align: right; justify-content: flex-end; padding-right:0; }
+    .quantity, .quantity-header { text-align: center; justify-content: center; padding-right:0; }
+    .targetPrice, .price-header, .subItemTargetPrice { text-align: right; justify-content: flex-end; padding-right: 2mm; box-sizing: border-box; }
 
     .included-item {
         background-color: rgba(248, 248, 248, 0.85) !important;
@@ -69,7 +69,7 @@
         max-width: calc(100% - (40px + 2.5mm));
     }
 
-    .term-item { margin: 0.2mm 0; padding-bottom: 0.2mm; } /* Very tight terms */
+    .term-item { margin: 0.2mm 0; padding-bottom: 0.2mm; padding-left: 0 !important; } /* Very tight terms, remove indentation for print */
     .term-item .editable { width: 100% !important; } 
 
     .info-text { word-wrap: break-word !important; overflow-wrap: break-word !important; }
@@ -135,10 +135,11 @@ i { font-style: italic; }
 .subitem-name-style { font-weight: 600; } 
 .baked-in-icon { margin-left: 8px; cursor: help; }
 
-.quantity, .quantity-header, .targetPrice, .price-header, .subItemTargetPrice { text-align: right; padding-right: 15px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; justify-content: flex-end; }
+.targetPrice, .price-header, .subItemTargetPrice { text-align: right; padding-right: 15px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; justify-content: flex-end; }
+.quantity, .quantity-header { text-align: center; justify-content: center; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; }
 .input-container { display: inline-flex; align-items: center; position: relative; }
 .button-container { position: absolute; bottom: 100%; right: 0; display: none; flex-direction: row; gap: 1px; }
-.input-container:hover .button-container { display: flex; }
+.input-container:hover .button-container, .input-container.mobile-active .button-container { display: flex; }
 .button-container button { 
     width: 20px; height: 20px; 
     font-size: 12px; 
@@ -168,8 +169,24 @@ input[type="number"] { -moz-appearance: textfield; }
 .term-item:hover .remove-icon { display: block; }
 .status-message { margin-top: 10px; font-weight: bold; color: green; font-size: 12pt; }
 .total-price { text-align: right; font-weight: bold; margin-top: 20px; font-size: 12pt; padding-right: 15px; margin-right: 0; border-top: 2px solid #000; padding-top: 10px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: 100%; position: relative; }
-.term-item { padding: 2px 0; position: relative; margin-bottom: 1px; } 
-.term-item .editable { width: 80%; }
+.term-item {
+    position: relative;
+    padding-left: 30px; /* Space for controls */
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 1px;
+}
+.term-item:hover { background-color: #fafafa; }
+.term-item .controls-row {
+    display: none; /* Hide by default */
+    position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column;
+}
+.term-item:hover .controls-row {
+    display: inline-flex; /* Show on hover */
+}
+.term-item .content-wrapper { width: 100%; }
+.term-item .editable { width: 100% !important; }
 .reference { margin: 20px 0; }
 .currency-multiplier { margin-top: 20px; margin-bottom: 20px; text-align: right; }
 .currency-multiplier label { font-weight: bold; }
@@ -742,8 +759,8 @@ function updatePriceHeaders(){
 
     const curSymbol = (customChk.checked && currencyVal) ? `(${currencyVal})` : "(SEK)";
     
-    document.getElementById('priceHeader').textContent = `${priceHeaderText} ${curSymbol}`;
-    document.getElementById('optPriceHeader').textContent = `${optPriceHeaderText} ${curSymbol}`;
+    document.getElementById('priceHeader').textContent = `${priceHeaderText} ${curSymbol} `;
+    document.getElementById('optPriceHeader').textContent = `${optPriceHeaderText} ${curSymbol} `;
 }
 function loadItems(items, containerId){
     const container = document.getElementById(containerId);
@@ -866,7 +883,23 @@ function removeDescription(el){ const {item: cId, index: i, includedIndex: si, f
 
 function loadTerms(terms){
     const list=document.getElementById('termsList'); list.innerHTML='';
-    (terms || []).forEach((t, i)=>{ list.innerHTML += `<div class="term-item"><div class="editable" contenteditable="true" data-field="term" data-index="${i}">${t}</div><span class="remove-icon screen-only" onclick="removeTerm(${i})">✖</span></div>`; });
+    (terms || []).forEach((t, i)=>{
+        const termDiv = document.createElement('div');
+        termDiv.className = 'term-item info-block'; // Re-use info-block class for hover effects
+        termDiv.dataset.index = i;
+        termDiv.innerHTML = `
+            <div class="controls-row screen-only">
+                <span class="info-image-up" onclick="moveTermUp(${i})">▲</span>
+                <span class="drag-handle">≡</span>
+                <span class="info-image-down" onclick="moveTermDown(${i})">▼</span>
+                <span class="remove-icon" onclick="removeTerm(${i})">✖</span>
+            </div>
+            <div class="content-wrapper">
+                <div class="editable" contenteditable="true" data-field="term" data-index="${i}">${t}</div>
+            </div>
+        `;
+        list.appendChild(termDiv);
+    });
 }
 function removeTerm(i){ jsonData.terms.splice(i,1); saveToLocal(); reRenderAll(); }
 
@@ -914,12 +947,22 @@ function loadInfoImages(){
         }
         
         const controls = document.createElement('div');
-        controls.className = 'controls-row screen-only'; 
-        controls.innerHTML = `
-            <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
-            <span class="drag-handle">≡</span>
-            <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
-            <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+        controls.className = 'controls-row screen-only';
+        if (obj.type === 'image') {
+            controls.innerHTML = `
+                <span class="info-image-up" title="Större (+10%)" onclick="adjustImageSize(${idx}, 1.10)">+</span>
+                <span class="info-image-down" title="Mindre (-5%)" onclick="adjustImageSize(${idx}, 0.95)">-</span>
+                <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
+                <span class="drag-handle">≡</span>
+                <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
+                <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+        } else {
+            controls.innerHTML = `
+                <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
+                <span class="drag-handle">≡</span>
+                <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
+                <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+        }
         
         block.appendChild(controls); 
         block.appendChild(contentWrapper); 
@@ -1033,6 +1076,8 @@ function compressImageDataUrl(dataUrl, quality, maxWidth) {
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
             resolve(canvas.toDataURL('image/jpeg', quality));
         };
@@ -1280,7 +1325,7 @@ function initializeDragAndDrop(){
             } 
         }
     });
-    termsSortable=Sortable.create(document.getElementById('termsList'),{ animation:150, handle:'.term-item', onEnd: (evt) => onSortEnd(jsonData.terms, evt) });
+    termsSortable=Sortable.create(document.getElementById('termsList'),{ animation:150, handle:'.drag-handle', onEnd: (evt) => onSortEnd(jsonData.terms, evt) });
     infoSortable=Sortable.create(document.getElementById('infoImagesList'),{ 
         animation:150, 
         handle:'.drag-handle', 
@@ -1519,6 +1564,22 @@ document.addEventListener('DOMContentLoaded', function () {
             if (event.key.toLowerCase() === 'i' && document.activeElement.isContentEditable) { event.preventDefault(); document.execCommand('italic'); }
         }
     });
+
+    // Add touch listener for quantity buttons on mobile
+    document.addEventListener('touchstart', function(e) {
+        const activeContainers = document.querySelectorAll('.input-container.mobile-active');
+        const tappedContainer = e.target.closest('.input-container');
+
+        activeContainers.forEach(container => {
+            if (container !== tappedContainer) {
+                container.classList.remove('mobile-active');
+            }
+        });
+
+        if (tappedContainer) {
+            tappedContainer.classList.add('mobile-active');
+        }
+    }, { passive: true });
 });
 
 function updatePrintMultiplier(){ 
@@ -1721,6 +1782,35 @@ function moveSubItemDown(containerId, mainIndex, subIndex) {
             saveToLocal();
             reRenderAll(); 
         }
+    }
+}
+
+// Term Movement Functions
+function moveTermUp(idx){
+    if(idx > 0 && jsonData.terms){
+        [jsonData.terms[idx], jsonData.terms[idx-1]] = [jsonData.terms[idx-1], jsonData.terms[idx]];
+        saveToLocal();
+        reRenderAll();
+    }
+}
+function moveTermDown(idx){
+    if(jsonData.terms && idx < jsonData.terms.length - 1){
+        [jsonData.terms[idx], jsonData.terms[idx+1]] = [jsonData.terms[idx+1], jsonData.terms[idx]];
+        saveToLocal();
+        reRenderAll();
+    }
+}
+
+// Image Size Adjustment for Mobile
+function adjustImageSize(index, factor) {
+    if (jsonData.infoImages && jsonData.infoImages[index] && jsonData.infoImages[index].type === 'image') {
+        const imgData = jsonData.infoImages[index];
+        let currentWidth = parseFloat(imgData.width) || 400;
+        let newWidth = currentWidth * factor;
+        if (newWidth < 50) newWidth = 50; // Prevent disappearing
+        imgData.width = newWidth;
+        saveToLocal();
+        reRenderAll();
     }
 }
 
