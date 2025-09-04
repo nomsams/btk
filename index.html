@@ -1,4 +1,4 @@
-<!-- Version 83 -- Persistent Labels, Section Visibility Controls -->
+<!-- Version 84 -- Sub-item Price Baking, Bullet Points -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -53,6 +53,9 @@
         grid-template-columns: 40px 1fr 75px 95px; /* Fine-tuned sub-item columns */
         gap: 2.5mm; /* Smaller gap for subitems */
         padding-left: 0;
+    }
+    .included-item.baked-in .subItemTargetPrice {
+        display: none !important; /* Hide price of baked-in sub-items on print */
     }
 
 
@@ -115,6 +118,10 @@ i { font-style: italic; }
     margin-bottom: 5px; 
     padding: 8px; 
     border-radius: 4px; 
+}
+.included-item.baked-in .subItemTargetPrice span {
+    color: #ccc !important; /* Make price less prominent on screen if baked in */
+    text-decoration: line-through;
 }
 .quote-item:hover .item-actions, .included-item:hover .item-actions { display: flex; }
 .item-header { display: grid; grid-template-columns: 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
@@ -289,7 +296,6 @@ h3.name.editable { margin-bottom: 0 !important; }
 .signature-block { width: 40%; position: relative; }
 .signature-line { border-bottom: 1px solid black; min-height: 40px; margin-bottom: 5px; }
 #sectionVisibilityControls { border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
-#sectionVisibilityControls span { font-weight: bold; }
 </style>
 </head>
 <body>
@@ -297,6 +303,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 <div id="formatting-toolbar" class="screen-only">
   <button id="bold-btn" title="Fet (Ctrl+B)"><b>B</b></button>
   <button id="italic-btn" title="Kursiv (Ctrl+I)"><i>I</i></button>
+  <button id="bullet-btn" title="Punktlista">•</button>
 </div>
 
 <div id="quoteContent">
@@ -577,8 +584,16 @@ window.liveExchangeRates = { usd: null, eur: null };
             jsonData.quote.visibility = { optional: true, info: true, terms: true };
         }
         if(!jsonData.companyA)jsonData.companyA={}; if(!jsonData.companyB)jsonData.companyB={};
-        if(!Array.isArray(jsonData.items))jsonData.items=[]; jsonData.items.forEach(it => { if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; });
+        if(!Array.isArray(jsonData.items))jsonData.items=[]; 
+        jsonData.items.forEach(it => { 
+            if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
+            (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+        });
         if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
+        jsonData.optionalItems.forEach(it => { 
+            if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
+            (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+        });
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
@@ -628,7 +643,16 @@ function loadQuoteData(data, loadedFileName=null){
     jsonData.quote = q;
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
     if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
-    (jsonData.items || []).forEach(it => { if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; });
+    
+    // --- BACKWARD COMPATIBILITY FOR BAKED IN PRICES ---
+    (jsonData.items || []).forEach(it => { 
+        if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
+        (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+    });
+    (jsonData.optionalItems || []).forEach(it => { 
+        if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
+        (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+    });
 
 
     document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
@@ -814,12 +838,16 @@ function loadItems(items, containerId){
         }
         (it.subItems || []).forEach((sItem, sIdx) => { 
             if (sItem.marginPercentage === undefined) sItem.marginPercentage = 0;
+            if (sItem.isPriceBakedIn === undefined) sItem.isPriceBakedIn = false;
             const subMargin = parseFloat(sItem.marginPercentage) || 0;
-            const included = document.createElement('div'); included.className = 'included-item';
+            const included = document.createElement('div'); 
+            included.className = `included-item ${sItem.isPriceBakedIn ? 'baked-in' : ''}`;
             const sMeta = document.createElement('div'); sMeta.className = 'item-meta';
+            const subBakedInIconHTML = sItem.isPriceBakedIn ? `<span class="screen-only baked-in-icon" title="${translations[currentLanguage].bakedInPriceTooltip}">👨‍🍳</span>` : '';
+
             sMeta.innerHTML = `
                 <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemNumber" title="Klicka för att redigera nummer">${sItem.subItemNumber}</div>
-                <div class="item-name editable subitem-name-style" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemName">${sItem.subItemName||''}</div>
+                <div class="item-name editable subitem-name-style" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemName">${sItem.subItemName||''} ${subBakedInIconHTML}</div>
                 <div class="quantity" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemQuantity"><div class="input-container"><input type="number" min="0" step="1" value="${sItem.subItemQuantity || 0}" class="${(sItem.subItemQuantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container screen-only"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
                 <div class="subItemTargetPrice" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemTargetPrice" style="text-align:right;"><span class="${(sItem.subItemTargetPrice || 0) === 0 ? 'zero-text' : ''}" style="text-align:right;display:inline-block;width:100%;">${formatPrice(sItem.subItemTargetPrice || 0)}</span></div>
                 <div class="item-tooltip screen-only">
@@ -829,6 +857,7 @@ function loadItems(items, containerId){
                 <div class="item-actions screen-only">
                     <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveUp}" onclick="moveSubItemUp('${containerId}', ${idx}, ${sIdx})">▲</button>
                     <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveDown}" onclick="moveSubItemDown('${containerId}', ${idx}, ${sIdx})">▼</button>
+                    <button class="control-btn" title="${translations[currentLanguage].bakeInPriceLabel}" onclick="toggleBakeInSubItemPrice('${containerId}', ${idx}, ${sIdx})">👨‍🍳</button>
                     <button class="control-btn" title="Gör till huvudpost" onclick="toggleItemHierarchy('${containerId}', ${idx}, ${sIdx})">↰</button>
                     <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateSubItem('${containerId}', ${idx}, ${sIdx})">❏</button>
                     <button class="control-btn" title="${translations[currentLanguage].removeRow}" style="background-color:red; color:white;" onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</button>
@@ -1126,8 +1155,7 @@ function updatePrices(){
     const usdRate = parseFloat(jsonData.quote.usdToSekRate) || 10.5;
     const eurRate = parseFloat(jsonData.quote.eurToSekRate) || 11.5;
 
-    // Helper to calculate price for a single item/subitem without quantity
-    const calculatePreBakePrice = (item, parentCurrencyOrigin) => {
+    const calculateEntityPrice = (item, parentCurrencyOrigin) => {
         const itemMarginMultiplier = 1 + ((item.marginPercentage || 0) / 100);
         let originalPrice = item.originalPrice ?? item.subItemOriginalPrice ?? 0;
         let currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) || 'SEK').toUpperCase();
@@ -1148,14 +1176,15 @@ function updatePrices(){
     let totalToDistribute = 0;
     let distributionPoolTotal = 0;
     
+    // First pass: Calculate all individual prices and identify main item distribution pool
     jsonData.items.forEach(item => {
-        let parentPrice = calculatePreBakePrice(item, null) * (item.quantity || 0);
+        let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
         let subItemsPrice = 0;
         (item.subItems || []).forEach(s => {
-            s.preBakeTargetPrice = calculatePreBakePrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
-            subItemsPrice += s.preBakeTargetPrice;
+            s.subItemTargetPrice = calculateEntityPrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
+            subItemsPrice += s.subItemTargetPrice;
         });
-        item.preBakeTargetPrice = parentPrice + subItemsPrice;
+        item.preBakeTargetPrice = itemOwnPrice + subItemsPrice;
 
         if (item.isPriceBakedIn) {
             totalToDistribute += item.preBakeTargetPrice;
@@ -1166,34 +1195,57 @@ function updatePrices(){
     
     const distributionRatio = distributionPoolTotal > 0 ? 1 + (totalToDistribute / distributionPoolTotal) : 1;
 
+    // Second pass: Distribute baked-in main item prices and set final display prices
     jsonData.items.forEach(item => {
         if (item.isPriceBakedIn) {
             item.targetPrice = 0;
-            (item.subItems || []).forEach(s => s.subItemTargetPrice = 0);
+            (item.subItems || []).forEach(s => s.subItemTargetPrice = 0); // Their price is part of the distributed total
         } else {
-             let parentPrice = calculatePreBakePrice(item, null) * (item.quantity || 0);
-             item.targetPrice = parentPrice * distributionRatio;
-             let subTotal = 0;
+            let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
+            let bakedInSubItemsPrice = 0;
             (item.subItems || []).forEach(s => {
-                s.subItemTargetPrice = s.preBakeTargetPrice * distributionRatio;
-                subTotal += s.subItemTargetPrice;
+                // Recalculate sub-item price as it might be affected by distribution
+                s.subItemTargetPrice = calculateEntityPrice(s, item.currencyOrigin) * (s.subItemQuantity || 0) * distributionRatio;
+                if (s.isPriceBakedIn) {
+                    bakedInSubItemsPrice += s.subItemTargetPrice;
+                }
             });
-            item.targetPrice += subTotal;
+            item.targetPrice = (itemOwnPrice * distributionRatio) + bakedInSubItemsPrice;
         }
     });
 
+    // Third pass: Calculate prices for optional items (no distribution)
     jsonData.optionalItems.forEach(item => {
-        item.targetPrice = calculatePreBakePrice(item, null) * (item.quantity || 0);
-        let subTotal = 0;
+        let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
+        let bakedInSubItemsPrice = 0;
         (item.subItems || []).forEach(s => {
-            s.subItemTargetPrice = calculatePreBakePrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
-            subTotal += s.subItemTargetPrice;
+            s.subItemTargetPrice = calculateEntityPrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
+            if (s.isPriceBakedIn) {
+                bakedInSubItemsPrice += s.subItemTargetPrice;
+            }
         });
-        item.targetPrice += subTotal;
+        item.targetPrice = itemOwnPrice + bakedInSubItemsPrice;
     });
 }
+
 function calculateTotalPrice(){
-    let total=jsonData.items.reduce((acc, it) => acc + (it.targetPrice || 0), 0);
+    let total = 0;
+    const lists = [jsonData.items, jsonData.optionalItems];
+
+    lists.forEach(list => {
+        (list || []).forEach(item => {
+            // Add the parent item's price, which already includes its own price and its baked-in sub-items.
+            total += (item.targetPrice || 0);
+            
+            // Add prices of non-baked-in sub-items.
+            (item.subItems || []).forEach(sItem => {
+                if (!sItem.isPriceBakedIn) {
+                    total += (sItem.subItemTargetPrice || 0);
+                }
+            });
+        });
+    });
+
     const dec = document.getElementById('showDecimals').checked;
     const formatted = dec ? total.toFixed(2) : Math.round(total).toString();
     const currencyVal = document.getElementById("useCustomCurrencyChk").checked ? (document.getElementById("customCurrencyInput").value.trim() || "SEK") : "SEK";
@@ -1658,11 +1710,46 @@ function setupFormattingToolbar() {
 
     document.getElementById('bold-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('bold'); });
     document.getElementById('italic-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('italic'); });
+    document.getElementById('bullet-btn').addEventListener('mousedown', (e) => { e.preventDefault(); toggleBulletPoints(); });
 
 }
 function hideFormattingToolbar() {
     if (toolbar) toolbar.style.display = 'none';
 }
+
+function toggleBulletPoints() {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    const editable = container.nodeType === 1 ? container.closest('.editable') : container.parentElement.closest('.editable');
+    if (!editable) return;
+
+    // Create a temporary div to manipulate the HTML of the selection
+    const content = range.extractContents();
+    const tempDiv = document.createElement('div');
+    tempDiv.appendChild(content);
+    
+    let html = tempDiv.innerHTML;
+    // Simple check to see if it's already a list
+    const isBulleted = html.trim().startsWith('•') || html.includes('<br>•');
+
+    let newHtml;
+    if (isBulleted) {
+        // Remove bullets
+        newHtml = html.replace(/•\s?/g, '').replace(/<br>\s*<br>/g, '<br>');
+    } else {
+        // Add bullets
+        const lines = html.split('<br>').filter(line => line.trim() !== '');
+        newHtml = lines.map(line => '• ' + line.trim()).join('<br>');
+    }
+
+    // Use execCommand to insert the modified HTML back
+    document.execCommand('insertHTML', false, newHtml);
+}
+
+
 function mapItemToSubItem(item) {
     return {
         subItemName: item.name,
@@ -1671,7 +1758,8 @@ function mapItemToSubItem(item) {
         subItemOriginalPrice: item.originalPrice,
         marginPercentage: item.marginPercentage,
         currencyOrigin: item.currencyOrigin,
-        subItems: item.subItems || [] 
+        subItems: item.subItems || [],
+        isPriceBakedIn: false // Sub-items are not baked-in by default when converted
     };
 }
 function mapSubItemToItem(subItem) {
@@ -1827,6 +1915,7 @@ function addSubItemToParent(containerId, parentIndex) {
             subItemQuantity: 1,
             subItemOriginalPrice: 0,
             marginPercentage: 0,
+            isPriceBakedIn: false
         };
         parentItem.subItems.push(newSubItem);
         saveToLocal();
@@ -1862,6 +1951,16 @@ function toggleBakeInPrice(containerId, index) {
     item.isPriceBakedIn = !item.isPriceBakedIn;
     saveToLocal();
     reRenderAll();
+}
+
+function toggleBakeInSubItemPrice(containerId, mainIndex, subIndex) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const subItem = list[mainIndex]?.subItems?.[subIndex];
+    if (subItem) {
+        subItem.isPriceBakedIn = !subItem.isPriceBakedIn;
+        saveToLocal();
+        reRenderAll();
+    }
 }
 
 // --- Section Visibility ---
