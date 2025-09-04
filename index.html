@@ -1,4 +1,4 @@
-<!-- Version 84 -- Sub-item Price Baking, Bullet Points -->
+<!-- Version 85 -- Improved Lists, Dynamic Logo, Baked Price Visibility -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -56,6 +56,13 @@
     }
     .included-item.baked-in .subItemTargetPrice {
         display: none !important; /* Hide price of baked-in sub-items on print */
+    }
+    .quote-item.baked-in .targetPrice {
+        display: none !important;
+    }
+    body.show-baked-item-prices .quote-item.baked-in .targetPrice,
+    body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice {
+        display: flex !important;
     }
 
 
@@ -120,9 +127,19 @@ i { font-style: italic; }
     border-radius: 4px; 
 }
 .included-item.baked-in .subItemTargetPrice span {
-    color: #ccc !important; /* Make price less prominent on screen if baked in */
+    color: #ccc !important;
     text-decoration: line-through;
 }
+.quote-item.baked-in .targetPrice span {
+    color: #ccc !important;
+    text-decoration: line-through;
+}
+body.show-baked-item-prices .quote-item.baked-in .targetPrice span,
+body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice span {
+    color: inherit !important;
+    text-decoration: none;
+}
+
 .quote-item:hover .item-actions, .included-item:hover .item-actions { display: flex; }
 .item-header { display: grid; grid-template-columns: 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
 .item-header > div { padding: 5px; }
@@ -238,7 +255,7 @@ h3.name.editable { margin-bottom: 0 !important; }
     border-radius: 50%; position: absolute; bottom: 5px; right: 5px;
     cursor: se-resize; z-index: 15; pointer-events: all; display:none;
 }
-.info-image-container:hover .image-resize-handle { display: block; }
+.info-image-container:hover .image-resize-handle, #logoContainer:hover .image-resize-handle { display: block; }
 
 
 .controls-row { display: none; align-items: center; gap: 5px; z-index: 10; background: rgba(230,230,230,0.85); padding:3px; border-radius: 3px; border:1px solid #ccc; }
@@ -296,19 +313,35 @@ h3.name.editable { margin-bottom: 0 !important; }
 .signature-block { width: 40%; position: relative; }
 .signature-line { border-bottom: 1px solid black; min-height: 40px; margin-bottom: 5px; }
 #sectionVisibilityControls { border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+
+/* Logo specific styles */
+#logoContainer { position: relative; display: inline-block; line-height: 0; }
+#logoContainer .remove-icon { right: 5px; top: 5px; z-index: 10; }
+#logoContainer:hover .remove-icon { display: block; }
+#uploadLogoBtn { padding: 10px; background-color: #f0f0f0; border: 2px dashed #ccc; cursor: pointer; }
+#uploadLogoBtn:hover { background-color: #e9e9e9; }
+
 </style>
 </head>
-<body>
+<body class="">
 
 <div id="formatting-toolbar" class="screen-only">
   <button id="bold-btn" title="Fet (Ctrl+B)"><b>B</b></button>
   <button id="italic-btn" title="Kursiv (Ctrl+I)"><i>I</i></button>
   <button id="bullet-btn" title="Punktlista">•</button>
+  <button id="dash-btn" title="Strecklista">-</button>
 </div>
 
 <div id="quoteContent">
     <div class="header">
-        <img alt="Company Logo" src="logo.png"/>
+        <div id="logoContainer">
+            <img alt="Company Logo" id="companyLogo" src="logo.png"/>
+            <span class="remove-icon screen-only" id="removeLogoBtn">✖</span>
+            <div class="image-resize-handle screen-only"></div>
+        </div>
+        <button id="uploadLogoBtn" class="screen-only" style="display:none;">Ladda upp logotyp</button>
+        <input type="file" id="logoUpload" accept="image/*" style="display:none;" />
+
         <div class="quote-title editable" contenteditable="true" id="quoteTitle" data-field="quoteTitle">Offert</div>
     </div>
     <div class="quote-number" id="quoteNumberLabel">Offert nr:
@@ -343,6 +376,10 @@ h3.name.editable { margin-bottom: 0 !important; }
         <label id="toggleTillLabel">
             <input type="checkbox" id="toggleTillSectionChk" checked /> Visa 'Till'
         </label>
+    </div>
+     <div class="checkbox-group screen-only">
+        <label><input type="checkbox" id="showBakedItemPrices" /> Visa inbakade artikelpriser</label>
+        <label><input type="checkbox" id="showBakedSubItemPrices" /> Visa inbakade underpostpriser</label>
     </div>
     <div id="sectionVisibilityControls" class="checkbox-group screen-only">
         <span id="showSectionsLabel">Visa sektioner:</span>
@@ -797,7 +834,8 @@ function loadItems(items, containerId){
         if (it.marginPercentage === undefined) it.marginPercentage = 0;
         const margin = parseFloat(it.marginPercentage) || 0;
         const itemDiv = document.createElement('div');
-        itemDiv.className = 'quote-item'; itemDiv.dataset.index = idx; 
+        itemDiv.className = `quote-item ${it.isPriceBakedIn ? 'baked-in' : ''}`;
+        itemDiv.dataset.index = idx; 
         itemDiv.dataset.itemId = it.id || `item-${containerId}-${idx}`; 
 
         const meta = document.createElement('div'); meta.className = 'item-meta';
@@ -1043,14 +1081,12 @@ document.getElementById('imageUpload').addEventListener('change',function(ev){
         }
     }
 });
-function initializeResize(handle,img,idx){
-    let startWidth, startX, startY, startHeight;
+function initializeResize(handle,img,idxOrId){
+    let startWidth, startX;
     const onDown=(ev)=>{ 
         ev.preventDefault(); 
         startWidth=img.offsetWidth; 
         startX=ev.clientX;
-        startY=ev.clientY;
-        startHeight=img.offsetHeight;
         document.addEventListener('mousemove',onMove); 
         document.addEventListener('mouseup',onUp);
     };
@@ -1059,11 +1095,17 @@ function initializeResize(handle,img,idx){
         const newWidth = startWidth+(ev.clientX-startX);
         if(newWidth>40){ 
             img.style.width=newWidth+'px'; 
-            jsonData.infoImages[idx].width=newWidth; 
+            if (typeof idxOrId === 'number') {
+                jsonData.infoImages[idxOrId].width=newWidth; 
+            } else if (idxOrId === 'logo') {
+                localStorage.setItem('logoWidth', newWidth);
+            }
         }
     };
     const onUp=()=>{ 
-        saveToLocal(); 
+        if (typeof idxOrId === 'number') {
+            saveToLocal(); 
+        }
         document.removeEventListener('mousemove',onMove); 
         document.removeEventListener('mouseup',onUp);
     };
@@ -1518,6 +1560,7 @@ function saveToLocal(){ localStorage.setItem('quoteData', JSON.stringify(jsonDat
 window.onload=()=>{ 
     loadQuoteData(jsonData); 
     fetchLiveCurrencyRates();
+    setupLogo();
 
     const compressChk = document.getElementById('compressImagesChk');
     const compressOpts = document.getElementById('compressionOptions');
@@ -1710,42 +1753,41 @@ function setupFormattingToolbar() {
 
     document.getElementById('bold-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('bold'); });
     document.getElementById('italic-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('italic'); });
-    document.getElementById('bullet-btn').addEventListener('mousedown', (e) => { e.preventDefault(); toggleBulletPoints(); });
+    document.getElementById('bullet-btn').addEventListener('mousedown', (e) => { e.preventDefault(); toggleListStyle('•'); });
+    document.getElementById('dash-btn').addEventListener('mousedown', (e) => { e.preventDefault(); toggleListStyle('-'); });
 
 }
 function hideFormattingToolbar() {
     if (toolbar) toolbar.style.display = 'none';
 }
 
-function toggleBulletPoints() {
+function toggleListStyle(prefix) {
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
 
     const range = selection.getRangeAt(0);
-    const container = range.commonAncestorContainer;
-    const editable = container.nodeType === 1 ? container.closest('.editable') : container.parentElement.closest('.editable');
-    if (!editable) return;
-
-    // Create a temporary div to manipulate the HTML of the selection
-    const content = range.extractContents();
     const tempDiv = document.createElement('div');
-    tempDiv.appendChild(content);
-    
+    tempDiv.appendChild(range.cloneContents());
+
     let html = tempDiv.innerHTML;
-    // Simple check to see if it's already a list
-    const isBulleted = html.trim().startsWith('•') || html.includes('<br>•');
+    const fullPrefix = prefix + ' ';
+    const regex = new RegExp(`^${prefix}\\s?`, 'gm');
+
+    // Check if the first non-empty line starts with the prefix
+    const isPrefixed = html.split(/<br\s*\/?>/g).find(line => line.trim() !== '')?.trim().startsWith(prefix);
 
     let newHtml;
-    if (isBulleted) {
-        // Remove bullets
-        newHtml = html.replace(/•\s?/g, '').replace(/<br>\s*<br>/g, '<br>');
+    if (isPrefixed) {
+        // Remove prefixes
+        newHtml = html.split(/<br\s*\/?>/g).map(line => line.replace(regex, '')).join('<br>');
     } else {
-        // Add bullets
-        const lines = html.split('<br>').filter(line => line.trim() !== '');
-        newHtml = lines.map(line => '• ' + line.trim()).join('<br>');
+        // Add prefixes
+        newHtml = html.split(/<br\s*\/?>/g).map(line => {
+            const trimmed = line.trim();
+            return trimmed ? fullPrefix + trimmed : line;
+        }).join('<br>');
     }
 
-    // Use execCommand to insert the modified HTML back
     document.execCommand('insertHTML', false, newHtml);
 }
 
@@ -1988,6 +2030,72 @@ document.getElementById('sectionVisibilityControls').addEventListener('change', 
         }
     }
 });
+
+// --- Logo Handling ---
+function setupLogo() {
+    const logoContainer = document.getElementById('logoContainer');
+    const logoImg = document.getElementById('companyLogo');
+    const removeBtn = document.getElementById('removeLogoBtn');
+    const uploadBtn = document.getElementById('uploadLogoBtn');
+    const fileInput = document.getElementById('logoUpload');
+    const resizeHandle = logoContainer.querySelector('.image-resize-handle');
+
+    const savedLogo = localStorage.getItem('companyLogo');
+    const savedWidth = localStorage.getItem('logoWidth');
+
+    if (savedLogo) {
+        logoImg.src = savedLogo;
+        logoContainer.style.display = 'inline-block';
+        uploadBtn.style.display = 'none';
+        if (savedWidth) {
+            logoImg.style.width = savedWidth + 'px';
+        }
+    } else if (logoImg.getAttribute('src')) {
+        // Default logo is present
+        logoContainer.style.display = 'inline-block';
+        uploadBtn.style.display = 'none';
+    } else {
+        // No logo at all
+        logoContainer.style.display = 'none';
+        uploadBtn.style.display = 'inline-block';
+    }
+
+    removeBtn.addEventListener('click', () => {
+        logoImg.src = '';
+        localStorage.removeItem('companyLogo');
+        localStorage.removeItem('logoWidth');
+        logoContainer.style.display = 'none';
+        uploadBtn.style.display = 'inline-block';
+    });
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target.result;
+                logoImg.src = dataUrl;
+                localStorage.setItem('companyLogo', dataUrl);
+                logoContainer.style.display = 'inline-block';
+                uploadBtn.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    initializeResize(resizeHandle, logoImg, 'logo');
+}
+
+// --- Baked Price Visibility ---
+document.getElementById('showBakedItemPrices').addEventListener('change', function() {
+    document.body.classList.toggle('show-baked-item-prices', this.checked);
+});
+document.getElementById('showBakedSubItemPrices').addEventListener('change', function() {
+    document.body.classList.toggle('show-baked-subitem-prices', this.checked);
+});
+
 
 </script>
 </body>
