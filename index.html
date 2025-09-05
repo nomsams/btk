@@ -1,4 +1,4 @@
-<!-- Version 86 -- Vendor Print Mode, Additive Margins, Enhanced Logo & Lists -->
+<!-- Version 87 -- Corrected Total, Enhanced Vendor Mode -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -346,6 +346,36 @@ h3.name.editable { margin-bottom: 0 !important; }
 #logoContainer:hover .remove-icon { display: block; }
 #uploadLogoBtn { padding: 10px; background-color: #f0f0f0; border: 2px dashed #ccc; cursor: pointer; }
 #uploadLogoBtn:hover { background-color: #e9e9e9; }
+
+.vendor-price-details {
+    display: none; /* Hidden by default on screen */
+    font-size: 9pt;
+    color: #333;
+    background-color: #f7f7f9;
+    border: 1px solid #e1e1e8;
+    border-radius: 4px;
+    margin-top: 5px;
+    padding: 8px;
+    margin-left: calc(70px + 10px);
+    grid-column: 2 / 5;
+}
+.included-item .vendor-price-details {
+    margin-left: 0; /* It's already indented by the included-item margin */
+}
+body.vendor-print-mode .vendor-price-details {
+    display: block !important; /* Show on screen when class is present */
+}
+.vendor-price-details div {
+    margin-bottom: 3px;
+}
+.vendor-price-details i {
+    font-style: italic;
+    color: #666;
+}
+.vendor-price-details b {
+    font-weight: bold;
+    color: #000;
+}
 
 </style>
 </head>
@@ -875,10 +905,10 @@ function getPriceBreakdown(item, parentCurrencyOrigin) {
     }
 
     breakdown.priceInSEK = breakdown.originalPrice * breakdown.rate;
-    const priceAfterLocalMargin = breakdown.priceInSEK * itemMarginMultiplier;
-    breakdown.localMarginValue = priceAfterLocalMargin - breakdown.priceInSEK;
-    const priceAfterGlobalMargin = priceAfterLocalMargin * globalMarginMultiplier;
-    breakdown.globalMarginValue = priceAfterGlobalMargin - priceAfterLocalMargin;
+    breakdown.priceAfterLocalMargin = breakdown.priceInSEK * itemMarginMultiplier;
+    breakdown.localMarginValue = breakdown.priceAfterLocalMargin - breakdown.priceInSEK;
+    const priceAfterGlobalMargin = breakdown.priceAfterLocalMargin * globalMarginMultiplier;
+    breakdown.globalMarginValue = priceAfterGlobalMargin - breakdown.priceAfterLocalMargin;
     
     breakdown.finalPricePerUnit = priceAfterGlobalMargin;
 
@@ -930,13 +960,15 @@ function loadItems(items, containerId){
         itemDiv.appendChild(meta);
         
         const breakdown = getPriceBreakdown(it, null);
+        const localSign = breakdown.localMarginValue >= 0 ? '+' : '-';
+        const globalSign = breakdown.globalMarginValue >= 0 ? '+' : '-';
         const breakdownDiv = document.createElement('div');
         breakdownDiv.className = 'vendor-price-details';
         breakdownDiv.innerHTML = `
             <div>Original: ${formatNumber(breakdown.originalPrice.toFixed(2))} ${breakdown.currencyOrigin}</div>
             ${breakdown.rateText ? `<div>Kurs: ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK)} SEK</div>` : ''}
-            <div>Lokal marginal (${(it.marginPercentage || 0)}%): ${formatPrice(breakdown.localMarginValue)} SEK</div>
-            <div>Global marginal (${jsonData.quote.marginPercentage || 0}%): ${formatPrice(breakdown.globalMarginValue)} SEK</div>
+            <div>Lokal (${(it.marginPercentage || 0)}%): <i>${formatPrice(breakdown.priceInSEK)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue))} = <b>${formatPrice(breakdown.priceAfterLocalMargin)} SEK</b></div>
+            <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue))} = <b>${formatPrice(breakdown.finalPricePerUnit)} SEK</b></div>
         `;
         itemDiv.appendChild(breakdownDiv);
 
@@ -979,13 +1011,15 @@ function loadItems(items, containerId){
             included.appendChild(sMeta);
             
             const subBreakdown = getPriceBreakdown(sItem, it.currencyOrigin);
+            const subLocalSign = subBreakdown.localMarginValue >= 0 ? '+' : '-';
+            const subGlobalSign = subBreakdown.globalMarginValue >= 0 ? '+' : '-';
             const subBreakdownDiv = document.createElement('div');
             subBreakdownDiv.className = 'vendor-price-details';
             subBreakdownDiv.innerHTML = `
                 <div>Original: ${formatNumber(subBreakdown.originalPrice.toFixed(2))} ${subBreakdown.currencyOrigin}</div>
                 ${subBreakdown.rateText ? `<div>Kurs: ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK)} SEK</div>` : ''}
-                <div>Lokal marginal (${(sItem.marginPercentage || 0)}%): ${formatPrice(subBreakdown.localMarginValue)} SEK</div>
-                <div>Global marginal (${jsonData.quote.marginPercentage || 0}%): ${formatPrice(subBreakdown.globalMarginValue)} SEK</div>
+                <div>Lokal (${(sItem.marginPercentage || 0)}%): <i>${formatPrice(subBreakdown.priceInSEK)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue))} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin)} SEK</b></div>
+                <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue))} = <b>${formatPrice(subBreakdown.finalPricePerUnit)} SEK</b></div>
             `;
             included.appendChild(subBreakdownDiv);
 
@@ -1360,19 +1394,16 @@ function updatePrices(){
 
 function calculateTotalPrice(){
     let total = 0;
-    const lists = [jsonData.items, jsonData.optionalItems];
-
-    lists.forEach(list => {
-        (list || []).forEach(item => {
-            // Add the parent item's price, which already includes its own price and its baked-in sub-items.
-            total += (item.targetPrice || 0);
-            
-            // Add prices of non-baked-in sub-items.
-            (item.subItems || []).forEach(sItem => {
-                if (!sItem.isPriceBakedIn) {
-                    total += (sItem.subItemTargetPrice || 0);
-                }
-            });
+    // ONLY process jsonData.items for the main total
+    (jsonData.items || []).forEach(item => {
+        // Add the parent item's price, which already includes its own price and its baked-in sub-items.
+        total += (item.targetPrice || 0);
+        
+        // Add prices of non-baked-in sub-items.
+        (item.subItems || []).forEach(sItem => {
+            if (!sItem.isPriceBakedIn) {
+                total += (sItem.subItemTargetPrice || 0);
+            }
         });
     });
 
