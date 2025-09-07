@@ -1,4 +1,4 @@
-<!-- Version 88 -- Hide from Print, Enhanced Vendor Mode, Vendor Notes, Logo Resize Fix -->
+<!-- Version 89 -- Per-Item Vendor Notes, Encryption, Logo Size Management -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -97,8 +97,9 @@
     #projectNumberDiv { /* Style if needed based on showProjectNumber state for print */ }
     #signatureSection { margin-top: 10mm; page-break-before: auto; }
     
-    .vendor-price-details { display: none; }
-    body.vendor-print-mode .vendor-price-details {
+    .vendor-price-details, .vendor-item-notes { display: none; }
+    body.vendor-print-mode .vendor-price-details,
+    body.vendor-print-mode .vendor-item-notes {
         display: block !important;
         font-size: 8pt;
         color: #444;
@@ -108,17 +109,17 @@
         margin-left: calc(50px + 5mm);
         grid-column: 2 / 5;
     }
-    body.vendor-print-mode .included-item .vendor-price-details {
+    body.vendor-print-mode .included-item .vendor-price-details,
+    body.vendor-print-mode .included-item .vendor-item-notes {
         margin-left: calc(40px + 2.5mm);
     }
     body.vendor-print-mode .vendor-price-details div {
         margin-bottom: 0.5mm;
     }
-    #vendorNotesSection { display: none; }
-    body.vendor-print-mode #vendorNotesSection {
-        display: block !important;
-        margin-top: 10mm;
-        page-break-before: auto;
+    .vendor-item-notes {
+        white-space: pre-wrap;
+        background-color: #fefee9 !important;
+        padding: 1.5mm;
     }
 }
 
@@ -356,10 +357,16 @@ h3.name.editable { margin-bottom: 0 !important; }
     font-size: 14px;
 }
 #logoContainer:hover .remove-icon { display: block; }
+#logoContainer:hover #resetLogoSizeBtn { display: inline-block; }
 #uploadLogoBtn { padding: 10px; background-color: #f0f0f0; border: 2px dashed #ccc; cursor: pointer; }
 #uploadLogoBtn:hover { background-color: #e9e9e9; }
+#resetLogoSizeBtn {
+    display: none; position: absolute; top: -10px; right: 20px; z-index: 20;
+    padding: 2px 6px; font-size: 10px; cursor: pointer;
+    background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;
+}
 
-.vendor-price-details {
+.vendor-price-details, .vendor-item-notes {
     display: none; /* Hidden by default on screen */
     font-size: 9pt;
     color: #333;
@@ -371,10 +378,11 @@ h3.name.editable { margin-bottom: 0 !important; }
     margin-left: calc(70px + 10px);
     grid-column: 2 / 5;
 }
-.included-item .vendor-price-details {
+.included-item .vendor-price-details, .included-item .vendor-item-notes {
     margin-left: 0; /* It's already indented by the included-item margin */
 }
-body.vendor-print-mode .vendor-price-details {
+body.vendor-print-mode .vendor-price-details,
+body.vendor-print-mode .vendor-item-notes {
     display: block !important; /* Show on screen when class is present */
 }
 .vendor-price-details div {
@@ -388,19 +396,9 @@ body.vendor-print-mode .vendor-price-details {
     font-weight: bold;
     color: #000;
 }
-
-#vendorNotesSection {
-    display: none;
-    margin-top: 20px;
-}
-body.vendor-print-mode #vendorNotesSection {
-    display: block;
-}
-#vendorNotesContent {
-    background-color: #fdfdfd;
-    border: 1px solid #e1e1e8;
-    padding: 10px;
-    min-height: 80px;
+.vendor-item-notes {
+    background-color: #fefee9;
+    min-height: 20px;
     white-space: pre-wrap;
 }
 
@@ -420,6 +418,7 @@ body.vendor-print-mode #vendorNotesSection {
         <div id="logoContainer">
             <img alt="Company Logo" id="companyLogo" src="logo.png"/>
             <span class="remove-icon screen-only" id="removeLogoBtn">✖</span>
+            <button id="resetLogoSizeBtn" class="screen-only">Reset Size</button>
             <div class="image-resize-handle screen-only"></div>
         </div>
         <button id="uploadLogoBtn" class="screen-only" style="display:none;">Ladda upp logotyp</button>
@@ -479,6 +478,8 @@ body.vendor-print-mode #vendorNotesSection {
         </div>
         <label for="marginPercentageInput" id="marginLabel" style="margin-left: 10px;">Påslag (%):</label>
         <input type="number" id="marginPercentageInput" value="0" step="1" />
+        <label for="defaultLogoWidthInput" id="defaultLogoWidthLabel" style="margin-left: 10px;">Standard logobredd (px):</label>
+        <input type="number" id="defaultLogoWidthInput" value="200" step="10" />
 
         <label style="display:block; margin-top:10px;">
             <input type="checkbox" id="useMultipleCurrenciesChk" />
@@ -587,13 +588,6 @@ body.vendor-print-mode #vendorNotesSection {
         </div>
     </div>
 
-    <div id="vendorNotesSection">
-        <h3 id="vendorNotesHeading" class="name editable" contenteditable="true" data-field="vendorNotesHeading">Vendoranteckningar</h3>
-        <hr class="horizontal-line" />
-        <div id="vendorNotesContent" class="editable p-editable" contenteditable="true"></div>
-    </div>
-
-
 <div id="printMultiplier" class="print-only"><span id="multiplierValue"></span></div>
 
 </div>
@@ -652,6 +646,8 @@ const translations = {
     optNrHeader: "Nr", optArticleHeader: "Artikel / Namn", optQuantityHeader: "Antal", optPriceHeader: "Pris",
     hideFromPrint: "Göm från utskrift",
     vendorNotesHeading: "Vendoranteckningar",
+    defaultLogoWidthLabel: "Standard logobredd (px):",
+    resetLogoSize: "Återställ storlek",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -683,6 +679,8 @@ const translations = {
     optNrHeader: "No", optArticleHeader: "Article / Name", optQuantityHeader: "Quantity", optPriceHeader: "Price",
     hideFromPrint: "Hide from print",
     vendorNotesHeading: "Vendor Notes",
+    defaultLogoWidthLabel: "Default Logo Width (px):",
+    resetLogoSize: "Reset Size",
   }
 };
 
@@ -690,15 +688,43 @@ let currentLanguage = "sv";
 let jsonData = null;
 let currentFileName = null; 
 window.liveExchangeRates = { usd: null, eur: null };
+const caesarShift = 17;
 
+function encryptCaesar(text, shift) {
+    return text.split('').map(char => {
+        const code = char.charCodeAt(0);
+        return String.fromCharCode(code + shift);
+    }).join('');
+}
+
+function decryptCaesar(text, shift) {
+    return text.split('').map(char => {
+        const code = char.charCodeAt(0);
+        return String.fromCharCode(code - shift);
+    }).join('');
+}
 
 (function initData(){
-    const localData = localStorage.getItem('quoteData');
+    let localData = localStorage.getItem('quoteData');
+    if(localData){
+        try {
+            // First, try to parse as-is (for unencrypted legacy data)
+            jsonData = JSON.parse(localData);
+        } catch (e) {
+            // If parsing fails, assume it's encrypted and try to decrypt
+            try {
+                jsonData = JSON.parse(decryptCaesar(localData, caesarShift));
+            } catch (e2) {
+                console.error("Failed to parse or decrypt local storage data.", e2);
+                localData = null; // Force reset
+            }
+        }
+    }
+
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel }, vendorNotes: "" };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        jsonData=JSON.parse(localData);
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -706,6 +732,7 @@ window.liveExchangeRates = { usd: null, eur: null };
         if(jsonData.quote.eurToSekRate === undefined) jsonData.quote.eurToSekRate = 11.50;
         if(jsonData.quote.showSignature === undefined) jsonData.quote.showSignature = false;
         if(jsonData.quote.showTillSection === undefined) jsonData.quote.showTillSection = true;
+        if(jsonData.quote.defaultLogoWidth === undefined) jsonData.quote.defaultLogoWidth = 200;
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { // Migrate old totalLabel
             jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
@@ -719,23 +746,26 @@ window.liveExchangeRates = { usd: null, eur: null };
         jsonData.items.forEach(it => { 
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
             if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+            if(it.vendorNotes === undefined) it.vendorNotes = "";
             (it.subItems || []).forEach(sIt => { 
                 if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
                 if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+                if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
             });
         });
         if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
         jsonData.optionalItems.forEach(it => { 
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
             if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+            if(it.vendorNotes === undefined) it.vendorNotes = "";
             (it.subItems || []).forEach(sIt => { 
                 if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
                 if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+                if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
             });
         });
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
-        if(jsonData.vendorNotes === undefined) jsonData.vendorNotes = "";
     }
 })();
 
@@ -771,6 +801,7 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50; 
     if(q.showSignature === undefined) q.showSignature = false;
     if(q.showTillSection === undefined) q.showTillSection = true;
+    if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { // Migrate old totalLabel from loaded file
         q.labels.totalLabel = q.totalLabel;
@@ -783,23 +814,26 @@ function loadQuoteData(data, loadedFileName=null){
     jsonData.quote = q;
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
     if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
-    if(jsonData.vendorNotes === undefined) jsonData.vendorNotes = "";
     
     // --- BACKWARD COMPATIBILITY FOR NEW FLAGS ---
     (jsonData.items || []).forEach(it => { 
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
         if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+        if(it.vendorNotes === undefined) it.vendorNotes = "";
         (it.subItems || []).forEach(sIt => { 
             if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
             if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+            if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
         });
     });
     (jsonData.optionalItems || []).forEach(it => { 
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
         if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+        if(it.vendorNotes === undefined) it.vendorNotes = "";
         (it.subItems || []).forEach(sIt => { 
             if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
             if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+            if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
         });
     });
 
@@ -813,6 +847,7 @@ function loadQuoteData(data, loadedFileName=null){
     
     document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||11.8;
     document.getElementById('marginPercentageInput').value = q.marginPercentage || 0;
+    document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth || 200;
     
     document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
     document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
@@ -842,7 +877,6 @@ function reRenderAll(){
     loadTerms(jsonData.terms);
     loadInfoImages();
     loadSignature();
-    loadVendorNotes();
     calculateTotalPrice();
     makeEditable(); 
     initializeDragAndDrop();
@@ -882,7 +916,6 @@ function updateLanguageUI(lang){
     document.getElementById('infoImagesHeading').textContent = labels.infoImagesHeading || t.infoImagesHeading;
     document.getElementById('termsHeading').textContent = labels.termsHeading || t.termsHeading;
     document.getElementById('totalLabel').textContent = labels.totalLabel || t.totalLabel;
-    document.getElementById('vendorNotesHeading').textContent = labels.vendorNotesHeading || t.vendorNotesHeading;
     
     // Buttons and other static text
     document.getElementById('addItemButton').textContent = t.addItemButton;
@@ -891,6 +924,8 @@ function updateLanguageUI(lang){
     document.getElementById('toggleLanguageBtn').textContent = t.toggleLangBtn;
     document.getElementById('marginLabel').textContent = `${t.marginLabel} `;
     document.getElementById('copyJsonBtn').textContent = t.copyJsonBtn;
+    document.getElementById('defaultLogoWidthLabel').textContent = `${t.defaultLogoWidthLabel} `;
+    document.getElementById('resetLogoSizeBtn').textContent = t.resetLogoSize;
     
     // Checkbox labels
     document.querySelector('#removeTotalCheckboxLabel').lastChild.nodeValue = ` ${t.removeTotalLabelText}`;
@@ -983,6 +1018,7 @@ function loadItems(items, containerId, distributionRatio = 1){
         if (it.isPriceBakedIn === undefined) it.isPriceBakedIn = false;
         if (it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
         if (it.marginPercentage === undefined) it.marginPercentage = 0;
+        if (it.vendorNotes === undefined) it.vendorNotes = "";
         const margin = parseFloat(it.marginPercentage) || 0;
         const itemDiv = document.createElement('div');
         itemDiv.className = `quote-item ${it.isPriceBakedIn ? 'baked-in' : ''} ${it.isHiddenFromPrint ? 'hidden-from-print' : ''}`;
@@ -1049,10 +1085,21 @@ function loadItems(items, containerId, distributionRatio = 1){
             descRemove.className = 'description-remove-icon screen-only'; descRemove.textContent = '✖'; descRemove.onclick = () => removeDescription(details);
             details.appendChild(descRemove); itemDiv.appendChild(details);
         }
+
+        const vendorNotesDiv = document.createElement('div');
+        vendorNotesDiv.className = 'vendor-item-notes editable p-editable';
+        vendorNotesDiv.contentEditable = true;
+        vendorNotesDiv.dataset.item = containerId;
+        vendorNotesDiv.dataset.index = idx;
+        vendorNotesDiv.dataset.field = 'vendorNotes';
+        vendorNotesDiv.innerHTML = it.vendorNotes || '';
+        itemDiv.appendChild(vendorNotesDiv);
+
         (it.subItems || []).forEach((sItem, sIdx) => { 
             if (sItem.marginPercentage === undefined) sItem.marginPercentage = 0;
             if (sItem.isPriceBakedIn === undefined) sItem.isPriceBakedIn = false;
             if (sItem.isHiddenFromPrint === undefined) sItem.isHiddenFromPrint = false;
+            if (sItem.vendorNotes === undefined) sItem.vendorNotes = "";
             const subMargin = parseFloat(sItem.marginPercentage) || 0;
             const included = document.createElement('div'); 
             included.className = `included-item ${sItem.isPriceBakedIn ? 'baked-in' : ''} ${sItem.isHiddenFromPrint ? 'hidden-from-print' : ''}`;
@@ -1111,6 +1158,17 @@ function loadItems(items, containerId, distributionRatio = 1){
                 sDescRem.className = 'description-remove-icon screen-only'; sDescRem.textContent = '✖'; sDescRem.onclick = () => removeDescription(sDetails);
                 sDetails.appendChild(sDescRem); included.appendChild(sDetails);
             }
+            
+            const subVendorNotesDiv = document.createElement('div');
+            subVendorNotesDiv.className = 'vendor-item-notes editable p-editable';
+            subVendorNotesDiv.contentEditable = true;
+            subVendorNotesDiv.dataset.item = containerId;
+            subVendorNotesDiv.dataset.index = idx;
+            subVendorNotesDiv.dataset.includedIndex = sIdx;
+            subVendorNotesDiv.dataset.field = 'vendorNotes';
+            subVendorNotesDiv.innerHTML = sItem.vendorNotes || '';
+            included.appendChild(subVendorNotesDiv);
+
             itemDiv.appendChild(included);
         });
         container.appendChild(itemDiv);
@@ -1253,9 +1311,6 @@ function loadSignature() {
         lesseeBlock.querySelector('.signature-line').innerHTML = sig.lesseeLine || '';
         lesseeBlock.querySelector('.editable[data-field="signatureLesseeText"]').innerHTML = sig.lesseeText || translations[currentLanguage].signatureLesseeLabel;
     }
-}
-function loadVendorNotes() {
-    document.getElementById('vendorNotesContent').innerHTML = jsonData.vendorNotes || '';
 }
 function removeInfoItem(idx){ jsonData.infoImages.splice(idx,1); saveToLocal(); reRenderAll(); }
 function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText }); saveToLocal(); reRenderAll(); }
@@ -1510,7 +1565,7 @@ document.addEventListener('click',e=>{
     else if(e.target.classList.contains('decrement-btn')){ inp.value = Math.max(0, val - 1); handleQuantityChange(inp); }
 });
 
-function createHiddenJsonDiv(container) { const div = document.createElement('div'); div.id = 'hidden-json'; div.style.display = 'none'; div.textContent = JSON.stringify(jsonData); (container || document.getElementById('quoteContent')).appendChild(div); }
+function createHiddenJsonDiv(container) { const div = document.createElement('div'); div.id = 'hidden-json'; div.style.display = 'none'; div.textContent = encryptCaesar(JSON.stringify(jsonData), caesarShift); (container || document.getElementById('quoteContent')).appendChild(div); }
 function removeHiddenJsonDiv() { document.getElementById('hidden-json')?.remove(); }
 window.addEventListener('beforeprint', () => createHiddenJsonDiv());
 window.addEventListener('afterprint', () => removeHiddenJsonDiv());
@@ -1528,6 +1583,7 @@ document.getElementById('toggleTillSectionChk').addEventListener('change', funct
 
 document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
+document.getElementById('defaultLogoWidthInput').addEventListener('input', function() { const val = parseInt(this.value); if (!isNaN(val)) { jsonData.quote.defaultLogoWidth = val; saveToLocal(); }});
 
 document.getElementById('useMultipleCurrenciesChk').addEventListener('change', function() {
     jsonData.quote.useMultipleCurrencies = this.checked;
@@ -1553,8 +1609,8 @@ function toggleMultipleCurrencyUI(isMultiActive) {
 
 document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
 
-document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false, isHiddenFromPrint: false }); saveToLocal(); reRenderAll(); });
-document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isHiddenFromPrint: false }); saveToLocal(); reRenderAll(); });
+document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false, isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
+document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
 document.getElementById('addTermButton').addEventListener('click',()=>{ if (!jsonData.terms) jsonData.terms = []; jsonData.terms.push(translations[currentLanguage].newTermText); saveToLocal(); reRenderAll(); });
 
 function parseFileName(fileName){ const match = fileName.replace(/\.json$/i,'').match(/^(.*)_(\d{6})_v(\d+)$/); return match ? { prefix: match[1], datePart: match[2], version: parseInt(match[3],10) } : null; }
@@ -1562,11 +1618,23 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
     const f=ev.target.files[0];
     if(f && (f.type==='application/json' || f.name.endsWith('.json'))){
         const r=new FileReader();
-        r.onload=(e)=>{ try {
-            const cleanedText = e.target.result.replace(/–/g, '-');
-            loadQuoteData(JSON.parse(cleanedText), f.name);
-            saveToLocal(); 
-        } catch(err){ alert('JSON-formatet verkar vara felaktigt: ' + err); } };
+        r.onload=(e)=>{ 
+            const fileContent = e.target.result.replace(/–/g, '-');
+            try {
+                // Try parsing directly first for backward compatibility
+                loadQuoteData(JSON.parse(fileContent), f.name);
+                saveToLocal();
+            } catch (err) {
+                // If it fails, try decrypting and then parsing
+                try {
+                    const decryptedContent = decryptCaesar(fileContent, caesarShift);
+                    loadQuoteData(JSON.parse(decryptedContent), f.name);
+                    saveToLocal();
+                } catch (err2) {
+                    alert('JSON-formatet verkar vara felaktigt eller krypterat med en annan nyckel: ' + err2);
+                }
+            }
+        };
         r.readAsText(f);
     } else { alert('Vänligen ladda upp en giltig JSON-fil.'); }
 });
@@ -1677,7 +1745,6 @@ function onEditableInput(e){
         }
         else if(id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
         else if (id === 'signatureDate') { jsonData.signature.date = target.innerHTML; }
-        else if (id === 'vendorNotesContent') { jsonData.vendorNotes = target.innerHTML; }
         else { jsonData.quote[id] = target.textContent; }
         saveToLocal(); return;
     }
@@ -1697,7 +1764,7 @@ function onEditableInput(e){
     const arr = (cId === 'itemsList') ? jsonData.items : jsonData.optionalItems; if(!arr[idx])return;
     let item = sIdx !== undefined ? arr[idx].subItems[sIdx] : arr[idx]; if (!item) return;
     
-    let val = target.classList.contains('p-editable') || field.includes('Description') ? target.innerHTML : target.textContent;
+    let val = target.classList.contains('p-editable') || field.includes('Description') || field === 'vendorNotes' ? target.innerHTML : target.textContent;
 
     if(field === "itemNumber" || field === "subItemNumber") {
         item[field] = val; 
@@ -1713,7 +1780,7 @@ function onEditableInput(e){
                 else { item.originalPrice = price; item.currencyOrigin = currency; }
             }
         }
-    } else if (field.includes('Description')){ item[field] = target.innerHTML.replace(/<br\s*\/?>/gi,'\n');
+    } else if (field.includes('Description') || field === 'vendorNotes'){ item[field] = target.innerHTML.replace(/<br\s*\/?>/gi,'\n');
     } else { item[field] = val.replace(/<span.*>.*<\/span>$/, '').trim(); } 
     
     saveToLocal();
@@ -1744,7 +1811,7 @@ function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
     if(priceSpan) priceSpan.textContent = formatPrice((item[priceField] || 0));
 }
 function buildFileName(ref, version){ const datePart= new Date().toISOString().slice(2,10).replace(/-/g,''); const safeRef = (ref||'').trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50); return `${safeRef || 'offert'}_${datePart}_v${version}.json`; }
-function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData,null,2)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
+function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(encryptCaesar(JSON.stringify(jsonData,null,2), caesarShift)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
 document.getElementById('saveJson').addEventListener('click',()=>{ doDownloadJson(buildFileName(jsonData.quote.reference,1)); });
 
 function copyJsonToClipboard(){
@@ -1759,7 +1826,7 @@ function copyJsonToClipboard(){
     });
 }
 document.getElementById('printBtn').addEventListener('click', () => window.print());
-function saveToLocal(){ localStorage.setItem('quoteData', JSON.stringify(jsonData)); }
+function saveToLocal(){ localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift)); }
 
 window.onload=()=>{ 
     loadQuoteData(jsonData); 
@@ -1929,10 +1996,17 @@ document.getElementById('pdfUploadInput').addEventListener('change', async funct
   const start = fullText.indexOf('{"quote"'); const end = fullText.lastIndexOf('}');
   if (start >= 0 && end > start) { 
     try { 
-        const extractedJson = fullText.substring(start, end + 1);
-        loadQuoteData(JSON.parse(extractedJson), file.name); 
+        let extractedJson = fullText.substring(start, end + 1);
+        try {
+            // Try parsing directly
+            loadQuoteData(JSON.parse(extractedJson), file.name);
+        } catch (e) {
+            // If that fails, try decrypting
+            extractedJson = decryptCaesar(extractedJson, caesarShift);
+            loadQuoteData(JSON.parse(extractedJson), file.name);
+        }
         saveToLocal(); 
-    } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err + '\nData:\n' + extractedJson.substring(0,200)); }
+    } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err); }
   } else { alert('Ingen inbäddad offertdata hittades i PDF-filen.'); }
 });
 
@@ -2007,6 +2081,7 @@ function mapItemToSubItem(item) {
         subItems: item.subItems || [],
         isPriceBakedIn: false, // Sub-items are not baked-in by default when converted
         isHiddenFromPrint: false,
+        vendorNotes: item.vendorNotes || "",
     };
 }
 function mapSubItemToItem(subItem) {
@@ -2020,6 +2095,7 @@ function mapSubItemToItem(subItem) {
         subItems: subItem.subItems || [] ,
         isPriceBakedIn: false,
         isHiddenFromPrint: false,
+        vendorNotes: subItem.vendorNotes || "",
     };
 }
 
@@ -2165,6 +2241,7 @@ function addSubItemToParent(containerId, parentIndex) {
             marginPercentage: 0,
             isPriceBakedIn: false,
             isHiddenFromPrint: false,
+            vendorNotes: "",
         };
         parentItem.subItems.push(newSubItem);
         saveToLocal();
@@ -2267,21 +2344,22 @@ function setupLogo() {
     const uploadBtn = document.getElementById('uploadLogoBtn');
     const fileInput = document.getElementById('logoUpload');
     const resizeHandle = logoContainer.querySelector('.image-resize-handle');
+    const resetBtn = document.getElementById('resetLogoSizeBtn');
 
     const savedLogo = localStorage.getItem('companyLogo');
-    const savedWidth = localStorage.getItem('logoWidth');
+    const manualWidth = localStorage.getItem('logoWidth');
+    const defaultWidth = jsonData.quote.defaultLogoWidth || 200;
 
     if (savedLogo) {
         logoImg.src = savedLogo;
         logoContainer.style.display = 'inline-block';
         uploadBtn.style.display = 'none';
-        if (savedWidth) {
-            logoImg.style.width = savedWidth + 'px';
-        }
+        logoImg.style.width = (manualWidth || defaultWidth) + 'px';
     } else if (logoImg.getAttribute('src')) {
         // Default logo is present
         logoContainer.style.display = 'inline-block';
         uploadBtn.style.display = 'none';
+        logoImg.style.width = (manualWidth || defaultWidth) + 'px';
     } else {
         // No logo at all
         logoContainer.style.display = 'none';
@@ -2296,6 +2374,11 @@ function setupLogo() {
         uploadBtn.style.display = 'inline-block';
     });
 
+    resetBtn.addEventListener('click', () => {
+        localStorage.removeItem('logoWidth');
+        logoImg.style.width = (jsonData.quote.defaultLogoWidth || 200) + 'px';
+    });
+
     uploadBtn.addEventListener('click', () => fileInput.click());
 
     fileInput.addEventListener('change', (e) => {
@@ -2308,6 +2391,9 @@ function setupLogo() {
                 localStorage.setItem('companyLogo', dataUrl);
                 logoContainer.style.display = 'inline-block';
                 uploadBtn.style.display = 'none';
+                // When new logo is uploaded, reset its size to default
+                localStorage.removeItem('logoWidth');
+                logoImg.style.width = (jsonData.quote.defaultLogoWidth || 200) + 'px';
             };
             reader.readAsDataURL(file);
         }
