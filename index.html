@@ -1,4 +1,4 @@
-<!-- Version 87 -- Corrected Total, Enhanced Vendor Mode -->
+<!-- Version 88 -- Hide from Print, Enhanced Vendor Mode, Vendor Notes, Logo Resize Fix -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -41,7 +41,7 @@
     .targetPrice, .price-header, .subItemTargetPrice { text-align: right; justify-content: flex-end; padding-right: 2mm; box-sizing: border-box; }
 
     .included-item {
-        background-color: rgba(248, 248, 248, 0.85) !important;
+        background-color: #fafafa !important;
         margin: 2px 0 2px 10mm !important;
         padding: 2mm !important;
         border-radius: 0 !important;
@@ -89,6 +89,7 @@
     .info-image-container img { max-width: 100% !important; height: auto !important; }
     
     .screen-only { display: none !important; }
+    .hidden-from-print { display: none !important; }
 
     .controls-row .remove-icon { display: none !important; }
     #infoImagesList .info-block { padding-left: 0 !important; }
@@ -113,6 +114,12 @@
     body.vendor-print-mode .vendor-price-details div {
         margin-bottom: 0.5mm;
     }
+    #vendorNotesSection { display: none; }
+    body.vendor-print-mode #vendorNotesSection {
+        display: block !important;
+        margin-top: 10mm;
+        page-break-before: auto;
+    }
 }
 
 @media screen {
@@ -125,8 +132,8 @@ body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; max-width: 21
 .bold, b { font-weight: bold; } 
 i { font-style: italic; }
 .zero-text { color: white !important; }
-.header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 20px; }
-.header img { max-width: 200px; margin-right: 20px; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-top: 20px; }
+.header img { max-width: none; margin-right: 20px; }
 .quote-title { font-size: 24px; font-weight: bold; text-align: right; flex-grow: 1; }
 .quote-number, .date, .project-number { text-align: right; }
 .quote-section { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: flex-start; }
@@ -137,12 +144,17 @@ i { font-style: italic; }
 .included-item { 
     position: relative; width: calc(100% - 30px); box-sizing: border-box;
     font-weight: normal; 
-    background-color: rgba(249, 249, 249, 0.85); 
+    background-color: #fdfdfd; 
     margin-left: 30px; 
     margin-top: 5px; 
     margin-bottom: 5px; 
     padding: 8px; 
     border-radius: 4px; 
+}
+.quote-item.hidden-from-print, .included-item.hidden-from-print {
+    opacity: 0.6;
+    border-left: 3px solid #ff9800;
+    padding-left: 5px;
 }
 .included-item.baked-in .subItemTargetPrice span {
     color: #ccc !important;
@@ -318,7 +330,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 .item-tooltip .margin-display.discount { color: #b78a00; }
 .item-tooltip .editable:hover { border-color: #ccc; background-color: #f9f9f9; }
 .item-tooltip .editable:focus { border-color: #007bff; background-color: white; box-shadow: 0 0 0 1px #007bff; }
-.item-actions { display: none; position: absolute; right: -260px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
+.item-actions { display: none; position: absolute; right: -285px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
 .item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
 .item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
 #formatting-toolbar { position: absolute; display: none; z-index: 1000; background: #333; border-radius: 5px; padding: 5px; }
@@ -351,7 +363,7 @@ h3.name.editable { margin-bottom: 0 !important; }
     display: none; /* Hidden by default on screen */
     font-size: 9pt;
     color: #333;
-    background-color: #f7f7f9;
+    background-color: #fdfdfd;
     border: 1px solid #e1e1e8;
     border-radius: 4px;
     margin-top: 5px;
@@ -375,6 +387,21 @@ body.vendor-print-mode .vendor-price-details {
 .vendor-price-details b {
     font-weight: bold;
     color: #000;
+}
+
+#vendorNotesSection {
+    display: none;
+    margin-top: 20px;
+}
+body.vendor-print-mode #vendorNotesSection {
+    display: block;
+}
+#vendorNotesContent {
+    background-color: #fdfdfd;
+    border: 1px solid #e1e1e8;
+    padding: 10px;
+    min-height: 80px;
+    white-space: pre-wrap;
 }
 
 </style>
@@ -560,6 +587,12 @@ body.vendor-print-mode .vendor-price-details {
         </div>
     </div>
 
+    <div id="vendorNotesSection">
+        <h3 id="vendorNotesHeading" class="name editable" contenteditable="true" data-field="vendorNotesHeading">Vendoranteckningar</h3>
+        <hr class="horizontal-line" />
+        <div id="vendorNotesContent" class="editable p-editable" contenteditable="true"></div>
+    </div>
+
 
 <div id="printMultiplier" class="print-only"><span id="multiplierValue"></span></div>
 
@@ -617,6 +650,8 @@ const translations = {
     removeAllSubItems: "Ta bort alla underposter",
     showSectionsLabel: "Visa sektioner:", showOptionalLabel: "Alternativ", showInfoLabel: "Info/Bilder", showTermsLabel: "Villkor",
     optNrHeader: "Nr", optArticleHeader: "Artikel / Namn", optQuantityHeader: "Antal", optPriceHeader: "Pris",
+    hideFromPrint: "Göm från utskrift",
+    vendorNotesHeading: "Vendoranteckningar",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -646,6 +681,8 @@ const translations = {
     removeAllSubItems: "Remove All Sub Items",
     showSectionsLabel: "Show sections:", showOptionalLabel: "Optional", showInfoLabel: "Info/Images", showTermsLabel: "Terms",
     optNrHeader: "No", optArticleHeader: "Article / Name", optQuantityHeader: "Quantity", optPriceHeader: "Price",
+    hideFromPrint: "Hide from print",
+    vendorNotesHeading: "Vendor Notes",
   }
 };
 
@@ -658,7 +695,7 @@ window.liveExchangeRates = { usd: null, eur: null };
 (function initData(){
     const localData = localStorage.getItem('quoteData');
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel }, vendorNotes: "" };
     } else {
         jsonData=JSON.parse(localData);
         if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true } };
@@ -681,15 +718,24 @@ window.liveExchangeRates = { usd: null, eur: null };
         if(!Array.isArray(jsonData.items))jsonData.items=[]; 
         jsonData.items.forEach(it => { 
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-            (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+            if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+            (it.subItems || []).forEach(sIt => { 
+                if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
+                if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+            });
         });
         if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
         jsonData.optionalItems.forEach(it => { 
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-            (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+            if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+            (it.subItems || []).forEach(sIt => { 
+                if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
+                if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+            });
         });
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
+        if(jsonData.vendorNotes === undefined) jsonData.vendorNotes = "";
     }
 })();
 
@@ -737,15 +783,24 @@ function loadQuoteData(data, loadedFileName=null){
     jsonData.quote = q;
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
     if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
+    if(jsonData.vendorNotes === undefined) jsonData.vendorNotes = "";
     
-    // --- BACKWARD COMPATIBILITY FOR BAKED IN PRICES ---
+    // --- BACKWARD COMPATIBILITY FOR NEW FLAGS ---
     (jsonData.items || []).forEach(it => { 
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-        (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+        if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+        (it.subItems || []).forEach(sIt => { 
+            if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
+            if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+        });
     });
     (jsonData.optionalItems || []).forEach(it => { 
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-        (it.subItems || []).forEach(sIt => { if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; });
+        if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+        (it.subItems || []).forEach(sIt => { 
+            if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
+            if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+        });
     });
 
 
@@ -781,12 +836,13 @@ function loadQuoteData(data, loadedFileName=null){
 
 function reRenderAll(){
     renumberAllItems(); 
-    updatePrices();
-    loadItems(jsonData.items,'itemsList');
-    loadItems(jsonData.optionalItems,'optionalItemsList');
+    const { distributionRatio } = updatePrices(); // Get ratio for vendor view
+    loadItems(jsonData.items,'itemsList', distributionRatio);
+    loadItems(jsonData.optionalItems,'optionalItemsList', 1); // No distribution for optional items
     loadTerms(jsonData.terms);
     loadInfoImages();
     loadSignature();
+    loadVendorNotes();
     calculateTotalPrice();
     makeEditable(); 
     initializeDragAndDrop();
@@ -826,6 +882,7 @@ function updateLanguageUI(lang){
     document.getElementById('infoImagesHeading').textContent = labels.infoImagesHeading || t.infoImagesHeading;
     document.getElementById('termsHeading').textContent = labels.termsHeading || t.termsHeading;
     document.getElementById('totalLabel').textContent = labels.totalLabel || t.totalLabel;
+    document.getElementById('vendorNotesHeading').textContent = labels.vendorNotesHeading || t.vendorNotesHeading;
     
     // Buttons and other static text
     document.getElementById('addItemButton').textContent = t.addItemButton;
@@ -856,7 +913,7 @@ function updateLanguageUI(lang){
             jsonData.signature.lessorText = t.signatureLessorLabel;
         }
         if (!jsonData.signature.lesseeText || jsonData.signature.lesseeText === translations[lang === 'sv' ? 'en' : 'sv'].signatureLesseeLabel) {
-            jsonData.signature.lesseeText = t.signatureLesseeLabel;
+            jsonData.signature.lesseeText = t.lesseeLabel;
         }
     }
 
@@ -916,7 +973,7 @@ function getPriceBreakdown(item, parentCurrencyOrigin) {
 }
 
 
-function loadItems(items, containerId){
+function loadItems(items, containerId, distributionRatio = 1){
     const container = document.getElementById(containerId);
     if(!container) return;
     container.innerHTML = '';
@@ -924,10 +981,11 @@ function loadItems(items, containerId){
 
     items.forEach((it, idx) => {
         if (it.isPriceBakedIn === undefined) it.isPriceBakedIn = false;
+        if (it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
         if (it.marginPercentage === undefined) it.marginPercentage = 0;
         const margin = parseFloat(it.marginPercentage) || 0;
         const itemDiv = document.createElement('div');
-        itemDiv.className = `quote-item ${it.isPriceBakedIn ? 'baked-in' : ''}`;
+        itemDiv.className = `quote-item ${it.isPriceBakedIn ? 'baked-in' : ''} ${it.isHiddenFromPrint ? 'hidden-from-print' : ''}`;
         itemDiv.dataset.index = idx; 
         itemDiv.dataset.itemId = it.id || `item-${containerId}-${idx}`; 
 
@@ -950,6 +1008,7 @@ function loadItems(items, containerId){
                 <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveDown}" onclick="moveItemDown('${containerId}', ${idx})">▼</button>
                 <button class="control-btn" title="${translations[currentLanguage].addSubItem}" onclick="addSubItemToParent('${containerId}', ${idx})">⊕</button>
                 <button class="control-btn" title="${translations[currentLanguage].removeAllSubItems}" onclick="removeAllSubItems('${containerId}', ${idx})">🗑️</button>
+                <button class="control-btn" title="${translations[currentLanguage].hideFromPrint}" onclick="toggleHiddenFromPrint('${containerId}', ${idx})">👁️</button>
                 ${bakeInButtonHTML}
                 <button class="control-btn" title="Gör till underpost" onclick="toggleItemHierarchy('${containerId}', ${idx})">↳</button>
                 <button class="control-btn" title="Flytta till/från Alternativ" onclick="toggleItemOptionality('${containerId}', ${idx})">⇅</button>
@@ -962,6 +1021,14 @@ function loadItems(items, containerId){
         const breakdown = getPriceBreakdown(it, null);
         const localSign = breakdown.localMarginValue >= 0 ? '+' : '-';
         const globalSign = breakdown.globalMarginValue >= 0 ? '+' : '-';
+        const priceAfterGlobalMargin = breakdown.finalPricePerUnit * (it.quantity || 0);
+        const bakedAmount = it.targetPrice - priceAfterGlobalMargin;
+
+        let bakedInRow = '';
+        if (containerId === 'itemsList' && !it.isPriceBakedIn && !it.isHiddenFromPrint && Math.abs(bakedAmount) > 0.01) {
+            bakedInRow = `<div>Inbakat: <i>${formatPrice(priceAfterGlobalMargin)}</i> + ${formatPrice(bakedAmount)} = <b>${formatPrice(it.targetPrice)} SEK</b></div>`;
+        }
+
         const breakdownDiv = document.createElement('div');
         breakdownDiv.className = 'vendor-price-details';
         breakdownDiv.innerHTML = `
@@ -969,6 +1036,7 @@ function loadItems(items, containerId){
             ${breakdown.rateText ? `<div>Kurs: ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK)} SEK</div>` : ''}
             <div>Lokal (${(it.marginPercentage || 0)}%): <i>${formatPrice(breakdown.priceInSEK)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue))} = <b>${formatPrice(breakdown.priceAfterLocalMargin)} SEK</b></div>
             <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue))} = <b>${formatPrice(breakdown.finalPricePerUnit)} SEK</b></div>
+            ${bakedInRow}
         `;
         itemDiv.appendChild(breakdownDiv);
 
@@ -984,9 +1052,10 @@ function loadItems(items, containerId){
         (it.subItems || []).forEach((sItem, sIdx) => { 
             if (sItem.marginPercentage === undefined) sItem.marginPercentage = 0;
             if (sItem.isPriceBakedIn === undefined) sItem.isPriceBakedIn = false;
+            if (sItem.isHiddenFromPrint === undefined) sItem.isHiddenFromPrint = false;
             const subMargin = parseFloat(sItem.marginPercentage) || 0;
             const included = document.createElement('div'); 
-            included.className = `included-item ${sItem.isPriceBakedIn ? 'baked-in' : ''}`;
+            included.className = `included-item ${sItem.isPriceBakedIn ? 'baked-in' : ''} ${sItem.isHiddenFromPrint ? 'hidden-from-print' : ''}`;
             const sMeta = document.createElement('div'); sMeta.className = 'item-meta';
             const subBakedInIconHTML = sItem.isPriceBakedIn ? `<span class="screen-only baked-in-icon" title="${translations[currentLanguage].bakedInPriceTooltip}">👨‍🍳</span>` : '';
 
@@ -1002,6 +1071,7 @@ function loadItems(items, containerId){
                 <div class="item-actions screen-only">
                     <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveUp}" onclick="moveSubItemUp('${containerId}', ${idx}, ${sIdx})">▲</button>
                     <button class="control-btn control-btn-move" title="${translations[currentLanguage].moveDown}" onclick="moveSubItemDown('${containerId}', ${idx}, ${sIdx})">▼</button>
+                    <button class="control-btn" title="${translations[currentLanguage].hideFromPrint}" onclick="toggleHiddenFromPrintSubItem('${containerId}', ${idx}, ${sIdx})">👁️</button>
                     <button class="control-btn" title="${translations[currentLanguage].bakeInPriceLabel}" onclick="toggleBakeInSubItemPrice('${containerId}', ${idx}, ${sIdx})">👨‍🍳</button>
                     <button class="control-btn" title="Gör till huvudpost" onclick="toggleItemHierarchy('${containerId}', ${idx}, ${sIdx})">↰</button>
                     <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateSubItem('${containerId}', ${idx}, ${sIdx})">❏</button>
@@ -1013,6 +1083,14 @@ function loadItems(items, containerId){
             const subBreakdown = getPriceBreakdown(sItem, it.currencyOrigin);
             const subLocalSign = subBreakdown.localMarginValue >= 0 ? '+' : '-';
             const subGlobalSign = subBreakdown.globalMarginValue >= 0 ? '+' : '-';
+            const subPriceAfterGlobalMargin = subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0);
+            const subBakedAmount = sItem.subItemTargetPrice - subPriceAfterGlobalMargin;
+
+            let subBakedInRow = '';
+            if (containerId === 'itemsList' && !sItem.isPriceBakedIn && !sItem.isHiddenFromPrint && Math.abs(subBakedAmount) > 0.01) {
+                subBakedInRow = `<div>Inbakat: <i>${formatPrice(subPriceAfterGlobalMargin)}</i> + ${formatPrice(subBakedAmount)} = <b>${formatPrice(sItem.subItemTargetPrice)} SEK</b></div>`;
+            }
+
             const subBreakdownDiv = document.createElement('div');
             subBreakdownDiv.className = 'vendor-price-details';
             subBreakdownDiv.innerHTML = `
@@ -1020,6 +1098,7 @@ function loadItems(items, containerId){
                 ${subBreakdown.rateText ? `<div>Kurs: ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK)} SEK</div>` : ''}
                 <div>Lokal (${(sItem.marginPercentage || 0)}%): <i>${formatPrice(subBreakdown.priceInSEK)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue))} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin)} SEK</b></div>
                 <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue))} = <b>${formatPrice(subBreakdown.finalPricePerUnit)} SEK</b></div>
+                ${subBakedInRow}
             `;
             included.appendChild(subBreakdownDiv);
 
@@ -1174,6 +1253,9 @@ function loadSignature() {
         lesseeBlock.querySelector('.signature-line').innerHTML = sig.lesseeLine || '';
         lesseeBlock.querySelector('.editable[data-field="signatureLesseeText"]').innerHTML = sig.lesseeText || translations[currentLanguage].signatureLesseeLabel;
     }
+}
+function loadVendorNotes() {
+    document.getElementById('vendorNotesContent').innerHTML = jsonData.vendorNotes || '';
 }
 function removeInfoItem(idx){ jsonData.infoImages.splice(idx,1); saveToLocal(); reRenderAll(); }
 function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText }); saveToLocal(); reRenderAll(); }
@@ -1350,7 +1432,7 @@ function updatePrices(){
         });
         item.preBakeTargetPrice = itemOwnPrice + subItemsPrice;
 
-        if (item.isPriceBakedIn) {
+        if (item.isPriceBakedIn || item.isHiddenFromPrint) {
             totalToDistribute += item.preBakeTargetPrice;
         } else {
             distributionPoolTotal += item.preBakeTargetPrice;
@@ -1361,7 +1443,7 @@ function updatePrices(){
 
     // Second pass: Distribute baked-in main item prices and set final display prices
     jsonData.items.forEach(item => {
-        if (item.isPriceBakedIn) {
+        if (item.isPriceBakedIn || item.isHiddenFromPrint) {
             item.targetPrice = 0;
             (item.subItems || []).forEach(s => s.subItemTargetPrice = 0); // Their price is part of the distributed total
         } else {
@@ -1370,7 +1452,7 @@ function updatePrices(){
             (item.subItems || []).forEach(s => {
                 // Recalculate sub-item price as it might be affected by distribution
                 s.subItemTargetPrice = calculateEntityPrice(s, item.currencyOrigin) * (s.subItemQuantity || 0) * distributionRatio;
-                if (s.isPriceBakedIn) {
+                if (s.isPriceBakedIn || s.isHiddenFromPrint) {
                     bakedInSubItemsPrice += s.subItemTargetPrice;
                 }
             });
@@ -1384,12 +1466,14 @@ function updatePrices(){
         let bakedInSubItemsPrice = 0;
         (item.subItems || []).forEach(s => {
             s.subItemTargetPrice = calculateEntityPrice(s, item.currencyOrigin) * (s.subItemQuantity || 0);
-            if (s.isPriceBakedIn) {
+            if (s.isPriceBakedIn || s.isHiddenFromPrint) {
                 bakedInSubItemsPrice += s.subItemTargetPrice;
             }
         });
         item.targetPrice = itemOwnPrice + bakedInSubItemsPrice;
     });
+
+    return { distributionRatio };
 }
 
 function calculateTotalPrice(){
@@ -1401,7 +1485,7 @@ function calculateTotalPrice(){
         
         // Add prices of non-baked-in sub-items.
         (item.subItems || []).forEach(sItem => {
-            if (!sItem.isPriceBakedIn) {
+            if (!sItem.isPriceBakedIn && !sItem.isHiddenFromPrint) {
                 total += (sItem.subItemTargetPrice || 0);
             }
         });
@@ -1469,8 +1553,8 @@ function toggleMultipleCurrencyUI(isMultiActive) {
 
 document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
 
-document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false }); saveToLocal(); reRenderAll(); });
-document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[] }); saveToLocal(); reRenderAll(); });
+document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false, isHiddenFromPrint: false }); saveToLocal(); reRenderAll(); });
+document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isHiddenFromPrint: false }); saveToLocal(); reRenderAll(); });
 document.getElementById('addTermButton').addEventListener('click',()=>{ if (!jsonData.terms) jsonData.terms = []; jsonData.terms.push(translations[currentLanguage].newTermText); saveToLocal(); reRenderAll(); });
 
 function parseFileName(fileName){ const match = fileName.replace(/\.json$/i,'').match(/^(.*)_(\d{6})_v(\d+)$/); return match ? { prefix: match[1], datePart: match[2], version: parseInt(match[3],10) } : null; }
@@ -1593,6 +1677,7 @@ function onEditableInput(e){
         }
         else if(id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
         else if (id === 'signatureDate') { jsonData.signature.date = target.innerHTML; }
+        else if (id === 'vendorNotesContent') { jsonData.vendorNotes = target.innerHTML; }
         else { jsonData.quote[id] = target.textContent; }
         saveToLocal(); return;
     }
@@ -1920,7 +2005,8 @@ function mapItemToSubItem(item) {
         marginPercentage: item.marginPercentage,
         currencyOrigin: item.currencyOrigin,
         subItems: item.subItems || [],
-        isPriceBakedIn: false // Sub-items are not baked-in by default when converted
+        isPriceBakedIn: false, // Sub-items are not baked-in by default when converted
+        isHiddenFromPrint: false,
     };
 }
 function mapSubItemToItem(subItem) {
@@ -1932,7 +2018,8 @@ function mapSubItemToItem(subItem) {
         marginPercentage: subItem.marginPercentage,
         currencyOrigin: subItem.currencyOrigin,
         subItems: subItem.subItems || [] ,
-        isPriceBakedIn: false
+        isPriceBakedIn: false,
+        isHiddenFromPrint: false,
     };
 }
 
@@ -2076,7 +2163,8 @@ function addSubItemToParent(containerId, parentIndex) {
             subItemQuantity: 1,
             subItemOriginalPrice: 0,
             marginPercentage: 0,
-            isPriceBakedIn: false
+            isPriceBakedIn: false,
+            isHiddenFromPrint: false,
         };
         parentItem.subItems.push(newSubItem);
         saveToLocal();
@@ -2123,6 +2211,27 @@ function toggleBakeInSubItemPrice(containerId, mainIndex, subIndex) {
         reRenderAll();
     }
 }
+
+function toggleHiddenFromPrint(containerId, index) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const item = list[index];
+    if (item) {
+        item.isHiddenFromPrint = !item.isHiddenFromPrint;
+        saveToLocal();
+        reRenderAll();
+    }
+}
+
+function toggleHiddenFromPrintSubItem(containerId, mainIndex, subIndex) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const subItem = list[mainIndex]?.subItems?.[subIndex];
+    if (subItem) {
+        subItem.isHiddenFromPrint = !subItem.isHiddenFromPrint;
+        saveToLocal();
+        reRenderAll();
+    }
+}
+
 
 // --- Section Visibility ---
 function applySectionVisibility() {
