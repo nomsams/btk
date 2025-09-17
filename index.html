@@ -1,4 +1,4 @@
-<!-- Version 89 -- Per-Item Vendor Notes, Encryption, Logo Size Management -->
+<!-- Version 90 -- Print/PDF Enhancements, Page Breaks, Persistent Settings, Advanced Image Compression -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -86,7 +86,12 @@
     .total-price { margin-top: 4mm; padding-top: 2mm; border-top: 1pt solid #000; text-align: right; padding-right: 0; page-break-inside: avoid !important; }
     h3 { page-break-before: auto !important; page-break-after: avoid !important; margin-top: 6mm; margin-bottom: 3mm !important; }
     .info-image-container { page-break-inside: avoid !important; margin: 3mm 0; }
-    .info-image-container img { max-width: 100% !important; height: auto !important; }
+    .info-image-container img {
+        max-width: 100% !important;
+        width: auto !important; /* Let max-width control the size */
+        height: auto !important;
+        max-height: 250mm !important; /* A4 height is 297mm, minus margins */
+    }
     
     .screen-only { display: none !important; }
     .hidden-from-print { display: none !important; }
@@ -120,6 +125,13 @@
         white-space: pre-wrap;
         background-color: #fefee9 !important;
         padding: 1.5mm;
+    }
+    .page-break-element {
+        page-break-before: always !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 }
 
@@ -549,9 +561,11 @@ body.vendor-print-mode .vendor-item-notes {
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
             <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
             <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
+            <button class="image-upload-button" onclick="reduceAllImageSizes()">Minska bildstorlekar (-10%)</button>
             <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
             <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
             <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
+            <button class="image-upload-button" onclick="addPageBreak()">Lägg till sidbrytning</button>
         </div>
     </div>
 
@@ -599,6 +613,10 @@ body.vendor-print-mode .vendor-item-notes {
     <button id="copyJsonBtn" class="footer-button">Kopiera JSON (text)</button>
     <button class="footer-button" id="uploadPdfBtn">Ladda PDF-offert</button>
     <input type="file" id="pdfUploadInput" accept=".pdf" style="display:none;" />
+    <div class="screen-only" style="margin-top: 10px; text-align: center;">
+        <label for="pdfFileNameInput" id="pdfFileNameLabel">PDF Filnamn:</label>
+        <input type="text" id="pdfFileNameInput" size="60" style="padding: 5px;"/>
+    </div>
     <button class="footer-button" id="savePdfBtn">Spara som PDF</button>
     <button id="printBtn" class="footer-button">Print</button>
     <div class="status-message" id="statusMessage"></div>
@@ -648,6 +666,10 @@ const translations = {
     vendorNotesHeading: "Vendoranteckningar",
     defaultLogoWidthLabel: "Standard logobredd (px):",
     resetLogoSize: "Återställ storlek",
+    addPageBreak: "Lägg till sidbrytning",
+    reduceImageSizes: "Minska bildstorlekar (-10%)",
+    toggleCompressionImmune: "Skydda från komprimering",
+    pdfFileNameLabel: "PDF Filnamn:",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -681,6 +703,10 @@ const translations = {
     vendorNotesHeading: "Vendor Notes",
     defaultLogoWidthLabel: "Default Logo Width (px):",
     resetLogoSize: "Reset Size",
+    addPageBreak: "Add Page Break",
+    reduceImageSizes: "Reduce Image Sizes (-10%)",
+    toggleCompressionImmune: "Immune from compression",
+    pdfFileNameLabel: "PDF Filename:",
   }
 };
 
@@ -722,9 +748,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -732,6 +758,7 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.eurToSekRate === undefined) jsonData.quote.eurToSekRate = 11.50;
         if(jsonData.quote.showSignature === undefined) jsonData.quote.showSignature = false;
         if(jsonData.quote.showTillSection === undefined) jsonData.quote.showTillSection = true;
+        if(jsonData.quote.removeTotal === undefined) jsonData.quote.removeTotal = false;
         if(jsonData.quote.defaultLogoWidth === undefined) jsonData.quote.defaultLogoWidth = 200;
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { // Migrate old totalLabel
@@ -765,6 +792,9 @@ function decryptCaesar(text, shift) {
             });
         });
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
+        (jsonData.infoImages || []).forEach(it => {
+            if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
+        });
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
 })();
@@ -801,6 +831,7 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50; 
     if(q.showSignature === undefined) q.showSignature = false;
     if(q.showTillSection === undefined) q.showTillSection = true;
+    if(q.removeTotal === undefined) q.removeTotal = false;
     if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { // Migrate old totalLabel from loaded file
@@ -836,6 +867,9 @@ function loadQuoteData(data, loadedFileName=null){
             if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
         });
     });
+    (jsonData.infoImages || []).forEach(it => {
+        if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
+    });
 
 
     document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
@@ -862,6 +896,7 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('signatureSection').style.display = (q.showSignature) ? 'block' : 'none';
     document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
     applyTillSectionVisibility();
+    document.getElementById('removeTotalCheck').checked = q.removeTotal || false;
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -886,10 +921,34 @@ function reRenderAll(){
     updateSectionVisibilityCheckboxes();
 }
 
+function buildPdfFileName() {
+    const title = (document.getElementById('quoteTitle')?.textContent || 'Offert').trim();
+    const ref = (document.getElementById('reference')?.textContent || '').trim();
+    const quoteNum = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
+    
+    const companyA_html = document.getElementById('companyA')?.innerHTML || '';
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = companyA_html;
+    const companyA_text = tempDiv.textContent || tempDiv.innerText || '';
+    const tillWords = companyA_text.trim().split(/\s+/).slice(0, 2).join(' ');
+
+    const parts = [ title, ref, tillWords, quoteNum ];
+    const safeParts = parts.filter(Boolean).map(p => p.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, ' '));
+    return safeParts.join(' - ') + '.pdf';
+}
+
+function updatePdfFileNameInput() {
+    const input = document.getElementById('pdfFileNameInput');
+    if (input) {
+        input.value = buildPdfFileName();
+    }
+}
+
 function updateDocumentTitle(){
-    let baseTitle = (currentLanguage==='sv') ? 'Offert' : 'Quote';
+    let baseTitle = document.getElementById('quoteTitle').textContent.trim() || ((currentLanguage==='sv') ? 'Offert' : 'Quote');
     let refVal = document.getElementById('reference').textContent.trim();
     document.title = (refVal) ? `${baseTitle} - ${refVal}` : baseTitle;
+    updatePdfFileNameInput();
 }
 
 function updateLanguageUI(lang){
@@ -921,11 +980,14 @@ function updateLanguageUI(lang){
     document.getElementById('addItemButton').textContent = t.addItemButton;
     document.getElementById('addOptionalItemButton').textContent = t.addOptionalItemButton;
     document.getElementById('addTermButton').textContent = t.addTermButton;
+    document.querySelector('.image-upload-container button[onclick="addPageBreak()"]').textContent = t.addPageBreak;
+    document.querySelector('.image-upload-container button[onclick="reduceAllImageSizes()"]').textContent = t.reduceImageSizes;
     document.getElementById('toggleLanguageBtn').textContent = t.toggleLangBtn;
     document.getElementById('marginLabel').textContent = `${t.marginLabel} `;
     document.getElementById('copyJsonBtn').textContent = t.copyJsonBtn;
     document.getElementById('defaultLogoWidthLabel').textContent = `${t.defaultLogoWidthLabel} `;
     document.getElementById('resetLogoSizeBtn').textContent = t.resetLogoSize;
+    document.getElementById('pdfFileNameLabel').textContent = t.pdfFileNameLabel;
     
     // Checkbox labels
     document.querySelector('#removeTotalCheckboxLabel').lastChild.nodeValue = ` ${t.removeTotalLabelText}`;
@@ -1062,16 +1124,16 @@ function loadItems(items, containerId, distributionRatio = 1){
 
         let bakedInRow = '';
         if (containerId === 'itemsList' && !it.isPriceBakedIn && !it.isHiddenFromPrint && Math.abs(bakedAmount) > 0.01) {
-            bakedInRow = `<div>Inbakat: <i>${formatPrice(priceAfterGlobalMargin)}</i> + ${formatPrice(bakedAmount)} = <b>${formatPrice(it.targetPrice)} SEK</b></div>`;
+            bakedInRow = `<div>Inbakat: <i>${formatPrice(priceAfterGlobalMargin, true)}</i> + ${formatPrice(bakedAmount, true)} = <b>${formatPrice(it.targetPrice, true)} SEK</b></div>`;
         }
 
         const breakdownDiv = document.createElement('div');
         breakdownDiv.className = 'vendor-price-details';
         breakdownDiv.innerHTML = `
             <div>Original: ${formatNumber(breakdown.originalPrice.toFixed(2))} ${breakdown.currencyOrigin}</div>
-            ${breakdown.rateText ? `<div>Kurs: ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK)} SEK</div>` : ''}
-            <div>Lokal (${(it.marginPercentage || 0)}%): <i>${formatPrice(breakdown.priceInSEK)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue))} = <b>${formatPrice(breakdown.priceAfterLocalMargin)} SEK</b></div>
-            <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue))} = <b>${formatPrice(breakdown.finalPricePerUnit)} SEK</b></div>
+            ${breakdown.rateText ? `<div>Kurs: ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK, true)} SEK</div>` : ''}
+            <div>Lokal (${(it.marginPercentage || 0)}%): <i>${formatPrice(breakdown.priceInSEK, true)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue), true)} = <b>${formatPrice(breakdown.priceAfterLocalMargin, true)} SEK</b></div>
+            <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} SEK</b></div>
             ${bakedInRow}
         `;
         itemDiv.appendChild(breakdownDiv);
@@ -1135,16 +1197,16 @@ function loadItems(items, containerId, distributionRatio = 1){
 
             let subBakedInRow = '';
             if (containerId === 'itemsList' && !sItem.isPriceBakedIn && !sItem.isHiddenFromPrint && Math.abs(subBakedAmount) > 0.01) {
-                subBakedInRow = `<div>Inbakat: <i>${formatPrice(subPriceAfterGlobalMargin)}</i> + ${formatPrice(subBakedAmount)} = <b>${formatPrice(sItem.subItemTargetPrice)} SEK</b></div>`;
+                subBakedInRow = `<div>Inbakat: <i>${formatPrice(subPriceAfterGlobalMargin, true)}</i> + ${formatPrice(subBakedAmount, true)} = <b>${formatPrice(sItem.subItemTargetPrice, true)} SEK</b></div>`;
             }
 
             const subBreakdownDiv = document.createElement('div');
             subBreakdownDiv.className = 'vendor-price-details';
             subBreakdownDiv.innerHTML = `
                 <div>Original: ${formatNumber(subBreakdown.originalPrice.toFixed(2))} ${subBreakdown.currencyOrigin}</div>
-                ${subBreakdown.rateText ? `<div>Kurs: ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK)} SEK</div>` : ''}
-                <div>Lokal (${(sItem.marginPercentage || 0)}%): <i>${formatPrice(subBreakdown.priceInSEK)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue))} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin)} SEK</b></div>
-                <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue))} = <b>${formatPrice(subBreakdown.finalPricePerUnit)} SEK</b></div>
+                ${subBreakdown.rateText ? `<div>Kurs: ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK, true)} SEK</div>` : ''}
+                <div>Lokal (${(sItem.marginPercentage || 0)}%): <i>${formatPrice(subBreakdown.priceInSEK, true)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue), true)} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin, true)} SEK</b></div>
+                <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} SEK</b></div>
                 ${subBakedInRow}
             `;
             included.appendChild(subBreakdownDiv);
@@ -1258,6 +1320,9 @@ function loadInfoImages(){
                 table.appendChild(row);
             }
             contentWrapper.appendChild(table);
+        } else if (obj.type === 'page-break') {
+            block.classList.add('info-block-fullwidth', 'page-break-element');
+            contentWrapper.innerHTML = `<div class="screen-only" style="text-align:center; border: 2px dashed #ccc; padding: 10px; margin: 10px 0;">--- SIDBRYTNING ---</div>`;
         } else { // Image
             block.classList.add('info-block-image');
             const imgContainer=document.createElement('div');
@@ -1274,7 +1339,9 @@ function loadInfoImages(){
         const controls = document.createElement('div');
         controls.className = 'controls-row screen-only';
         if (obj.type === 'image') {
+            const immune = obj.compressionImmune || false;
             controls.innerHTML = `
+                <span class="control-btn" id="immuneBtn_${idx}" title="${translations[currentLanguage].toggleCompressionImmune}" onclick="toggleCompressionImmune(${idx})" style="background-color: ${immune ? '#007bff' : ''}; color: ${immune ? 'white' : ''};">🛡️</span>
                 <span class="info-image-up" title="Större (+10%)" onclick="adjustImageSize(${idx}, 1.10)">+</span>
                 <span class="info-image-down" title="Mindre (-5%)" onclick="adjustImageSize(${idx}, 0.95)">-</span>
                 <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
@@ -1282,7 +1349,7 @@ function loadInfoImages(){
                 <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
                 <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
         } else {
-            controls.innerHTML = `
+             controls.innerHTML = `
                 <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
                 <span class="drag-handle">≡</span>
                 <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
@@ -1321,13 +1388,18 @@ function addTable(){
         saveToLocal(); reRenderAll();
     }
 }
+function addPageBreak() {
+    jsonData.infoImages.push({ type: 'page-break' });
+    saveToLocal();
+    reRenderAll();
+}
 function addImageFromUrl(){
     const url=prompt(translations[currentLanguage].promptImageUrl);
-    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'' }); saveToLocal(); reRenderAll(); }
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
-        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'' }); saveToLocal(); reRenderAll(); };
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false }); saveToLocal(); reRenderAll(); };
         if(document.getElementById('compressImagesChk').checked){
             const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
             const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
@@ -1427,7 +1499,7 @@ async function recompressAllImages() {
 
     const compressionPromises = jsonData.infoImages
         .map((imgObject, index) => {
-            if (imgObject.type === 'image' && imgObject.src) {
+            if (imgObject.type === 'image' && imgObject.src && !imgObject.compressionImmune) {
                 return compressImageDataUrl(imgObject.src, quality, maxWidth)
                     .then(newSrc => {
                         jsonData.infoImages[index].src = newSrc;
@@ -1446,6 +1518,33 @@ async function recompressAllImages() {
     
     statusEl.textContent = translations[currentLanguage].statusRecompressDone;
     setTimeout(() => { statusEl.textContent = '' }, 4000);
+}
+
+function reduceAllImageSizes() {
+    let changed = false;
+    (jsonData.infoImages || []).forEach(img => {
+        if (img.type === 'image' && !img.compressionImmune) {
+            img.width = (img.width || 400) * 0.9;
+            changed = true;
+        }
+    });
+    if (changed) {
+        saveToLocal();
+        reRenderAll();
+    }
+}
+
+function toggleCompressionImmune(index) {
+    const img = jsonData.infoImages[index];
+    if (img && img.type === 'image') {
+        img.compressionImmune = !img.compressionImmune;
+        saveToLocal();
+        const btn = document.getElementById(`immuneBtn_${index}`);
+        if (btn) {
+            btn.style.backgroundColor = img.compressionImmune ? '#007bff' : '';
+            btn.style.color = img.compressionImmune ? 'white' : '';
+        }
+    }
 }
 
 function updatePrices(){
@@ -1546,13 +1645,23 @@ function calculateTotalPrice(){
         });
     });
 
-    const dec = document.getElementById('showDecimals').checked;
-    const formatted = dec ? total.toFixed(2) : Math.round(total).toString();
     const currencyVal = document.getElementById("useCustomCurrencyChk").checked ? (document.getElementById("customCurrencyInput").value.trim() || "SEK") : "SEK";
-    document.getElementById('totalValue').textContent= `${formatNumber(formatted)} ${currencyVal}`;
+    document.getElementById('totalValue').textContent= `${formatPrice(total)} ${currencyVal}`;
     document.getElementById('totalPrice').style.display = document.getElementById('removeTotalCheck').checked ? 'none' : '';
 }
-function formatPrice(price){ return formatNumber((document.getElementById('showDecimals').checked ? (price || 0).toFixed(2) : Math.round(price || 0).toString())); }
+function formatPrice(price, forceSEK = false){
+    let displayPrice = price || 0;
+    const useCustom = document.getElementById('useCustomCurrencyChk').checked;
+
+    if (useCustom && !forceSEK) {
+        const multiplier = parseFloat(document.getElementById('currencyMultiplierInput').value) || 1;
+        if (multiplier > 0) {
+            displayPrice = displayPrice / multiplier;
+        }
+    }
+    
+    return formatNumber((document.getElementById('showDecimals').checked ? displayPrice.toFixed(2) : Math.round(displayPrice).toString()));
+}
 function formatNumber(numStr){ return numStr.replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
 
 document.addEventListener('click',e=>{
@@ -1647,7 +1756,11 @@ document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{
 });
 document.getElementById("useCustomCurrencyChk").addEventListener('change', (e) => { document.getElementById("customCurrencyInput").style.display = e.target.checked ? 'inline-block' : 'none'; jsonData.quote.useCustomCurrency = e.target.checked; saveToLocal(); reRenderAll(); });
 document.getElementById("customCurrencyInput").addEventListener('input', function(){ jsonData.quote.customCurrency = this.value.trim(); saveToLocal(); reRenderAll(); });
-document.getElementById("removeTotalCheck").addEventListener('change', () => calculateTotalPrice());
+document.getElementById('removeTotalCheck').addEventListener('change', function() {
+    jsonData.quote.removeTotal = this.checked;
+    saveToLocal();
+    calculateTotalPrice();
+});
 
 
 let itemsSortable, optionalItemsSortable, termsSortable, infoSortable, signatureSortable;
@@ -1732,6 +1845,7 @@ function onEditableInput(e){
         jsonData.quote.labels[field] = target.textContent;
         saveToLocal();
         if (field.includes('Price')) updatePriceHeaders(); // Update currency symbol if price header changes
+        if (field === 'quoteTitle') updateDocumentTitle();
         return;
     }
 
@@ -1742,8 +1856,12 @@ function onEditableInput(e){
             let data = {};
             lines.forEach((line, index) => { data[`line${index + 1}`] = line; }); 
             jsonData[id] = data;
+            if (id === 'companyA') updatePdfFileNameInput();
         }
-        else if(id === 'reference'){jsonData.quote.reference=target.textContent;updateDocumentTitle();} 
+        else if(id === 'reference' || id === 'quoteNumber'){
+            jsonData.quote[id]=target.textContent;
+            updateDocumentTitle();
+        } 
         else if (id === 'signatureDate') { jsonData.signature.date = target.innerHTML; }
         else { jsonData.quote[id] = target.textContent; }
         saveToLocal(); return;
@@ -1901,19 +2019,34 @@ async function fetchLiveCurrencyRates() {
 document.addEventListener('DOMContentLoaded', function () {
     const savePdfBtn = document.getElementById('savePdfBtn');
     savePdfBtn.addEventListener('click', async () => {
-		const quoteContent = document.getElementById('quoteContent'); if (!quoteContent) return alert("Innehåll saknas.");
-        const clone = quoteContent.cloneNode(true); clone.querySelectorAll('.screen-only').forEach(el => el.style.display = 'none');
-		createHiddenJsonDiv(clone); 
-        const container = document.createElement('div'); container.style.cssText = 'position:fixed; left:-9999px; top:0; width:210mm;';
-        container.appendChild(clone); document.body.appendChild(container);
-        const ref = (document.getElementById('reference')?.textContent || 'Offert').trim(), qNum = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
-        const fileName = `${ref.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, '-')}_${qNum}_${new Date().toISOString().split("T")[0]}.pdf`;
+        const bodyEl = document.body;
+        const wasInVendorMode = bodyEl.classList.contains('vendor-print-mode');
+        if (wasInVendorMode) {
+            bodyEl.classList.remove('vendor-print-mode');
+        }
+        
+        let container;
         try {
+            const quoteContent = document.getElementById('quoteContent'); if (!quoteContent) return alert("Innehåll saknas.");
+            const clone = quoteContent.cloneNode(true); clone.querySelectorAll('.screen-only').forEach(el => el.style.display = 'none');
+            createHiddenJsonDiv(clone); 
+            container = document.createElement('div'); container.style.cssText = 'position:fixed; left:-9999px; top:0; width:210mm;';
+            container.appendChild(clone); document.body.appendChild(container);
+            
+            const fileName = document.getElementById('pdfFileNameInput').value || buildPdfFileName();
+
             await html2pdf().set({ margin: 10, filename: fileName, image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: document.documentElement.scrollWidth, windowHeight: document.documentElement.scrollHeight },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             }).from(clone).save();
-        } catch (err) { console.error("PDF generation failed:", err); } finally { container.remove(); }
+        } catch (err) { 
+            console.error("PDF generation failed:", err); 
+        } finally { 
+            if (wasInVendorMode) {
+                bodyEl.classList.add('vendor-print-mode');
+            }
+            if(container) container.remove(); 
+        }
     });
 
     document.addEventListener('keydown', function(event) {
