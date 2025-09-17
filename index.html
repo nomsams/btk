@@ -1,4 +1,4 @@
-<!-- Version 91 -- Print WYSIWYG, File Size Reduction, Page Separators, UI Tweaks -->
+<!-- Version 92 -- Conditional Filename, Enhanced Compression UI, Image Download -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -347,8 +347,8 @@ h3.name.editable { margin-bottom: 0 !important; }
 .info-table td[contenteditable="true"]:focus { outline: 2px solid #007bff; background-color: #fff; }
 .image-upload-button { background-color: green; color: white; padding: 5px 10px; border: none; border-radius: 5px; margin: 5px; font-size: 12pt; cursor: pointer; }
 .image-upload-button:hover { background-color: #45a049; }
-#reduceImageFileSizesBtn { background-color: #add8e6; }
-#reduceImageFileSizesBtn:hover { background-color: #9acbe0; }
+#reduceImageFileSizesBtn { background-color: #3b82f6; }
+#reduceImageFileSizesBtn:hover { background-color: #2563eb; }
 #liveCurrencyRates { font-size: 12px !important; }
 #infoImagesList { display: block !important; }
 
@@ -430,6 +430,44 @@ body.vendor-print-mode .vendor-item-notes {
     background-color: #fefee9;
     min-height: 20px;
     white-space: pre-wrap;
+}
+.info-tooltip-icon {
+    display: inline-block;
+    position: relative;
+    cursor: help;
+    margin-left: 5px;
+    font-weight: bold;
+    color: #007bff;
+}
+.info-tooltip-icon .info-tooltip-text {
+    visibility: hidden;
+    width: 250px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -125px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 10pt;
+    font-weight: normal;
+}
+.info-tooltip-icon:hover .info-tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+#compressionStatus {
+    font-size: 10pt;
+    margin-top: 10px;
+    padding: 8px;
+    background-color: #f0f8ff;
+    border: 1px solid #b0c4de;
+    border-radius: 4px;
 }
 
 </style>
@@ -581,11 +619,14 @@ body.vendor-print-mode .vendor-item-notes {
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
             <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
             <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
+            <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="recompressTooltipText"></span></span>
             <button class="image-upload-button" id="reduceImageFileSizesBtn" onclick="reduceImageFileSizes()">Minska filstorlek (kvalitet)</button>
+            <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="reduceSizeTooltipText"></span></span>
             <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
             <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
             <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
             <button class="image-upload-button" onclick="addPageBreak()">Lägg till sidbrytning</button>
+            <div id="compressionStatus" class="screen-only" style="display: none;"></div>
         </div>
     </div>
 
@@ -692,6 +733,9 @@ const translations = {
     toggleCompressionImmune: "Skydda från komprimering",
     pdfFileNameLabel: "PDF Filnamn:",
     addSeparator: "+ Lägg till separator",
+    downloadImage: "Ladda ner bild",
+    recompressTooltipText: "Komprimerar om alla icke-skyddade bilder till den angivna kvaliteten och maxbredden. Bra för att standardisera bilder.",
+    reduceSizeTooltipText: "Minskar filstorleken för alla icke-skyddade bilder genom att sänka deras JPEG-kvalitet med 10%. Kan användas flera gånger. Visuell storlek ändras ej.",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -731,6 +775,9 @@ const translations = {
     toggleCompressionImmune: "Immune from compression",
     pdfFileNameLabel: "PDF Filename:",
     addSeparator: "+ Add Separator",
+    downloadImage: "Download image",
+    recompressTooltipText: "Re-compresses all non-immune images to the specified quality and max width. Good for standardizing images.",
+    reduceSizeTooltipText: "Reduces the file size for all non-immune images by lowering their JPEG quality by 10%. Can be used multiple times. Visual size does not change.",
   }
 };
 
@@ -954,11 +1001,14 @@ function buildPdfFileName() {
     const ref = (document.getElementById('reference')?.textContent || '').trim();
     const quoteNum = (document.getElementById('quoteNumber')?.textContent || '0000').trim();
     
-    const companyA_html = document.getElementById('companyA')?.innerHTML || '';
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = companyA_html;
-    const companyA_text = tempDiv.textContent || tempDiv.innerText || '';
-    const tillWords = companyA_text.trim().split(/\s+/).slice(0, 2).join(' ');
+    let tillWords = '';
+    if (document.getElementById('toggleTillSectionChk').checked) {
+        const companyA_html = document.getElementById('companyA')?.innerHTML || '';
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = companyA_html;
+        const companyA_text = tempDiv.textContent || tempDiv.innerText || '';
+        tillWords = companyA_text.trim().split(/\s+/).slice(0, 2).join(' ');
+    }
 
     const parts = [ title, ref, tillWords, quoteNum ];
     const safeParts = parts.filter(Boolean).map(p => p.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, ' '));
@@ -1018,6 +1068,8 @@ function updateLanguageUI(lang){
     document.getElementById('defaultLogoWidthLabel').textContent = `${t.defaultLogoWidthLabel} `;
     document.getElementById('resetLogoSizeBtn').textContent = t.resetLogoSize;
     document.getElementById('pdfFileNameLabel').textContent = t.pdfFileNameLabel;
+    document.getElementById('recompressTooltipText').textContent = t.recompressTooltipText;
+    document.getElementById('reduceSizeTooltipText').textContent = t.reduceSizeTooltipText;
     
     // Checkbox labels
     document.querySelector('#removeTotalCheckboxLabel').lastChild.nodeValue = ` ${t.removeTotalLabelText}`;
@@ -1387,6 +1439,7 @@ function loadInfoImages(){
         if (obj.type === 'image') {
             const immune = obj.compressionImmune || false;
             controls.innerHTML = `
+                <span class="control-btn" title="${translations[currentLanguage].downloadImage}" onclick="downloadImage(${idx})">⤓</span>
                 <span class="control-btn" id="immuneBtn_${idx}" title="${translations[currentLanguage].toggleCompressionImmune}" onclick="toggleCompressionImmune(${idx})" style="background-color: ${immune ? '#6c757d' : ''}; color: ${immune ? 'white' : ''};">🛡️</span>
                 <span class="info-image-up" title="Större (+10%)" onclick="adjustImageSize(${idx}, 1.10)">+</span>
                 <span class="info-image-down" title="Mindre (-5%)" onclick="adjustImageSize(${idx}, 0.95)">-</span>
@@ -1536,34 +1589,87 @@ function compressImageDataUrl(dataUrl, quality, maxWidth) {
     });
 }
 
-async function recompressAllImages() {
-    const statusEl = document.getElementById('statusMessage');
-    statusEl.textContent = translations[currentLanguage].statusRecompressing;
+function getBase64ByteSize(base64String) {
+    if (!base64String.includes(',')) return 0;
+    const base64 = base64String.split(',')[1];
+    const padding = (base64.endsWith('==') ? 2 : (base64.endsWith('=') ? 1 : 0));
+    return (base64.length * 0.75) - padding;
+}
+
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+async function performCompression(action) {
+    const statusDiv = document.getElementById('compressionStatus');
+    statusDiv.style.display = 'none';
+
+    const imageObjects = jsonData.infoImages.filter(obj => obj.type === 'image' && obj.src && !obj.compressionImmune);
+    if (imageObjects.length === 0) {
+        statusDiv.innerHTML = 'Inga bilder att bearbeta.';
+        statusDiv.style.display = 'block';
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 4000);
+        return;
+    }
+
+    let totalSizeBefore = imageObjects.reduce((sum, img) => sum + getBase64ByteSize(img.src), 0);
+
+    if (action === 'recompress') {
+        statusDiv.textContent = translations[currentLanguage].statusRecompressing;
+    } else {
+        statusDiv.textContent = translations[currentLanguage].statusFileSizeReducing;
+    }
+    statusDiv.style.display = 'block';
 
     const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
     const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
 
-    const compressionPromises = jsonData.infoImages
-        .map((imgObject, index) => {
-            if (imgObject.type === 'image' && imgObject.src && !imgObject.compressionImmune) {
-                return compressImageDataUrl(imgObject.src, quality, maxWidth)
-                    .then(newSrc => {
-                        jsonData.infoImages[index].src = newSrc;
-                    })
-                    .catch(error => {
-                        console.error(`Failed to recompress image at index ${index}:`, error);
-                    });
+    const promises = imageObjects.map(async (imgObject) => {
+        try {
+            let newSrc;
+            if (action === 'recompress') {
+                newSrc = await compressImageDataUrl(imgObject.src, quality, maxWidth);
+            } else { // reduce
+                const dims = await getImageDimensions(imgObject.src);
+                const currentQuality = imgObject.quality || 0.8;
+                const newQuality = Math.max(0.1, currentQuality - 0.1);
+                newSrc = await compressImageDataUrl(imgObject.src, newQuality, dims.width + 1);
+                imgObject.quality = newQuality;
             }
-            return Promise.resolve(); // Resolve immediately for non-image types
-        });
+            imgObject.src = newSrc;
+        } catch (error) {
+            console.error(`Failed to process image:`, error);
+        }
+    });
 
-    await Promise.all(compressionPromises);
+    await Promise.all(promises);
+
+    let totalSizeAfter = imageObjects.reduce((sum, img) => sum + getBase64ByteSize(img.src), 0);
+    const reduction = totalSizeBefore > 0 ? ((totalSizeBefore - totalSizeAfter) / totalSizeBefore) * 100 : 0;
+
+    statusDiv.innerHTML = `
+        Före: <b>${formatBytes(totalSizeBefore)}</b> | 
+        Efter: <b>${formatBytes(totalSizeAfter)}</b> | 
+        Minskning: <b>${reduction.toFixed(1)}%</b>
+    `;
 
     saveToLocal();
     reRenderAll();
     
-    statusEl.textContent = translations[currentLanguage].statusRecompressDone;
-    setTimeout(() => { statusEl.textContent = '' }, 4000);
+    setTimeout(() => { statusDiv.style.display = 'none'; }, 8000);
+}
+
+function recompressAllImages() {
+    performCompression('recompress');
+}
+
+function reduceImageFileSizes() {
+    performCompression('reduce');
 }
 
 function getImageDimensions(dataUrl) {
@@ -1573,35 +1679,6 @@ function getImageDimensions(dataUrl) {
         img.onerror = () => reject('Could not load image to get dimensions');
         img.src = dataUrl;
     });
-}
-
-async function reduceImageFileSizes() {
-    const statusEl = document.getElementById('statusMessage');
-    statusEl.textContent = translations[currentLanguage].statusFileSizeReducing;
-
-    const promises = jsonData.infoImages.map(async (imgObject, index) => {
-        if (imgObject.type === 'image' && imgObject.src && !imgObject.compressionImmune) {
-            try {
-                const dims = await getImageDimensions(imgObject.src);
-                const currentQuality = imgObject.quality || 0.8; // Start from 0.8 if not set
-                const newQuality = Math.max(0.1, currentQuality - 0.1);
-                
-                // Recompress with new quality but original dimensions (pass width+1 to ensure it's not resized down)
-                const newSrc = await compressImageDataUrl(imgObject.src, newQuality, dims.width + 1); 
-                jsonData.infoImages[index].src = newSrc;
-                jsonData.infoImages[index].quality = newQuality; // Store the new quality
-            } catch (error) {
-                console.error(`Failed to reduce file size for image at index ${index}:`, error);
-            }
-        }
-    });
-
-    await Promise.all(promises);
-    saveToLocal();
-    reRenderAll();
-    
-    statusEl.textContent = translations[currentLanguage].statusFileSizeReduceDone;
-    setTimeout(() => { statusEl.textContent = '' }, 4000);
 }
 
 function toggleCompressionImmune(index) {
@@ -1615,6 +1692,22 @@ function toggleCompressionImmune(index) {
             btn.style.color = img.compressionImmune ? 'white' : '';
         }
     }
+}
+
+function downloadImage(index) {
+    const imgObject = jsonData.infoImages[index];
+    if (!imgObject || imgObject.type !== 'image' || !imgObject.src) return;
+
+    const ref = (document.getElementById('reference')?.textContent || 'bild').trim().replace(/[^\w\s\-]/gi, '');
+    const qualityPart = imgObject.quality ? `_q${imgObject.quality.toFixed(1)}` : '';
+    const fileName = `${ref} - Image ${index + 1}${qualityPart}.png`;
+
+    const a = document.createElement('a');
+    a.href = imgObject.src;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 function updatePrices(){
@@ -1758,7 +1851,7 @@ function handleQuantityChange(inp){
 document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.companyA, jsonData.companyB] = [jsonData.companyB, jsonData.companyA]; saveToLocal(); loadQuoteData(jsonData, currentFileName); });
 document.getElementById('showProjectNumber').addEventListener('change', function(){ document.getElementById('projectNumberDiv').style.display=this.checked?'block':'none'; jsonData.quote.projectNumberVisible = this.checked; saveToLocal(); });
 document.getElementById('addSignatureCheck').addEventListener('change', function(){ document.getElementById('signatureSection').style.display=this.checked?'block':'none'; jsonData.quote.showSignature = this.checked; saveToLocal(); });
-document.getElementById('toggleTillSectionChk').addEventListener('change', function(){ jsonData.quote.showTillSection = this.checked; applyTillSectionVisibility(); saveToLocal(); });
+document.getElementById('toggleTillSectionChk').addEventListener('change', function(){ jsonData.quote.showTillSection = this.checked; applyTillSectionVisibility(); saveToLocal(); updatePdfFileNameInput(); });
 
 document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
