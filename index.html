@@ -1,4 +1,4 @@
-<!-- Version 90 -- Print/PDF Enhancements, Page Breaks, Persistent Settings, Advanced Image Compression -->
+<!-- Version 91 -- Print WYSIWYG, File Size Reduction, Page Separators, UI Tweaks -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -85,10 +85,20 @@
     .info-text { word-wrap: break-word !important; overflow-wrap: break-word !important; }
     .total-price { margin-top: 4mm; padding-top: 2mm; border-top: 1pt solid #000; text-align: right; padding-right: 0; page-break-inside: avoid !important; }
     h3 { page-break-before: auto !important; page-break-after: avoid !important; margin-top: 6mm; margin-bottom: 3mm !important; }
-    .info-image-container { page-break-inside: avoid !important; margin: 3mm 0; }
+    
+    /* --- IMAGE PRINTING --- */
+    #infoImagesList .info-block-image {
+        display: inline-block !important;
+        vertical-align: top !important;
+        page-break-inside: avoid !important;
+        /* Width is controlled by the inline style on the image tag */
+    }
+    .info-image-container { 
+        page-break-inside: avoid !important; 
+        margin: 3mm 0; 
+    }
     .info-image-container img {
-        max-width: 100% !important;
-        width: auto !important; /* Let max-width control the size */
+        max-width: 100% !important; /* 100% of its container, which has a fixed width */
         height: auto !important;
         max-height: 250mm !important; /* A4 height is 297mm, minus margins */
     }
@@ -132,6 +142,11 @@
         height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
+    }
+    .separator-item .print-only {
+        page-break-before: always !important;
+        height: 0;
+        display: block !important;
     }
 }
 
@@ -332,6 +347,8 @@ h3.name.editable { margin-bottom: 0 !important; }
 .info-table td[contenteditable="true"]:focus { outline: 2px solid #007bff; background-color: #fff; }
 .image-upload-button { background-color: green; color: white; padding: 5px 10px; border: none; border-radius: 5px; margin: 5px; font-size: 12pt; cursor: pointer; }
 .image-upload-button:hover { background-color: #45a049; }
+#reduceImageFileSizesBtn { background-color: #add8e6; }
+#reduceImageFileSizesBtn:hover { background-color: #9acbe0; }
 #liveCurrencyRates { font-size: 12px !important; }
 #infoImagesList { display: block !important; }
 
@@ -346,6 +363,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 .item-actions { display: none; position: absolute; right: -285px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
 .item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
 .item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
+.control-btn[id^="immuneBtn_"] { cursor: pointer; user-select: none; }
 #formatting-toolbar { position: absolute; display: none; z-index: 1000; background: #333; border-radius: 5px; padding: 5px; }
 #formatting-toolbar button { background: #444; color: white; border: 1px solid #555; border-radius: 3px; padding: 5px 10px; cursor: pointer; font-size: 14px; }
 #formatting-toolbar button.active { background: #007bff; border-color: #0056b3; }
@@ -460,7 +478,11 @@ body.vendor-print-mode .vendor-item-notes {
                 <label for="compressionMaxWidth" style="font-size: 10pt;">Max bredd:</label>
                 <input type="number" id="compressionMaxWidth" value="1280" min="100" step="100" style="width: 60px; font-size: 10pt; padding: 2px;">
              </div>
+             <label for="defaultLogoWidthInput" id="defaultLogoWidthLabel" style="margin-left: 10px;">Standard logobredd (px):</label>
+             <input type="number" id="defaultLogoWidthInput" value="200" step="10" />
         </div>
+    </div>
+     <div class="checkbox-group screen-only">
         <label id="removeTotalCheckboxLabel">
             <input type="checkbox" id="removeTotalCheck" /> Ta bort totalen
         </label>
@@ -470,8 +492,6 @@ body.vendor-print-mode .vendor-item-notes {
         <label id="toggleTillLabel">
             <input type="checkbox" id="toggleTillSectionChk" checked /> Visa 'Till'
         </label>
-    </div>
-     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showBakedItemPrices" /> Visa inbakade artikelpriser</label>
         <label><input type="checkbox" id="showBakedSubItemPrices" /> Visa inbakade underpostpriser</label>
         <label><input type="checkbox" id="vendorModeCheck" /> Vendor-läge (utskrift)</label>
@@ -490,8 +510,6 @@ body.vendor-print-mode .vendor-item-notes {
         </div>
         <label for="marginPercentageInput" id="marginLabel" style="margin-left: 10px;">Påslag (%):</label>
         <input type="number" id="marginPercentageInput" value="0" step="1" />
-        <label for="defaultLogoWidthInput" id="defaultLogoWidthLabel" style="margin-left: 10px;">Standard logobredd (px):</label>
-        <input type="number" id="defaultLogoWidthInput" value="200" step="10" />
 
         <label style="display:block; margin-top:10px;">
             <input type="checkbox" id="useMultipleCurrenciesChk" />
@@ -538,6 +556,7 @@ body.vendor-print-mode .vendor-item-notes {
         <div id="itemsList"></div>
         <div class="total-price" id="totalPrice"><span id="totalLabel" class="editable" contenteditable="true" data-field="totalLabel">Total:</span><span id="totalValue">0 SEK</span></div>
         <button class="add-button screen-only" id="addItemButton">+ Lägg till ny artikel</button>
+        <button class="add-button screen-only" id="addSeparatorButton">+ Lägg till separator</button>
     </div>
 
     <div id="optionalSectionContainer">
@@ -551,6 +570,7 @@ body.vendor-print-mode .vendor-item-notes {
         </div>
         <div id="optionalItemsList"></div>
         <button class="add-optional-button screen-only" id="addOptionalItemButton">+ Lägg till ny artikel</button>
+        <button class="add-optional-button screen-only" id="addOptionalSeparatorButton">+ Lägg till separator</button>
     </div>
 
     <div id="infoSectionContainer">
@@ -561,7 +581,7 @@ body.vendor-print-mode .vendor-item-notes {
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
             <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
             <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
-            <button class="image-upload-button" onclick="reduceAllImageSizes()">Minska bildstorlekar (-10%)</button>
+            <button class="image-upload-button" id="reduceImageFileSizesBtn" onclick="reduceImageFileSizes()">Minska filstorlek (kvalitet)</button>
             <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
             <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
             <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
@@ -653,6 +673,7 @@ const translations = {
     totalLabel: "Total:", marginLabel: "Påslag (%):", copyJsonBtn: "Kopiera JSON (text)",
     statusJsonCopied: "Status: JSON kopierad till urklipp!",
     statusRecompressing: "Komprimerar om bilder...", statusRecompressDone: "Alla bilder har komprimerats om.",
+    statusFileSizeReducing: "Minskar filstorlek...", statusFileSizeReduceDone: "Filstorlekar har minskats.",
     duplicateItem: "Duplicera rad", removeRow: "Ta bort rad",
     moveUp: "Flytta upp", moveDown: "Flytta ner",
     useMultipleCurrenciesLabelText: "Använd multipla valutakurser",
@@ -667,9 +688,10 @@ const translations = {
     defaultLogoWidthLabel: "Standard logobredd (px):",
     resetLogoSize: "Återställ storlek",
     addPageBreak: "Lägg till sidbrytning",
-    reduceImageSizes: "Minska bildstorlekar (-10%)",
+    reduceImageFileSizes: "Minska filstorlek (kvalitet)",
     toggleCompressionImmune: "Skydda från komprimering",
     pdfFileNameLabel: "PDF Filnamn:",
+    addSeparator: "+ Lägg till separator",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -690,6 +712,7 @@ const translations = {
     totalLabel: "Total:", marginLabel: "Margin (%):", copyJsonBtn: "Copy JSON (text)",
     statusJsonCopied: "Status: JSON copied to clipboard!",
     statusRecompressing: "Re-compressing images...", statusRecompressDone: "All images have been re-compressed.",
+    statusFileSizeReducing: "Reducing file sizes...", statusFileSizeReduceDone: "File sizes have been reduced.",
     duplicateItem: "Duplicate item", removeRow: "Remove row",
     moveUp: "Move up", moveDown: "Move down",
     useMultipleCurrenciesLabelText: "Use multiple currency rates",
@@ -704,9 +727,10 @@ const translations = {
     defaultLogoWidthLabel: "Default Logo Width (px):",
     resetLogoSize: "Reset Size",
     addPageBreak: "Add Page Break",
-    reduceImageSizes: "Reduce Image Sizes (-10%)",
+    reduceImageFileSizes: "Reduce file size (quality)",
     toggleCompressionImmune: "Immune from compression",
     pdfFileNameLabel: "PDF Filename:",
+    addSeparator: "+ Add Separator",
   }
 };
 
@@ -774,6 +798,7 @@ function decryptCaesar(text, shift) {
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
             if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
             if(it.vendorNotes === undefined) it.vendorNotes = "";
+            if(it.type === undefined && it.name !== undefined) it.type = 'item'; // Backward compatibility for separators
             (it.subItems || []).forEach(sIt => { 
                 if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
                 if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
@@ -785,6 +810,7 @@ function decryptCaesar(text, shift) {
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
             if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
             if(it.vendorNotes === undefined) it.vendorNotes = "";
+            if(it.type === undefined && it.name !== undefined) it.type = 'item'; // Backward compatibility for separators
             (it.subItems || []).forEach(sIt => { 
                 if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
                 if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
@@ -851,6 +877,7 @@ function loadQuoteData(data, loadedFileName=null){
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
         if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
         if(it.vendorNotes === undefined) it.vendorNotes = "";
+        if(it.type === undefined && it.name !== undefined) it.type = 'item';
         (it.subItems || []).forEach(sIt => { 
             if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
             if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
@@ -861,6 +888,7 @@ function loadQuoteData(data, loadedFileName=null){
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
         if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
         if(it.vendorNotes === undefined) it.vendorNotes = "";
+        if(it.type === undefined && it.name !== undefined) it.type = 'item';
         (it.subItems || []).forEach(sIt => { 
             if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
             if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
@@ -978,10 +1006,12 @@ function updateLanguageUI(lang){
     
     // Buttons and other static text
     document.getElementById('addItemButton').textContent = t.addItemButton;
+    document.getElementById('addSeparatorButton').textContent = t.addSeparator;
     document.getElementById('addOptionalItemButton').textContent = t.addOptionalItemButton;
+    document.getElementById('addOptionalSeparatorButton').textContent = t.addSeparator;
     document.getElementById('addTermButton').textContent = t.addTermButton;
     document.querySelector('.image-upload-container button[onclick="addPageBreak()"]').textContent = t.addPageBreak;
-    document.querySelector('.image-upload-container button[onclick="reduceAllImageSizes()"]').textContent = t.reduceImageSizes;
+    document.querySelector('.image-upload-container button[onclick="reduceImageFileSizes()"]').textContent = t.reduceImageFileSizes;
     document.getElementById('toggleLanguageBtn').textContent = t.toggleLangBtn;
     document.getElementById('marginLabel').textContent = `${t.marginLabel} `;
     document.getElementById('copyJsonBtn').textContent = t.copyJsonBtn;
@@ -1077,6 +1107,21 @@ function loadItems(items, containerId, distributionRatio = 1){
     const fallbackCurrency = (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) ? jsonData.quote.customCurrency : 'SEK';
 
     items.forEach((it, idx) => {
+        if (it.type === 'separator') {
+            const sepDiv = document.createElement('div');
+            sepDiv.className = 'quote-item separator-item';
+            sepDiv.dataset.index = idx;
+            sepDiv.innerHTML = `
+                <div class="screen-only" style="text-align:center; border-top: 2px dashed #ccc; padding: 8px; margin: 15px 0; position:relative;">
+                    --- SIDBRYTNING / SEPARATOR ---
+                    <span class="remove-icon" style="display:inline-block; top: 50%; transform: translateY(-50%);" onclick="removeItem('${containerId}', ${idx})">✖</span>
+                </div>
+                <div class="print-only"></div>
+            `;
+            container.appendChild(sepDiv);
+            return; // continue to next item in loop
+        }
+
         if (it.isPriceBakedIn === undefined) it.isPriceBakedIn = false;
         if (it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
         if (it.marginPercentage === undefined) it.marginPercentage = 0;
@@ -1243,6 +1288,7 @@ function duplicateItem(containerId, index) {
     const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
     if (list && list[index]) {
         const itemToCopy = list[index];
+        if (itemToCopy.type === 'separator') return; // Don't duplicate separators
         const newItem = JSON.parse(JSON.stringify(itemToCopy));
         delete newItem.id; 
         list.splice(index + 1, 0, newItem);
@@ -1341,7 +1387,7 @@ function loadInfoImages(){
         if (obj.type === 'image') {
             const immune = obj.compressionImmune || false;
             controls.innerHTML = `
-                <span class="control-btn" id="immuneBtn_${idx}" title="${translations[currentLanguage].toggleCompressionImmune}" onclick="toggleCompressionImmune(${idx})" style="background-color: ${immune ? '#007bff' : ''}; color: ${immune ? 'white' : ''};">🛡️</span>
+                <span class="control-btn" id="immuneBtn_${idx}" title="${translations[currentLanguage].toggleCompressionImmune}" onclick="toggleCompressionImmune(${idx})" style="background-color: ${immune ? '#6c757d' : ''}; color: ${immune ? 'white' : ''};">🛡️</span>
                 <span class="info-image-up" title="Större (+10%)" onclick="adjustImageSize(${idx}, 1.10)">+</span>
                 <span class="info-image-down" title="Mindre (-5%)" onclick="adjustImageSize(${idx}, 0.95)">-</span>
                 <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
@@ -1520,18 +1566,42 @@ async function recompressAllImages() {
     setTimeout(() => { statusEl.textContent = '' }, 4000);
 }
 
-function reduceAllImageSizes() {
-    let changed = false;
-    (jsonData.infoImages || []).forEach(img => {
-        if (img.type === 'image' && !img.compressionImmune) {
-            img.width = (img.width || 400) * 0.9;
-            changed = true;
+function getImageDimensions(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject('Could not load image to get dimensions');
+        img.src = dataUrl;
+    });
+}
+
+async function reduceImageFileSizes() {
+    const statusEl = document.getElementById('statusMessage');
+    statusEl.textContent = translations[currentLanguage].statusFileSizeReducing;
+
+    const promises = jsonData.infoImages.map(async (imgObject, index) => {
+        if (imgObject.type === 'image' && imgObject.src && !imgObject.compressionImmune) {
+            try {
+                const dims = await getImageDimensions(imgObject.src);
+                const currentQuality = imgObject.quality || 0.8; // Start from 0.8 if not set
+                const newQuality = Math.max(0.1, currentQuality - 0.1);
+                
+                // Recompress with new quality but original dimensions (pass width+1 to ensure it's not resized down)
+                const newSrc = await compressImageDataUrl(imgObject.src, newQuality, dims.width + 1); 
+                jsonData.infoImages[index].src = newSrc;
+                jsonData.infoImages[index].quality = newQuality; // Store the new quality
+            } catch (error) {
+                console.error(`Failed to reduce file size for image at index ${index}:`, error);
+            }
         }
     });
-    if (changed) {
-        saveToLocal();
-        reRenderAll();
-    }
+
+    await Promise.all(promises);
+    saveToLocal();
+    reRenderAll();
+    
+    statusEl.textContent = translations[currentLanguage].statusFileSizeReduceDone;
+    setTimeout(() => { statusEl.textContent = '' }, 4000);
 }
 
 function toggleCompressionImmune(index) {
@@ -1541,7 +1611,7 @@ function toggleCompressionImmune(index) {
         saveToLocal();
         const btn = document.getElementById(`immuneBtn_${index}`);
         if (btn) {
-            btn.style.backgroundColor = img.compressionImmune ? '#007bff' : '';
+            btn.style.backgroundColor = img.compressionImmune ? '#6c757d' : '';
             btn.style.color = img.compressionImmune ? 'white' : '';
         }
     }
@@ -1577,7 +1647,7 @@ function updatePrices(){
     let distributionPoolTotal = 0;
     
     // First pass: Calculate all individual prices and identify main item distribution pool
-    jsonData.items.forEach(item => {
+    jsonData.items.filter(it => it.type !== 'separator').forEach(item => {
         let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
         let subItemsPrice = 0;
         (item.subItems || []).forEach(s => {
@@ -1596,7 +1666,7 @@ function updatePrices(){
     const distributionRatio = distributionPoolTotal > 0 ? 1 + (totalToDistribute / distributionPoolTotal) : 1;
 
     // Second pass: Distribute baked-in main item prices and set final display prices
-    jsonData.items.forEach(item => {
+    jsonData.items.filter(it => it.type !== 'separator').forEach(item => {
         if (item.isPriceBakedIn || item.isHiddenFromPrint) {
             item.targetPrice = 0;
             (item.subItems || []).forEach(s => s.subItemTargetPrice = 0); // Their price is part of the distributed total
@@ -1615,7 +1685,7 @@ function updatePrices(){
     });
 
     // Third pass: Calculate prices for optional items (no distribution)
-    jsonData.optionalItems.forEach(item => {
+    jsonData.optionalItems.filter(it => it.type !== 'separator').forEach(item => {
         let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
         let bakedInSubItemsPrice = 0;
         (item.subItems || []).forEach(s => {
@@ -1633,7 +1703,7 @@ function updatePrices(){
 function calculateTotalPrice(){
     let total = 0;
     // ONLY process jsonData.items for the main total
-    (jsonData.items || []).forEach(item => {
+    jsonData.items.filter(it => it.type !== 'separator').forEach(item => {
         // Add the parent item's price, which already includes its own price and its baked-in sub-items.
         total += (item.targetPrice || 0);
         
@@ -1718,9 +1788,18 @@ function toggleMultipleCurrencyUI(isMultiActive) {
 
 document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
 
-document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false, isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
-document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
+document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ type: 'item', name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false, isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
+document.getElementById('addSeparatorButton').addEventListener('click', () => addSeparator('itemsList'));
+document.getElementById('addOptionalItemButton').addEventListener('click',()=>{ jsonData.optionalItems.push({ type: 'item', name:translations[currentLanguage].newAltArticleName, itemDescription:translations[currentLanguage].newOptionalItemDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
+document.getElementById('addOptionalSeparatorButton').addEventListener('click', () => addSeparator('optionalItemsList'));
 document.getElementById('addTermButton').addEventListener('click',()=>{ if (!jsonData.terms) jsonData.terms = []; jsonData.terms.push(translations[currentLanguage].newTermText); saveToLocal(); reRenderAll(); });
+
+function addSeparator(containerId) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    list.push({ type: 'separator', id: 'sep-' + Date.now() + Math.random() });
+    saveToLocal();
+    reRenderAll();
+}
 
 function parseFileName(fileName){ const match = fileName.replace(/\.json$/i,'').match(/^(.*)_(\d{6})_v(\d+)$/); return match ? { prefix: match[1], datePart: match[2], version: parseInt(match[3],10) } : null; }
 document.getElementById('fileInput').addEventListener('change',function(ev){
@@ -2258,7 +2337,7 @@ function toggleItemHierarchy(containerId, mainIndex, subIndex) {
 function renumberAllItems() {
     const processList = (list, prefix, isOptional, isTopLevel) => {
         let itemCounter = 0;
-        (list || []).forEach(item => {
+        (list || []).filter(it => it.type !== 'separator').forEach(item => {
             itemCounter++;
             let baseNumber;
             if (isTopLevel) {
