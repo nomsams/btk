@@ -1,4 +1,4 @@
-<!-- Version 93 -- Filename Fix, Custom Currency Save, UI/UX Enhancements, Date Warning -->
+<!-- Version 94 -- Margin/Markup Logic, Advanced Centering, Vendor Mode Enhancements -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -87,20 +87,23 @@
     h3 { page-break-before: auto !important; page-break-after: avoid !important; margin-top: 6mm; margin-bottom: 3mm !important; }
     
     /* --- IMAGE PRINTING --- */
-    #infoImagesList .info-block-image {
+    #infoImagesList.globally-centered .info-block.centering-default,
+    #infoImagesList .info-block.centering-center {
+        text-align: center;
+    }
+     #infoImagesList .info-block-image {
         display: inline-block !important;
         vertical-align: top !important;
         page-break-inside: avoid !important;
-        /* Width is controlled by the inline style on the image tag */
     }
     .info-image-container { 
         page-break-inside: avoid !important; 
         margin: 3mm 0; 
     }
     .info-image-container img {
-        max-width: 100% !important; /* 100% of its container, which has a fixed width */
+        max-width: 100% !important;
         height: auto !important;
-        max-height: 250mm !important; /* A4 height is 297mm, minus margins */
+        max-height: 250mm !important;
     }
     
     .screen-only { display: none !important; }
@@ -172,7 +175,7 @@ i { font-style: italic; }
 .included-item { 
     position: relative; width: calc(100% - 30px); box-sizing: border-box;
     font-weight: normal; 
-    background-color: #fdfdfd; 
+    background-color: #fefefe; 
     margin-left: 30px; 
     margin-top: 5px; 
     margin-bottom: 5px; 
@@ -356,7 +359,15 @@ h3.name.editable { margin-bottom: 0 !important; }
 #reduceImageFileSizesBtn { background-color: #3b82f6; }
 #reduceImageFileSizesBtn:hover { background-color: #2563eb; }
 #liveCurrencyRates { font-size: 12px !important; }
-#infoImagesList { display: block !important; }
+
+/* Centering Styles */
+#infoImagesList.globally-centered .info-block.centering-default { text-align: center; }
+#infoImagesList.globally-centered .info-block-image.centering-default { display: block; }
+.info-block.centering-center { text-align: center; }
+.info-block-image.centering-center { display: block !important; }
+.info-block.centering-left { text-align: left; }
+#infoImagesList.globally-centered .info-block-image.centering-left { display: inline-block !important; }
+
 
 .item-meta .item-tooltip { display: none; position: absolute; top: -18px; right: 5px; background: rgba(255, 255, 255, 0.95); border-radius: 4px; padding: 2px 5px; font-size: 11px; display: flex; gap: 8px; align-items: center; z-index: 10; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .item-meta:hover .item-tooltip { display: flex; }
@@ -557,6 +568,10 @@ body.vendor-print-mode .vendor-item-notes {
         </div>
         <label for="marginPercentageInput" id="marginLabel" style="margin-left: 10px;">Påslag (%):</label>
         <input type="number" id="marginPercentageInput" value="0" step="1" />
+        <label style="font-size: 10pt; margin-left: 5px; user-select: none;">
+            <input type="checkbox" id="marginModeChk" />
+            <span id="marginModeLabel">Beräkna som marginal</span>
+        </label>
 
         <label style="display:block; margin-top:10px;">
             <input type="checkbox" id="useMultipleCurrenciesChk" />
@@ -752,6 +767,9 @@ const translations = {
     downloadImage: "Ladda ner bild",
     recompressTooltipText: "Komprimerar om alla icke-skyddade bilder till den angivna kvaliteten och maxbredden. Bra för att standardisera bilder.",
     reduceSizeTooltipText: "Minskar filstorleken för alla icke-skyddade bilder genom att sänka deras JPEG-kvalitet med 10%. Kan användas flera gånger. Visuell storlek ändras ej.",
+    marginModeLabelText: "Beräkna som marginal",
+    markupLabel: "Påslag (%)",
+    marginLabel: "Marginal (%)",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -794,6 +812,9 @@ const translations = {
     downloadImage: "Download image",
     recompressTooltipText: "Re-compresses all non-immune images to the specified quality and max width. Good for standardizing images.",
     reduceSizeTooltipText: "Reduces the file size for all non-immune images by lowering their JPEG quality by 10%. Can be used multiple times. Visual size does not change.",
+    marginModeLabelText: "Calculate as margin",
+    markupLabel: "Markup (%)",
+    marginLabel: "Margin (%)",
   }
 };
 
@@ -821,23 +842,21 @@ function decryptCaesar(text, shift) {
     let localData = localStorage.getItem('quoteData');
     if(localData){
         try {
-            // First, try to parse as-is (for unencrypted legacy data)
             jsonData = JSON.parse(localData);
         } catch (e) {
-            // If parsing fails, assume it's encrypted and try to decrypt
             try {
                 jsonData = JSON.parse(decryptCaesar(localData, caesarShift));
             } catch (e2) {
                 console.error("Failed to parse or decrypt local storage data.", e2);
-                localData = null; // Force reset
+                localData = null; 
             }
         }
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -850,8 +869,9 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.useCustomCurrency === undefined) jsonData.quote.useCustomCurrency = false;
         if(jsonData.quote.customCurrency === undefined) jsonData.quote.customCurrency = 'EUR';
         if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
+        if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
-        if (jsonData.quote.totalLabel) { // Migrate old totalLabel
+        if (jsonData.quote.totalLabel) { 
             jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
             delete jsonData.quote.totalLabel;
         }
@@ -864,7 +884,7 @@ function decryptCaesar(text, shift) {
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
             if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
             if(it.vendorNotes === undefined) it.vendorNotes = "";
-            if(it.type === undefined && it.name !== undefined) it.type = 'item'; // Backward compatibility for separators
+            if(it.type === undefined && it.name !== undefined) it.type = 'item';
             (it.subItems || []).forEach(sIt => { 
                 if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
                 if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
@@ -876,7 +896,7 @@ function decryptCaesar(text, shift) {
             if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
             if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
             if(it.vendorNotes === undefined) it.vendorNotes = "";
-            if(it.type === undefined && it.name !== undefined) it.type = 'item'; // Backward compatibility for separators
+            if(it.type === undefined && it.name !== undefined) it.type = 'item';
             (it.subItems || []).forEach(sIt => { 
                 if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
                 if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
@@ -886,6 +906,7 @@ function decryptCaesar(text, shift) {
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         (jsonData.infoImages || []).forEach(it => {
             if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
+            if (it.centering === undefined) it.centering = 'default';
         });
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
@@ -928,12 +949,13 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
     if(q.customCurrency === undefined) q.customCurrency = 'EUR';
     if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
+    if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
     if(!q.labels) q.labels = {};
-    if (q.totalLabel) { // Migrate old totalLabel from loaded file
+    if (q.totalLabel) { 
         q.labels.totalLabel = q.totalLabel;
         delete q.totalLabel;
     }
-    if (!q.visibility) { // Backward compatibility for section visibility
+    if (!q.visibility) {
         q.visibility = { optional: true, info: true, terms: true };
     }
 
@@ -941,7 +963,6 @@ function loadQuoteData(data, loadedFileName=null){
     if(!Array.isArray(jsonData.terms))jsonData.terms=[];
     if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     
-    // --- BACKWARD COMPATIBILITY FOR NEW FLAGS ---
     (jsonData.items || []).forEach(it => { 
         if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
         if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
@@ -966,6 +987,7 @@ function loadQuoteData(data, loadedFileName=null){
     });
     (jsonData.infoImages || []).forEach(it => {
         if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
+        if (it.centering === undefined) it.centering = 'default';
     });
 
 
@@ -998,6 +1020,7 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('customCurrencyInput').value = q.customCurrency || 'EUR';
     document.getElementById("customCurrencyInput").style.display = (q.useCustomCurrency || false) ? 'inline-block' : 'none';
     document.getElementById('centerImagesChk').checked = q.centerImagesByDefault;
+    document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -1007,9 +1030,9 @@ function loadQuoteData(data, loadedFileName=null){
 
 function reRenderAll(){
     renumberAllItems(); 
-    const { distributionRatio } = updatePrices(); // Get ratio for vendor view
+    const { distributionRatio } = updatePrices();
     loadItems(jsonData.items,'itemsList', distributionRatio);
-    loadItems(jsonData.optionalItems,'optionalItemsList', 1); // No distribution for optional items
+    loadItems(jsonData.optionalItems,'optionalItemsList', 1);
     loadTerms(jsonData.terms);
     loadInfoImages();
     loadSignature();
@@ -1021,6 +1044,7 @@ function reRenderAll(){
     applySectionVisibility();
     updateSectionVisibilityCheckboxes();
     checkQuoteDate();
+    updateMarginLabel();
 }
 
 function buildPdfFileName() {
@@ -1069,7 +1093,6 @@ function updateLanguageUI(lang){
 
     if(!t)return;
 
-    // Set labels from translations, with override from jsonData
     document.getElementById('quoteTitle').textContent = labels.quoteTitle || t.quoteTitle;
     document.getElementById('quoteNumberLabel').childNodes[0].nodeValue = `${t.quoteNumberLabel} `;
     document.getElementById('dateLabel').childNodes[0].nodeValue = `${t.dateLabel} `;
@@ -1087,7 +1110,6 @@ function updateLanguageUI(lang){
     document.getElementById('termsHeading').textContent = labels.termsHeading || t.termsHeading;
     document.getElementById('totalLabel').textContent = labels.totalLabel || t.totalLabel;
     
-    // Buttons and other static text
     document.getElementById('addItemButton').textContent = t.addItemButton;
     document.getElementById('addSeparatorButton').textContent = t.addSeparator;
     document.getElementById('addOptionalItemButton').textContent = t.addOptionalItemButton;
@@ -1096,7 +1118,6 @@ function updateLanguageUI(lang){
     document.querySelector('.image-upload-container button[onclick="addPageBreak()"]').textContent = t.addPageBreak;
     document.querySelector('.image-upload-container button[onclick="reduceImageFileSizes()"]').textContent = t.reduceImageFileSizes;
     document.getElementById('toggleLanguageBtn').textContent = t.toggleLangBtn;
-    document.getElementById('marginLabel').textContent = `${t.marginLabel} `;
     document.getElementById('copyJsonBtn').textContent = t.copyJsonBtn;
     document.getElementById('defaultLogoWidthLabel').textContent = `${t.defaultLogoWidthLabel} `;
     document.getElementById('resetLogoSizeBtn').textContent = t.resetLogoSize;
@@ -1104,7 +1125,6 @@ function updateLanguageUI(lang){
     document.getElementById('recompressTooltipText').textContent = t.recompressTooltipText;
     document.getElementById('reduceSizeTooltipText').textContent = t.reduceSizeTooltipText;
     
-    // Checkbox labels
     document.querySelector('#removeTotalCheckboxLabel').lastChild.nodeValue = ` ${t.removeTotalLabelText}`;
     document.querySelector('#addSignatureCheckboxLabel').lastChild.nodeValue = ` ${t.addSignatureLabelText}`;
     document.querySelector('#toggleTillLabel').lastChild.nodeValue = ` ${t.hideTillSectionLabelText}`;
@@ -1112,14 +1132,13 @@ function updateLanguageUI(lang){
     document.querySelector('#useMultipleCurrenciesLabel').textContent = ` ${t.useMultipleCurrenciesLabelText}`;
     document.querySelector('#usdRateLabel').textContent = `${t.usdRateLabelText} `;
     document.querySelector('#eurRateLabel').textContent = `${t.eurRateLabelText} `;
+    document.querySelector('#marginModeLabel').textContent = ` ${t.marginModeLabelText}`;
 
-    // Section visibility controls
     document.getElementById('showSectionsLabel').textContent = t.showSectionsLabel;
     document.getElementById('showOptionalLabel').textContent = t.showOptionalLabel;
     document.getElementById('showInfoLabel').textContent = t.showInfoLabel;
     document.getElementById('showTermsLabel').textContent = t.showTermsLabel;
 
-    // Signature (check if custom text exists, otherwise use translation)
     if (jsonData.signature) {
         if (!jsonData.signature.lessorText || jsonData.signature.lessorText === translations[lang === 'sv' ? 'en' : 'sv'].signatureLessorLabel) {
             jsonData.signature.lessorText = t.signatureLessorLabel;
@@ -1133,6 +1152,7 @@ function updateLanguageUI(lang){
     calculateTotalPrice();
     updateDocumentTitle();
     loadSignature();
+    updateMarginLabel();
 }
 
 function updatePriceHeaders(){
@@ -1153,8 +1173,17 @@ function updatePriceHeaders(){
 function getPriceBreakdown(item, parentCurrencyOrigin) {
     const breakdown = {};
     const q = jsonData.quote;
+    const marginPercentage = parseFloat(q.marginPercentage) || 0;
+    let globalMultiplier = 1;
 
-    const globalMarginMultiplier = 1 + ((parseFloat(q.marginPercentage) || 0) / 100);
+    if (q.marginCalculationMode === 'margin') {
+        if (marginPercentage < 100) {
+            globalMultiplier = 1 / (1 - (marginPercentage / 100));
+        }
+    } else { // markup
+        globalMultiplier = 1 + (marginPercentage / 100);
+    }
+
     const itemMarginMultiplier = 1 + ((item.marginPercentage || 0) / 100);
 
     breakdown.originalPrice = item.originalPrice ?? item.subItemOriginalPrice ?? 0;
@@ -1176,10 +1205,11 @@ function getPriceBreakdown(item, parentCurrencyOrigin) {
     breakdown.priceInSEK = breakdown.originalPrice * breakdown.rate;
     breakdown.priceAfterLocalMargin = breakdown.priceInSEK * itemMarginMultiplier;
     breakdown.localMarginValue = breakdown.priceAfterLocalMargin - breakdown.priceInSEK;
-    const priceAfterGlobalMargin = breakdown.priceAfterLocalMargin * globalMarginMultiplier;
+    const priceAfterGlobalMargin = breakdown.priceAfterLocalMargin * globalMultiplier;
     breakdown.globalMarginValue = priceAfterGlobalMargin - breakdown.priceAfterLocalMargin;
     
     breakdown.finalPricePerUnit = priceAfterGlobalMargin;
+    breakdown.marginModeUsed = q.marginCalculationMode;
 
     return breakdown;
 }
@@ -1204,7 +1234,7 @@ function loadItems(items, containerId, distributionRatio = 1){
                 <div class="print-only"></div>
             `;
             container.appendChild(sepDiv);
-            return; // continue to next item in loop
+            return;
         }
 
         if (it.isPriceBakedIn === undefined) it.isPriceBakedIn = false;
@@ -1249,6 +1279,7 @@ function loadItems(items, containerId, distributionRatio = 1){
         const breakdown = getPriceBreakdown(it, null);
         const localSign = breakdown.localMarginValue >= 0 ? '+' : '-';
         const globalSign = breakdown.globalMarginValue >= 0 ? '+' : '-';
+        const globalMarginLabel = breakdown.marginModeUsed === 'margin' ? 'Marginal' : 'Pålägg';
         const priceAfterGlobalMargin = breakdown.finalPricePerUnit * (it.quantity || 0);
         const bakedAmount = it.targetPrice - priceAfterGlobalMargin;
 
@@ -1263,8 +1294,9 @@ function loadItems(items, containerId, distributionRatio = 1){
             <div>Original: ${formatNumber(breakdown.originalPrice.toFixed(2))} ${breakdown.currencyOrigin}</div>
             ${breakdown.rateText ? `<div>Kurs: ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK, true)} SEK</div>` : ''}
             <div>Lokal (${(it.marginPercentage || 0)}%): <i>${formatPrice(breakdown.priceInSEK, true)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue), true)} = <b>${formatPrice(breakdown.priceAfterLocalMargin, true)} SEK</b></div>
-            <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} SEK</b></div>
+            <div>Global (${globalMarginLabel} ${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} SEK</b></div>
             ${bakedInRow}
+            <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;">Total (Antal x Pris): <b>${formatPrice(breakdown.finalPricePerUnit * (it.quantity || 0), true)} SEK</b></div>
         `;
         itemDiv.appendChild(breakdownDiv);
 
@@ -1322,6 +1354,7 @@ function loadItems(items, containerId, distributionRatio = 1){
             const subBreakdown = getPriceBreakdown(sItem, it.currencyOrigin);
             const subLocalSign = subBreakdown.localMarginValue >= 0 ? '+' : '-';
             const subGlobalSign = subBreakdown.globalMarginValue >= 0 ? '+' : '-';
+            const subGlobalMarginLabel = subBreakdown.marginModeUsed === 'margin' ? 'Marginal' : 'Pålägg';
             const subPriceAfterGlobalMargin = subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0);
             const subBakedAmount = sItem.subItemTargetPrice - subPriceAfterGlobalMargin;
 
@@ -1336,8 +1369,9 @@ function loadItems(items, containerId, distributionRatio = 1){
                 <div>Original: ${formatNumber(subBreakdown.originalPrice.toFixed(2))} ${subBreakdown.currencyOrigin}</div>
                 ${subBreakdown.rateText ? `<div>Kurs: ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK, true)} SEK</div>` : ''}
                 <div>Lokal (${(sItem.marginPercentage || 0)}%): <i>${formatPrice(subBreakdown.priceInSEK, true)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue), true)} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin, true)} SEK</b></div>
-                <div>Global (${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} SEK</b></div>
+                <div>Global (${subGlobalMarginLabel} ${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} SEK</b></div>
                 ${subBakedInRow}
+                <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;">Total (Antal x Pris): <b>${formatPrice(subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0), true)} SEK</b></div>
             `;
             included.appendChild(subBreakdownDiv);
 
@@ -1373,7 +1407,7 @@ function duplicateItem(containerId, index) {
     const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
     if (list && list[index]) {
         const itemToCopy = list[index];
-        if (itemToCopy.type === 'separator') return; // Don't duplicate separators
+        if (itemToCopy.type === 'separator') return;
         const newItem = JSON.parse(JSON.stringify(itemToCopy));
         delete newItem.id; 
         list.splice(index + 1, 0, newItem);
@@ -1403,7 +1437,7 @@ function loadTerms(terms){
     const list=document.getElementById('termsList'); list.innerHTML='';
     (terms || []).forEach((t, i)=>{
         const termDiv = document.createElement('div');
-        termDiv.className = 'term-item info-block'; // Re-use info-block class for hover effects
+        termDiv.className = 'term-item info-block';
         termDiv.dataset.index = i;
         termDiv.innerHTML = `
             <div class="controls-row screen-only">
@@ -1433,11 +1467,11 @@ function duplicateTerm(index) {
 function loadInfoImages(){
     const c=document.getElementById('infoImagesList'); 
     c.innerHTML='';
-    c.style.textAlign = jsonData.quote.centerImagesByDefault ? 'center' : 'left';
+    c.className = jsonData.quote.centerImagesByDefault ? 'globally-centered' : '';
 
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
-        block.className='info-block'; 
+        block.className=`info-block centering-${obj.centering || 'default'}`; 
         block.dataset.index=idx;
 
         const contentWrapper = document.createElement('div');
@@ -1482,7 +1516,13 @@ function loadInfoImages(){
         const controls = document.createElement('div');
         controls.className = 'controls-row screen-only';
         const immune = obj.compressionImmune || false;
+        const centering = obj.centering || 'default';
+        let centeringIcon = '◐'; // Default
+        if (centering === 'center') centeringIcon = '●';
+        if (centering === 'left') centeringIcon = '◧';
+
         let commonControls = `
+            <span class="control-btn" title="Centrering" onclick="toggleInfoItemCentering(${idx})">${centeringIcon}</span>
             <span class="control-btn" title="Flytta längst upp" onclick="moveInfoItemToTop(${idx})">🔝</span>
             <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
             <span class="drag-handle">≡</span>
@@ -1534,11 +1574,11 @@ function duplicateInfoItem(index) {
         reRenderAll();
     }
 }
-function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText }); saveToLocal(); reRenderAll(); }
+function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'default' }); saveToLocal(); reRenderAll(); }
 function addTable(){
     const rows=prompt('Antal rader','3'); const cols=prompt('Antal kolumner','3');
     if(rows && cols){
-        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')) });
+        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'default' });
         saveToLocal(); reRenderAll();
     }
 }
@@ -1549,11 +1589,11 @@ function addPageBreak() {
 }
 function addImageFromUrl(){
     const url=prompt(translations[currentLanguage].promptImageUrl);
-    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false }); saveToLocal(); reRenderAll(); }
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'default' }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
-        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false }); saveToLocal(); reRenderAll(); };
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'default' }); saveToLocal(); reRenderAll(); };
         if(document.getElementById('compressImagesChk').checked){
             const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
             const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
@@ -1774,16 +1814,27 @@ function downloadImage(index) {
 }
 
 function updatePrices(){
-    const globalMarginMultiplier = 1 + ((parseFloat(jsonData.quote.marginPercentage) || 0) / 100);
-    const useMultiCurrency = jsonData.quote.useMultipleCurrencies;
-    const singleMultiplier = parseFloat(jsonData.quote.currencyMultiplicator) || 1;
-    const usdRate = parseFloat(jsonData.quote.usdToSekRate) || 10.5;
-    const eurRate = parseFloat(jsonData.quote.eurToSekRate) || 11.5;
+    const q = jsonData.quote;
+    const marginPercentage = parseFloat(q.marginPercentage) || 0;
+    let globalMultiplier = 1;
+
+    if (q.marginCalculationMode === 'margin') {
+        if (marginPercentage < 100) {
+            globalMultiplier = 1 / (1 - (marginPercentage / 100));
+        }
+    } else { // markup
+        globalMultiplier = 1 + (marginPercentage / 100);
+    }
+
+    const useMultiCurrency = q.useMultipleCurrencies;
+    const singleMultiplier = parseFloat(q.currencyMultiplicator) || 1;
+    const usdRate = parseFloat(q.usdToSekRate) || 10.5;
+    const eurRate = parseFloat(q.eurToSekRate) || 11.5;
 
     const calculateEntityPrice = (item, parentCurrencyOrigin) => {
         const itemMarginMultiplier = 1 + ((item.marginPercentage || 0) / 100);
         let originalPrice = item.originalPrice ?? item.subItemOriginalPrice ?? 0;
-        let currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (jsonData.quote.useCustomCurrency && jsonData.quote.customCurrency) || 'SEK').toUpperCase();
+        let currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (q.useCustomCurrency && q.customCurrency) || 'SEK').toUpperCase();
         
         let basePriceInSEK = originalPrice;
         if (currencyOrigin !== 'SEK') {
@@ -1795,14 +1846,12 @@ function updatePrices(){
                 basePriceInSEK *= singleMultiplier;
             }
         }
-        // Apply local margin first, then global margin
-        return (basePriceInSEK * itemMarginMultiplier) * globalMarginMultiplier;
+        return (basePriceInSEK * itemMarginMultiplier) * globalMultiplier;
     };
 
     let totalToDistribute = 0;
     let distributionPoolTotal = 0;
     
-    // First pass: Calculate all individual prices and identify main item distribution pool
     jsonData.items.filter(it => it.type !== 'separator').forEach(item => {
         let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
         let subItemsPrice = 0;
@@ -1821,16 +1870,14 @@ function updatePrices(){
     
     const distributionRatio = distributionPoolTotal > 0 ? 1 + (totalToDistribute / distributionPoolTotal) : 1;
 
-    // Second pass: Distribute baked-in main item prices and set final display prices
     jsonData.items.filter(it => it.type !== 'separator').forEach(item => {
         if (item.isPriceBakedIn || item.isHiddenFromPrint) {
             item.targetPrice = 0;
-            (item.subItems || []).forEach(s => s.subItemTargetPrice = 0); // Their price is part of the distributed total
+            (item.subItems || []).forEach(s => s.subItemTargetPrice = 0);
         } else {
             let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
             let bakedInSubItemsPrice = 0;
             (item.subItems || []).forEach(s => {
-                // Recalculate sub-item price as it might be affected by distribution
                 s.subItemTargetPrice = calculateEntityPrice(s, item.currencyOrigin) * (s.subItemQuantity || 0) * distributionRatio;
                 if (s.isPriceBakedIn || s.isHiddenFromPrint) {
                     bakedInSubItemsPrice += s.subItemTargetPrice;
@@ -1840,7 +1887,6 @@ function updatePrices(){
         }
     });
 
-    // Third pass: Calculate prices for optional items (no distribution)
     jsonData.optionalItems.filter(it => it.type !== 'separator').forEach(item => {
         let itemOwnPrice = calculateEntityPrice(item, null) * (item.quantity || 0);
         let bakedInSubItemsPrice = 0;
@@ -1858,12 +1904,8 @@ function updatePrices(){
 
 function calculateTotalPrice(){
     let total = 0;
-    // ONLY process jsonData.items for the main total
     jsonData.items.filter(it => it.type !== 'separator').forEach(item => {
-        // Add the parent item's price, which already includes its own price and its baked-in sub-items.
         total += (item.targetPrice || 0);
-        
-        // Add prices of non-baked-in sub-items.
         (item.subItems || []).forEach(sItem => {
             if (!sItem.isPriceBakedIn && !sItem.isHiddenFromPrint) {
                 total += (sItem.subItemTargetPrice || 0);
@@ -1966,11 +2008,9 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
         r.onload=(e)=>{ 
             const fileContent = e.target.result.replace(/–/g, '-');
             try {
-                // Try parsing directly first for backward compatibility
                 loadQuoteData(JSON.parse(fileContent), f.name);
                 saveToLocal();
             } catch (err) {
-                // If it fails, try decrypting and then parsing
                 try {
                     const decryptedContent = decryptCaesar(fileContent, caesarShift);
                     loadQuoteData(JSON.parse(decryptedContent), f.name);
@@ -2075,12 +2115,11 @@ function onEditableInput(e){
     const target = e.target; 
     const field=target.dataset.field;
 
-    // Handle custom labels for headings, titles, etc.
     if (field && (field.endsWith('Heading') || field.endsWith('Header') || field.endsWith('Label') || field === 'quoteTitle')) {
         if (!jsonData.quote.labels) jsonData.quote.labels = {};
         jsonData.quote.labels[field] = target.textContent;
         saveToLocal();
-        if (field.includes('Price')) updatePriceHeaders(); // Update currency symbol if price header changes
+        if (field.includes('Price')) updatePriceHeaders();
         if (field === 'quoteTitle') updateDocumentTitle();
         return;
     }
@@ -2303,7 +2342,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Add touch listener for quantity buttons on mobile
     document.addEventListener('touchstart', function(e) {
         const activeContainers = document.querySelectorAll('.input-container.mobile-active');
         const tappedContainer = e.target.closest('.input-container');
@@ -2370,10 +2408,8 @@ document.getElementById('pdfUploadInput').addEventListener('change', async funct
     try { 
         let extractedJson = fullText.substring(start, end + 1);
         try {
-            // Try parsing directly
             loadQuoteData(JSON.parse(extractedJson), file.name);
         } catch (e) {
-            // If that fails, try decrypting
             extractedJson = decryptCaesar(extractedJson, caesarShift);
             loadQuoteData(JSON.parse(extractedJson), file.name);
         }
@@ -2424,15 +2460,12 @@ function toggleListStyle(prefix) {
     const fullPrefix = prefix + ' ';
     const regex = new RegExp(`^${prefix}\\s?`, 'gm');
 
-    // Check if the first non-empty line starts with the prefix
     const isPrefixed = html.split(/<br\s*\/?>/g).find(line => line.trim() !== '')?.trim().startsWith(prefix);
 
     let newHtml;
     if (isPrefixed) {
-        // Remove prefixes
         newHtml = html.split(/<br\s*\/?>/g).map(line => line.replace(regex, '')).join('<br>');
     } else {
-        // Add prefixes
         newHtml = html.split(/<br\s*\/?>/g).map(line => {
             const trimmed = line.trim();
             return trimmed ? fullPrefix + trimmed : line;
@@ -2452,7 +2485,7 @@ function mapItemToSubItem(item) {
         marginPercentage: item.marginPercentage,
         currencyOrigin: item.currencyOrigin,
         subItems: item.subItems || [],
-        isPriceBakedIn: false, // Sub-items are not baked-in by default when converted
+        isPriceBakedIn: false,
         isHiddenFromPrint: false,
         vendorNotes: item.vendorNotes || "",
     };
@@ -2532,7 +2565,6 @@ function toggleItemOptionality(containerId, mainIndex) {
     }
 }
 
-// Item/Sub-item Movement Functions
 function moveItemUp(containerId, index) {
     const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
     if (index > 0) {
@@ -2570,7 +2602,6 @@ function moveSubItemDown(containerId, mainIndex, subIndex) {
     }
 }
 
-// Term Movement Functions
 function moveTermUp(idx){
     if(idx > 0 && jsonData.terms){
         [jsonData.terms[idx], jsonData.terms[idx-1]] = [jsonData.terms[idx-1], jsonData.terms[idx]];
@@ -2586,13 +2617,12 @@ function moveTermDown(idx){
     }
 }
 
-// Image Size Adjustment for Mobile
 function adjustImageSize(index, factor) {
     if (jsonData.infoImages && jsonData.infoImages[index] && jsonData.infoImages[index].type === 'image') {
         const imgData = jsonData.infoImages[index];
         let currentWidth = parseFloat(imgData.width) || 400;
         let newWidth = currentWidth * factor;
-        if (newWidth < 50) newWidth = 50; // Prevent disappearing
+        if (newWidth < 50) newWidth = 50;
         imgData.width = newWidth;
         saveToLocal();
         reRenderAll();
@@ -2683,7 +2713,6 @@ function toggleHiddenFromPrintSubItem(containerId, mainIndex, subIndex) {
 }
 
 
-// --- Section Visibility ---
 function applySectionVisibility() {
     const visibility = jsonData.quote.visibility || {};
     document.getElementById('optionalSectionContainer').style.display = visibility.optional ? '' : 'none';
@@ -2709,7 +2738,6 @@ document.getElementById('sectionVisibilityControls').addEventListener('change', 
     }
 });
 
-// --- Logo Handling ---
 function setupLogo() {
     const logoContainer = document.getElementById('logoContainer');
     const logoImg = document.getElementById('companyLogo');
@@ -2729,12 +2757,10 @@ function setupLogo() {
         uploadBtn.style.display = 'none';
         logoImg.style.width = (manualWidth || defaultWidth) + 'px';
     } else if (logoImg.getAttribute('src')) {
-        // Default logo is present
         logoContainer.style.display = 'inline-block';
         uploadBtn.style.display = 'none';
         logoImg.style.width = (manualWidth || defaultWidth) + 'px';
     } else {
-        // No logo at all
         logoContainer.style.display = 'none';
         uploadBtn.style.display = 'inline-block';
     }
@@ -2764,7 +2790,6 @@ function setupLogo() {
                 localStorage.setItem('companyLogo', dataUrl);
                 logoContainer.style.display = 'inline-block';
                 uploadBtn.style.display = 'none';
-                // When new logo is uploaded, reset its size to default
                 localStorage.removeItem('logoWidth');
                 logoImg.style.width = (jsonData.quote.defaultLogoWidth || 200) + 'px';
             };
@@ -2775,7 +2800,6 @@ function setupLogo() {
     initializeResize(resizeHandle, logoImg, 'logo');
 }
 
-// --- Baked Price Visibility ---
 document.getElementById('showBakedItemPrices').addEventListener('change', function() {
     document.body.classList.toggle('show-baked-item-prices', this.checked);
 });
@@ -2786,7 +2810,6 @@ document.getElementById('vendorModeCheck').addEventListener('change', function()
     document.body.classList.toggle('vendor-print-mode', this.checked);
 });
 
-// --- Unencrypted JSON Download ---
 document.getElementById('saveJsonUnencrypted').addEventListener('click', () => {
     if (!checkQuoteDate(true)) return;
     const fileName = buildFileName(jsonData.quote.reference, 1).replace('.json', '_unencrypted.json');
@@ -2800,7 +2823,7 @@ document.getElementById('saveJsonUnencrypted').addEventListener('click', () => {
 
 document.getElementById('saveJsonUnencryptedNoImg').addEventListener('click', () => {
     if (!checkQuoteDate(true)) return;
-    const dataToSave = JSON.parse(JSON.stringify(jsonData)); // Deep copy
+    const dataToSave = JSON.parse(JSON.stringify(jsonData));
     if (dataToSave.infoImages) {
         dataToSave.infoImages.forEach(img => {
             if (img.type === 'image' && img.src) {
@@ -2817,12 +2840,11 @@ document.getElementById('saveJsonUnencryptedNoImg').addEventListener('click', ()
     dl.remove();
 });
 
-// --- Date Warning Logic ---
 function getTodaysDateString() {
     return new Date().toLocaleDateString('sv-SE');
 }
 
-function checkQuoteDate(isAction = false) { // isAction is true if called before save/print
+function checkQuoteDate(isAction = false) {
     const warningContainer = document.getElementById('dateWarningContainer');
     const warningText = document.getElementById('dateWarningText');
     const quoteDateStr = document.getElementById('quoteDate').textContent.trim();
@@ -2830,18 +2852,16 @@ function checkQuoteDate(isAction = false) { // isAction is true if called before
 
     if (!quoteDateStr || quoteDateStr === todayStr) {
         warningContainer.style.display = 'none';
-        return true; // Date is OK
+        return true;
     }
 
-    // Date is not today, show persistent warning
     warningText.textContent = `Offertens datum (${quoteDateStr}) är inte dagens datum.`;
     warningContainer.style.display = 'block';
 
-    // Check if it's more than 30 days old for the popup
     const quoteDateParts = quoteDateStr.split('-').map(Number);
     const quoteDate = new Date(quoteDateParts[0], quoteDateParts[1] - 1, quoteDateParts[2]);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today's date
+    today.setHours(0, 0, 0, 0);
     
     const diffTime = today - quoteDate;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -2853,11 +2873,11 @@ function checkQuoteDate(isAction = false) { // isAction is true if called before
                 sessionStorage.setItem('dateWarningShown', 'true');
                 return true;
             } else {
-                return false; // User cancelled action
+                return false;
             }
         }
     }
-    return true; // Proceed without popup if already shown or not an action
+    return true;
 }
 
 document.getElementById('updateDateBtn').addEventListener('click', () => {
@@ -2865,8 +2885,38 @@ document.getElementById('updateDateBtn').addEventListener('click', () => {
     document.getElementById('quoteDate').textContent = todayStr;
     jsonData.quote.date = todayStr;
     saveToLocal();
-    checkQuoteDate(); // This will hide the warning
+    checkQuoteDate();
 });
+
+// --- New Features Logic ---
+document.getElementById('marginModeChk').addEventListener('change', function() {
+    jsonData.quote.marginCalculationMode = this.checked ? 'margin' : 'markup';
+    saveToLocal();
+    reRenderAll();
+});
+
+function updateMarginLabel() {
+    const isMarginMode = document.getElementById('marginModeChk').checked;
+    const label = document.getElementById('marginLabel');
+    const t = translations[currentLanguage];
+    label.textContent = isMarginMode ? t.marginLabel : t.markupLabel;
+}
+
+function toggleInfoItemCentering(index) {
+    const item = jsonData.infoImages[index];
+    if (!item) return;
+    const current = item.centering || 'default';
+    // Cycle: default -> center -> left -> default
+    if (current === 'default') {
+        item.centering = 'center';
+    } else if (current === 'center') {
+        item.centering = 'left';
+    } else {
+        item.centering = 'default';
+    }
+    saveToLocal();
+    reRenderAll();
+}
 
 </script>
 </body>
