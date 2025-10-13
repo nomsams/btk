@@ -1,4 +1,4 @@
-<!-- Version 92 -- Conditional Filename, Enhanced Compression UI, Image Download -->
+<!-- Version 93 -- Filename Fix, Custom Currency Save, UI/UX Enhancements, Date Warning -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -262,7 +262,7 @@ input[type="number"] { -moz-appearance: textfield; }
 .term-item:hover { background-color: #fafafa; }
 .term-item .controls-row {
     display: none; /* Hide by default */
-    position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column;
+    position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column; gap: 2px;
 }
 .term-item:hover .controls-row {
     display: inline-flex; /* Show on hover */
@@ -325,6 +325,12 @@ h3.name.editable { margin-bottom: 0 !important; }
 #infoImagesList .info-block-fullwidth .controls-row {
     position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column;
 }
+
+.controls-row .control-btn {
+    cursor: pointer;
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; font-size: 14px;
+}
+.controls-row .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
 
 .controls-row .remove-icon { 
     position: static; display: inline-flex; align-items:center; justify-content:center;
@@ -479,6 +485,8 @@ body.vendor-print-mode .vendor-item-notes {
   <button id="italic-btn" title="Kursiv (Ctrl+I)"><i>I</i></button>
   <button id="bullet-btn" title="Punktlista">•</button>
   <button id="dash-btn" title="Strecklista">-</button>
+  <button id="ul-btn" title="Punktlista (HTML)">&#x2022; List</button>
+  <button id="ol-btn" title="Numrerad lista (HTML)">1. List</button>
 </div>
 
 <div id="quoteContent">
@@ -508,6 +516,7 @@ body.vendor-print-mode .vendor-item-notes {
     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
+        <label><input type="checkbox" id="centerImagesChk" /> Centrera bilder globalt</label>
         <div id="compressionOptionsWrapper" style="display: inline-flex; align-items: center; gap: 5px;">
              <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
              <div id="compressionOptions" style="display: inline-flex; align-items: center; gap: 5px;">
@@ -680,6 +689,13 @@ body.vendor-print-mode .vendor-item-notes {
     </div>
     <button class="footer-button" id="savePdfBtn">Spara som PDF</button>
     <button id="printBtn" class="footer-button">Print</button>
+    <br>
+    <button id="saveJsonUnencrypted" class="footer-button" style="background-color: #f0ad4e;">Spara JSON (okrypterad)</button>
+    <button id="saveJsonUnencryptedNoImg" class="footer-button" style="background-color: #f0ad4e;">Spara JSON (okrypterad, utan bilder)</button>
+    <div id="dateWarningContainer" style="margin-top: 10px; color: red; font-weight: bold; display: none;">
+        <span id="dateWarningText"></span>
+        <button id="updateDateBtn" class="footer-button" style="margin-left: 10px; background-color: #5bc0de;">Uppdatera datum</button>
+    </div>
     <div class="status-message" id="statusMessage"></div>
 </div>
 
@@ -701,7 +717,7 @@ const translations = {
     quantityHeader: "Antal", priceHeader: "Pris", addItemButton: "+ Lägg till ny artikel",
     optionalItemsHeading: "Alternativ / Ytterligare Artiklar", infoImagesHeading: "Info / Bilder",
     termsHeading: "Villkor", addOptionalItemButton: "+ Lägg till ny artikel", addTermButton: "+ Lägg till villkor",
-    customCurrencyLabelText: "Använd egen valuta", toggleLangBtn: "Byt Språk (SV/EN)", newTermText: "Nytt villkor: Klicka för att redigera",
+    customCurrencyLabelText: "Använd egen valuta", toggleLangBtn: "Byt Språk (SV/EN)", newTermText: "<b>Nytt villkor:</b> Klicka för att redigera",
     newArticleName: "Artikel Namn", newAltArticleName: "Alternativ Artikel Namn", newDescription: "Beskrivning",
     newOptionalItemDescription: "Standardbeskrivning för alternativ artikel", 
     newSubItemName: "Underpost Namn", 
@@ -743,7 +759,7 @@ const translations = {
     quantityHeader: "Quantity", priceHeader: "Price", addItemButton: "+ Add new item",
     optionalItemsHeading: "Alternative / Additional Items", infoImagesHeading: "Info / Images",
     termsHeading: "Terms", addOptionalItemButton: "+ Add new item", addTermButton: "+ Add a term",
-    customCurrencyLabelText: "Use custom currency", toggleLangBtn: "Toggle Language (SV/EN)", newTermText: "New term: Click to edit",
+    customCurrencyLabelText: "Use custom currency", toggleLangBtn: "Toggle Language (SV/EN)", newTermText: "<b>New term:</b> Click to edit",
     newArticleName: "Article Name", newAltArticleName: "Alternative Article Name", newDescription: "Description",
     newOptionalItemDescription: "Default description for optional item", 
     newSubItemName: "Sub Item Name", 
@@ -819,9 +835,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200 };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -831,6 +847,9 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.showTillSection === undefined) jsonData.quote.showTillSection = true;
         if(jsonData.quote.removeTotal === undefined) jsonData.quote.removeTotal = false;
         if(jsonData.quote.defaultLogoWidth === undefined) jsonData.quote.defaultLogoWidth = 200;
+        if(jsonData.quote.useCustomCurrency === undefined) jsonData.quote.useCustomCurrency = false;
+        if(jsonData.quote.customCurrency === undefined) jsonData.quote.customCurrency = 'EUR';
+        if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { // Migrate old totalLabel
             jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
@@ -906,6 +925,9 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.showTillSection === undefined) q.showTillSection = true;
     if(q.removeTotal === undefined) q.removeTotal = false;
     if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
+    if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
+    if(q.customCurrency === undefined) q.customCurrency = 'EUR';
+    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { // Migrate old totalLabel from loaded file
         q.labels.totalLabel = q.totalLabel;
@@ -972,6 +994,10 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
     applyTillSectionVisibility();
     document.getElementById('removeTotalCheck').checked = q.removeTotal || false;
+    document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency || false;
+    document.getElementById('customCurrencyInput').value = q.customCurrency || 'EUR';
+    document.getElementById("customCurrencyInput").style.display = (q.useCustomCurrency || false) ? 'inline-block' : 'none';
+    document.getElementById('centerImagesChk').checked = q.centerImagesByDefault;
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -994,6 +1020,7 @@ function reRenderAll(){
     updatePrintMultiplier(); 
     applySectionVisibility();
     updateSectionVisibilityCheckboxes();
+    checkQuoteDate();
 }
 
 function buildPdfFileName() {
@@ -1011,7 +1038,13 @@ function buildPdfFileName() {
     }
 
     const parts = [ title, ref, tillWords, quoteNum ];
-    const safeParts = parts.filter(Boolean).map(p => p.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, ' '));
+    const safeParts = parts.filter(Boolean).map(p => {
+        const withReplacements = p
+            .replace(/ä/gi, 'a')
+            .replace(/å/gi, 'a')
+            .replace(/ö/gi, 'o');
+        return withReplacements.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, ' ').trim();
+    });
     return safeParts.join(' - ') + '.pdf';
 }
 
@@ -1377,6 +1410,7 @@ function loadTerms(terms){
                 <span class="info-image-up" onclick="moveTermUp(${i})">▲</span>
                 <span class="drag-handle">≡</span>
                 <span class="info-image-down" onclick="moveTermDown(${i})">▼</span>
+                <button class="control-btn" title="Klona" style="font-size:12px; width:20px; height:20px;" onclick="duplicateTerm(${i})">❏</button>
                 <span class="remove-icon" onclick="removeTerm(${i})">✖</span>
             </div>
             <div class="content-wrapper">
@@ -1387,9 +1421,20 @@ function loadTerms(terms){
     });
 }
 function removeTerm(i){ jsonData.terms.splice(i,1); saveToLocal(); reRenderAll(); }
+function duplicateTerm(index) {
+    if (jsonData.terms && jsonData.terms[index] !== undefined) {
+        const termToCopy = jsonData.terms[index];
+        jsonData.terms.splice(index + 1, 0, termToCopy);
+        saveToLocal();
+        reRenderAll();
+    }
+}
 
 function loadInfoImages(){
-    const c=document.getElementById('infoImagesList'); c.innerHTML='';
+    const c=document.getElementById('infoImagesList'); 
+    c.innerHTML='';
+    c.style.textAlign = jsonData.quote.centerImagesByDefault ? 'center' : 'left';
+
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
         block.className='info-block'; 
@@ -1436,23 +1481,24 @@ function loadInfoImages(){
         
         const controls = document.createElement('div');
         controls.className = 'controls-row screen-only';
+        const immune = obj.compressionImmune || false;
+        let commonControls = `
+            <span class="control-btn" title="Flytta längst upp" onclick="moveInfoItemToTop(${idx})">🔝</span>
+            <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
+            <span class="drag-handle">≡</span>
+            <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
+            <button class="control-btn" title="Klona" onclick="duplicateInfoItem(${idx})">❏</button>
+            <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+
         if (obj.type === 'image') {
-            const immune = obj.compressionImmune || false;
             controls.innerHTML = `
                 <span class="control-btn" title="${translations[currentLanguage].downloadImage}" onclick="downloadImage(${idx})">⤓</span>
                 <span class="control-btn" id="immuneBtn_${idx}" title="${translations[currentLanguage].toggleCompressionImmune}" onclick="toggleCompressionImmune(${idx})" style="background-color: ${immune ? '#6c757d' : ''}; color: ${immune ? 'white' : ''};">🛡️</span>
                 <span class="info-image-up" title="Större (+10%)" onclick="adjustImageSize(${idx}, 1.10)">+</span>
                 <span class="info-image-down" title="Mindre (-5%)" onclick="adjustImageSize(${idx}, 0.95)">-</span>
-                <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
-                <span class="drag-handle">≡</span>
-                <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
-                <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+                ${commonControls}`;
         } else {
-             controls.innerHTML = `
-                <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
-                <span class="drag-handle">≡</span>
-                <span class="info-image-down" onclick="moveImageDown(${idx})">▼</span>
-                <span class="remove-icon" onclick="removeInfoItem(${idx})">✖</span>`;
+             controls.innerHTML = commonControls;
         }
         
         block.appendChild(controls); 
@@ -1479,6 +1525,15 @@ function loadSignature() {
     }
 }
 function removeInfoItem(idx){ jsonData.infoImages.splice(idx,1); saveToLocal(); reRenderAll(); }
+function duplicateInfoItem(index) {
+    if (jsonData.infoImages && jsonData.infoImages[index]) {
+        const itemToCopy = jsonData.infoImages[index];
+        const newItem = JSON.parse(JSON.stringify(itemToCopy));
+        jsonData.infoImages.splice(index + 1, 0, newItem);
+        saveToLocal();
+        reRenderAll();
+    }
+}
 function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText }); saveToLocal(); reRenderAll(); }
 function addTable(){
     const rows=prompt('Antal rader','3'); const cols=prompt('Antal kolumner','3');
@@ -1552,6 +1607,14 @@ function removeSignatureBlock(index) {
 
 function moveImageUp(idx){ if(idx>0){ [jsonData.infoImages[idx], jsonData.infoImages[idx-1]] = [jsonData.infoImages[idx-1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
 function moveImageDown(idx){ if(idx<jsonData.infoImages.length-1){ [jsonData.infoImages[idx], jsonData.infoImages[idx+1]] = [jsonData.infoImages[idx+1], jsonData.infoImages[idx]]; saveToLocal(); reRenderAll(); } }
+function moveInfoItemToTop(index) {
+    if (index > 0 && jsonData.infoImages && jsonData.infoImages[index]) {
+        const [itemToMove] = jsonData.infoImages.splice(index, 1);
+        jsonData.infoImages.unshift(itemToMove);
+        saveToLocal();
+        reRenderAll();
+    }
+}
 
 function compressImageFromFile(file, quality, maxWidth, callback){
     const reader=new FileReader();
@@ -1852,6 +1915,7 @@ document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.c
 document.getElementById('showProjectNumber').addEventListener('change', function(){ document.getElementById('projectNumberDiv').style.display=this.checked?'block':'none'; jsonData.quote.projectNumberVisible = this.checked; saveToLocal(); });
 document.getElementById('addSignatureCheck').addEventListener('change', function(){ document.getElementById('signatureSection').style.display=this.checked?'block':'none'; jsonData.quote.showSignature = this.checked; saveToLocal(); });
 document.getElementById('toggleTillSectionChk').addEventListener('change', function(){ jsonData.quote.showTillSection = this.checked; applyTillSectionVisibility(); saveToLocal(); updatePdfFileNameInput(); });
+document.getElementById('centerImagesChk').addEventListener('change', function() { jsonData.quote.centerImagesByDefault = this.checked; saveToLocal(); reRenderAll(); });
 
 document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
@@ -2102,7 +2166,7 @@ function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
 }
 function buildFileName(ref, version){ const datePart= new Date().toISOString().slice(2,10).replace(/-/g,''); const safeRef = (ref||'').trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50); return `${safeRef || 'offert'}_${datePart}_v${version}.json`; }
 function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(encryptCaesar(JSON.stringify(jsonData,null,2), caesarShift)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
-document.getElementById('saveJson').addEventListener('click',()=>{ doDownloadJson(buildFileName(jsonData.quote.reference,1)); });
+document.getElementById('saveJson').addEventListener('click',()=>{ if (checkQuoteDate(true)) { doDownloadJson(buildFileName(jsonData.quote.reference,1)); } });
 
 function copyJsonToClipboard(){
     const dataToCopy = JSON.parse(JSON.stringify(jsonData));
@@ -2115,7 +2179,7 @@ function copyJsonToClipboard(){
         setTimeout(() => { msgEl.textContent = '' }, 3000);
     });
 }
-document.getElementById('printBtn').addEventListener('click', () => window.print());
+document.getElementById('printBtn').addEventListener('click', () => { if (checkQuoteDate(true)) { window.print(); } });
 function saveToLocal(){ localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift)); }
 
 window.onload=()=>{ 
@@ -2191,6 +2255,7 @@ async function fetchLiveCurrencyRates() {
 document.addEventListener('DOMContentLoaded', function () {
     const savePdfBtn = document.getElementById('savePdfBtn');
     savePdfBtn.addEventListener('click', async () => {
+        if (!checkQuoteDate(true)) return;
         const bodyEl = document.body;
         const wasInVendorMode = bodyEl.classList.contains('vendor-print-mode');
         if (wasInVendorMode) {
@@ -2225,7 +2290,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault();
             if (jsonData && jsonData.quote && typeof buildFileName === 'function' && typeof doDownloadJson === 'function') {
-                doDownloadJson(buildFileName(jsonData.quote.reference, 1));
+                if (checkQuoteDate(true)) {
+                    doDownloadJson(buildFileName(jsonData.quote.reference, 1));
+                }
             } else {
                 console.warn("Cannot save: jsonData or helper functions not ready.");
             }
@@ -2338,7 +2405,8 @@ function setupFormattingToolbar() {
     document.getElementById('italic-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('italic'); });
     document.getElementById('bullet-btn').addEventListener('mousedown', (e) => { e.preventDefault(); toggleListStyle('•'); });
     document.getElementById('dash-btn').addEventListener('mousedown', (e) => { e.preventDefault(); toggleListStyle('-'); });
-
+    document.getElementById('ul-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('insertUnorderedList'); });
+    document.getElementById('ol-btn').addEventListener('mousedown', (e) => { e.preventDefault(); document.execCommand('insertOrderedList'); });
 }
 function hideFormattingToolbar() {
     if (toolbar) toolbar.style.display = 'none';
@@ -2718,6 +2786,87 @@ document.getElementById('vendorModeCheck').addEventListener('change', function()
     document.body.classList.toggle('vendor-print-mode', this.checked);
 });
 
+// --- Unencrypted JSON Download ---
+document.getElementById('saveJsonUnencrypted').addEventListener('click', () => {
+    if (!checkQuoteDate(true)) return;
+    const fileName = buildFileName(jsonData.quote.reference, 1).replace('.json', '_unencrypted.json');
+    const dl = document.createElement('a');
+    dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData, null, 2));
+    dl.download = fileName;
+    document.body.appendChild(dl);
+    dl.click();
+    dl.remove();
+});
+
+document.getElementById('saveJsonUnencryptedNoImg').addEventListener('click', () => {
+    if (!checkQuoteDate(true)) return;
+    const dataToSave = JSON.parse(JSON.stringify(jsonData)); // Deep copy
+    if (dataToSave.infoImages) {
+        dataToSave.infoImages.forEach(img => {
+            if (img.type === 'image' && img.src) {
+                img.src = `DELETED_FOR_EXPORT_SIZE:${(img.src.length / 1024).toFixed(1)}kB`;
+            }
+        });
+    }
+    const fileName = buildFileName(jsonData.quote.reference, 1).replace('.json', '_unencrypted_no-images.json');
+    const dl = document.createElement('a');
+    dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave, null, 2));
+    dl.download = fileName;
+    document.body.appendChild(dl);
+    dl.click();
+    dl.remove();
+});
+
+// --- Date Warning Logic ---
+function getTodaysDateString() {
+    return new Date().toLocaleDateString('sv-SE');
+}
+
+function checkQuoteDate(isAction = false) { // isAction is true if called before save/print
+    const warningContainer = document.getElementById('dateWarningContainer');
+    const warningText = document.getElementById('dateWarningText');
+    const quoteDateStr = document.getElementById('quoteDate').textContent.trim();
+    const todayStr = getTodaysDateString();
+
+    if (!quoteDateStr || quoteDateStr === todayStr) {
+        warningContainer.style.display = 'none';
+        return true; // Date is OK
+    }
+
+    // Date is not today, show persistent warning
+    warningText.textContent = `Offertens datum (${quoteDateStr}) är inte dagens datum.`;
+    warningContainer.style.display = 'block';
+
+    // Check if it's more than 30 days old for the popup
+    const quoteDateParts = quoteDateStr.split('-').map(Number);
+    const quoteDate = new Date(quoteDateParts[0], quoteDateParts[1] - 1, quoteDateParts[2]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize today's date
+    
+    const diffTime = today - quoteDate;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (isAction && diffDays > 30) {
+        if (sessionStorage.getItem('dateWarningShown') !== 'true') {
+            const proceed = confirm(`Varning: Offertens datum är mer än 30 dagar gammalt. Vill du fortsätta?`);
+            if (proceed) {
+                sessionStorage.setItem('dateWarningShown', 'true');
+                return true;
+            } else {
+                return false; // User cancelled action
+            }
+        }
+    }
+    return true; // Proceed without popup if already shown or not an action
+}
+
+document.getElementById('updateDateBtn').addEventListener('click', () => {
+    const todayStr = getTodaysDateString();
+    document.getElementById('quoteDate').textContent = todayStr;
+    jsonData.quote.date = todayStr;
+    saveToLocal();
+    checkQuoteDate(); // This will hide the warning
+});
 
 </script>
 </body>
