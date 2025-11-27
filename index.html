@@ -1,9 +1,10 @@
-<!-- Version 94 -- Margin/Markup Logic, Advanced Centering, Vendor Mode Enhancements -->
+<!-- Version 95 -- Image Cropping, Smart Layout, WYSIWYG Fixes, Price Update Fix -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
 <meta charset="utf-8"/>
 <title>Offert</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
 <style>
 /* ------------------ PRINT STYLES ------------------ */
 @media print {
@@ -12,29 +13,62 @@
     body * { visibility: hidden; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     #quoteContent, #quoteContent * { visibility: visible; }
     #quoteContent { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
+    
+    /* WYSIWYG Image Layout for Print */
+    #infoImagesList {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start;
+        align-items: flex-start;
+        width: 100%;
+    }
+    
+    .info-block {
+        page-break-inside: avoid !important;
+        box-sizing: border-box;
+    }
+
+    .info-block-fullwidth {
+        width: 100% !important;
+        flex-basis: 100% !important;
+        display: block !important;
+    }
+
+    /* Respect manual widths in print */
+    .info-block-image {
+        display: inline-flex !important;
+        flex-direction: column;
+        vertical-align: top !important;
+        margin: 0 2mm 2mm 0 !important;
+    }
+
+    /* Alignment classes */
+    .align-left { text-align: left !important; justify-content: flex-start !important; }
+    .align-center { text-align: center !important; justify-content: center !important; }
+    .align-right { text-align: right !important; justify-content: flex-end !important; }
+
+    /* Ensure images don't overflow page width */
+    .info-image-container img {
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: 250mm !important;
+    }
+
     b { font-weight: bold; }
     i { font-style: italic; }
     .print-only { display: block !important; }
     #printMultiplier { position: relative !important; bottom: auto !important; right: auto !important; margin-top: 1mm !important; font-size: 8pt !important; color: white !important; text-align: right; width:100%; }
     .quote-section { margin: 5mm 0; page-break-inside: avoid !important; }
 
-    /* Print alignment: Nr(50px) Name(1fr) Qty(80px) Price(100px) Gap(5mm) */
     .item-header, .item-meta {
         display: grid;
-        grid-template-columns: 50px 1fr 80px 100px; /* Main item columns for print */
+        grid-template-columns: 50px 1fr 80px 100px;
         gap: 5mm;
         align-items: start;
         padding-bottom: 1.5mm;
     }
-    .item-header {
-        border-bottom: 1pt solid #000;
-        margin-top: 3mm;
-        font-weight: bold;
-    }
-     .item-header > div, .item-meta > div {
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-    }
+    .item-header { border-bottom: 1pt solid #000; margin-top: 3mm; font-weight: bold; }
+    .item-header > div, .item-meta > div { word-wrap: break-word; overflow-wrap: break-word; }
     .item-number { text-align: left; }
     .item-name { text-align: left; }
     .quantity, .quantity-header { text-align: center; justify-content: center; padding-right:0; }
@@ -50,21 +84,14 @@
     }
     .included-item .item-meta {
         margin-left: 0;
-        grid-template-columns: 40px 1fr 75px 95px; /* Fine-tuned sub-item columns */
-        gap: 2.5mm; /* Smaller gap for subitems */
+        grid-template-columns: 40px 1fr 75px 95px;
+        gap: 2.5mm;
         padding-left: 0;
     }
-    .included-item.baked-in .subItemTargetPrice {
-        display: none !important; /* Hide price of baked-in sub-items on print */
-    }
-    .quote-item.baked-in .targetPrice {
-        display: none !important;
-    }
+    .included-item.baked-in .subItemTargetPrice { display: none !important; }
+    .quote-item.baked-in .targetPrice { display: none !important; }
     body.show-baked-item-prices .quote-item.baked-in .targetPrice,
-    body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice {
-        display: flex !important;
-    }
-
+    body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice { display: flex !important; }
 
     .item-details, .included-item .item-details {
         word-wrap: break-word !important; overflow-wrap: break-word !important;
@@ -79,40 +106,16 @@
         max-width: calc(100% - (40px + 2.5mm));
     }
 
-    .term-item { margin: 0.2mm 0; padding-bottom: 0.2mm; padding-left: 0 !important; } /* Very tight terms, remove indentation for print */
+    .term-item { margin: 0.2mm 0; padding-bottom: 0.2mm; padding-left: 0 !important; }
     .term-item .editable { width: 100% !important; } 
-
     .info-text { word-wrap: break-word !important; overflow-wrap: break-word !important; }
     .total-price { margin-top: 4mm; padding-top: 2mm; border-top: 1pt solid #000; text-align: right; padding-right: 0; page-break-inside: avoid !important; }
     h3 { page-break-before: auto !important; page-break-after: avoid !important; margin-top: 6mm; margin-bottom: 3mm !important; }
     
-    /* --- IMAGE PRINTING --- */
-    #infoImagesList.globally-centered .info-block.centering-default,
-    #infoImagesList .info-block.centering-center {
-        text-align: center;
-    }
-     #infoImagesList .info-block-image {
-        display: inline-block !important;
-        vertical-align: top !important;
-        page-break-inside: avoid !important;
-    }
-    .info-image-container { 
-        page-break-inside: avoid !important; 
-        margin: 3mm 0; 
-    }
-    .info-image-container img {
-        max-width: 100% !important;
-        height: auto !important;
-        max-height: 250mm !important;
-    }
-    
     .screen-only { display: none !important; }
     .hidden-from-print { display: none !important; }
-
     .controls-row .remove-icon { display: none !important; }
     #infoImagesList .info-block { padding-left: 0 !important; }
-    #infoImagesList .info-block-image .info-image-container { margin-left: 0 !important; }
-    #projectNumberDiv { /* Style if needed based on showProjectNumber state for print */ }
     #signatureSection { margin-top: 10mm; page-break-before: auto; }
     
     .vendor-price-details, .vendor-item-notes { display: none; }
@@ -128,29 +131,11 @@
         grid-column: 2 / 5;
     }
     body.vendor-print-mode .included-item .vendor-price-details,
-    body.vendor-print-mode .included-item .vendor-item-notes {
-        margin-left: calc(40px + 2.5mm);
-    }
-    body.vendor-print-mode .vendor-price-details div {
-        margin-bottom: 0.5mm;
-    }
-    .vendor-item-notes {
-        white-space: pre-wrap;
-        background-color: #fefee9 !important;
-        padding: 1.5mm;
-    }
-    .page-break-element {
-        page-break-before: always !important;
-        visibility: hidden !important;
-        height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    .separator-item .print-only {
-        page-break-before: always !important;
-        height: 0;
-        display: block !important;
-    }
+    body.vendor-print-mode .included-item .vendor-item-notes { margin-left: calc(40px + 2.5mm); }
+    body.vendor-print-mode .vendor-price-details div { margin-bottom: 0.5mm; }
+    .vendor-item-notes { white-space: pre-wrap; background-color: #fefee9 !important; padding: 1.5mm; }
+    .page-break-element { page-break-before: always !important; visibility: hidden !important; height: 0 !important; margin: 0 !important; padding: 0 !important; }
+    .separator-item .print-only { page-break-before: always !important; height: 0; display: block !important; }
 }
 
 @media screen {
@@ -174,45 +159,18 @@ i { font-style: italic; }
 .quote-item { position: relative; width: 100%; box-sizing: border-box; padding: 5px 0; }
 .included-item { 
     position: relative; width: calc(100% - 30px); box-sizing: border-box;
-    font-weight: normal; 
-    background-color: #fefefe; 
-    margin-left: 30px; 
-    margin-top: 5px; 
-    margin-bottom: 5px; 
-    padding: 8px; 
-    border-radius: 4px; 
+    font-weight: normal; background-color: #fefefe; margin-left: 30px; margin-top: 5px; margin-bottom: 5px; padding: 8px; border-radius: 4px; 
 }
-.quote-item.hidden-from-print, .included-item.hidden-from-print {
-    opacity: 0.6;
-    border-left: 3px solid #ff9800;
-    padding-left: 5px;
-}
-.included-item.baked-in .subItemTargetPrice span {
-    color: #ccc !important;
-    text-decoration: line-through;
-}
-.quote-item.baked-in .targetPrice span {
-    color: #ccc !important;
-    text-decoration: line-through;
-}
+.quote-item.hidden-from-print, .included-item.hidden-from-print { opacity: 0.6; border-left: 3px solid #ff9800; padding-left: 5px; }
+.included-item.baked-in .subItemTargetPrice span, .quote-item.baked-in .targetPrice span { color: #ccc !important; text-decoration: line-through; }
 body.show-baked-item-prices .quote-item.baked-in .targetPrice span,
-body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice span {
-    color: inherit !important;
-    text-decoration: none;
-}
+body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice span { color: inherit !important; text-decoration: none; }
 
 .quote-item:hover .item-actions, .included-item:hover .item-actions { display: flex; }
 .item-header { display: grid; grid-template-columns: 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
 .item-header > div { padding: 5px; }
 .item-meta { display: grid; grid-template-columns: 70px minmax(200px,1fr) 100px 120px; gap: 10px; align-items: center; position: relative; margin: 5px 0; padding-left: 0; }
-
-.included-item .item-meta { 
-    background-color: transparent; 
-    margin-left: 0; 
-    grid-template-columns: 70px minmax(170px,1fr) 100px 120px; 
-    padding-left: 0; 
-} 
-
+.included-item .item-meta { background-color: transparent; margin-left: 0; grid-template-columns: 70px minmax(170px,1fr) 100px 120px; padding-left: 0; } 
 .item-meta div { display: flex; align-items: center; padding: 5px; justify-content: flex-start; }
 .item-number { text-align: left; width: 100%; user-select: text; }
 .item-name { text-align: left; padding-right: 10px; word-wrap: break-word; }
@@ -225,21 +183,13 @@ body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice span 
 .input-container { display: inline-flex; align-items: center; position: relative; }
 .button-container { position: absolute; bottom: 100%; right: 0; display: none; flex-direction: row; gap: 1px; }
 .input-container:hover .button-container, .input-container.mobile-active .button-container { display: flex; }
-.button-container button { 
-    width: 20px; height: 20px; 
-    font-size: 12px; 
-    line-height: 18px; 
-    cursor: pointer; border: 1px solid #ccc; background-color: #f8f8f8; border-radius: 3px; display: flex; align-items: center; justify-content: center; 
-}
+.button-container button { width: 20px; height: 20px; font-size: 12px; line-height: 18px; cursor: pointer; border: 1px solid #ccc; background-color: #f8f8f8; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
 .button-container button:hover { background-color: #e8e8e8; }
 input[type="number"] { width: 60px; padding: 5px; text-align: right; border: none; background-color: transparent; font-size: 12pt; vertical-align: middle; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
 input[type="number"] { -moz-appearance: textfield; }
 .item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 260px; max-width: calc(100% - (70px + 10px + 260px)); word-wrap: break-word; margin-left: calc(70px + 10px); }
-.included-item .item-details { 
-    margin-left: calc(70px + 10px); 
-    max-width: calc(100% - (70px + 10px + 260px));
-}
+.included-item .item-details { margin-left: calc(70px + 10px); max-width: calc(100% - (70px + 10px + 260px)); }
 .editable { border: 1px solid transparent; padding: 5px; width: 100%; word-wrap: break-word; }
 .editable:hover { border: 1px solid #ddd; background-color: #f9f9f9; }
 .editable:focus { outline: 2px solid #007bff; border-radius: 3px; background-color: #fff; }
@@ -254,22 +204,10 @@ input[type="number"] { -moz-appearance: textfield; }
 .term-item:hover .remove-icon { display: block; }
 .status-message { margin-top: 10px; font-weight: bold; color: green; font-size: 12pt; }
 .total-price { text-align: right; font-weight: bold; margin-top: 20px; font-size: 12pt; padding-right: 15px; margin-right: 0; border-top: 2px solid #000; padding-top: 10px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: 100%; position: relative; }
-.term-item {
-    position: relative;
-    padding-left: 30px; /* Space for controls */
-    min-height: 30px;
-    display: flex;
-    align-items: center;
-    margin-bottom: 1px;
-}
+.term-item { position: relative; padding-left: 30px; min-height: 30px; display: flex; align-items: center; margin-bottom: 1px; }
 .term-item:hover { background-color: #fafafa; }
-.term-item .controls-row {
-    display: none; /* Hide by default */
-    position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column; gap: 2px;
-}
-.term-item:hover .controls-row {
-    display: inline-flex; /* Show on hover */
-}
+.term-item .controls-row { display: none; position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column; gap: 2px; }
+.term-item:hover .controls-row { display: inline-flex; }
 .term-item .content-wrapper { width: 100%; }
 .term-item .editable { width: 100% !important; }
 .reference { margin: 20px 0; }
@@ -285,32 +223,48 @@ input[type="number"] { -moz-appearance: textfield; }
 #termsList { margin-top: 0px; padding-top: 10px;}
 h3.name.editable { margin-bottom: 0 !important; }
 
+/* --- INFO IMAGES LAYOUT --- */
 .info-images { margin: 20px 0; }
+#infoImagesList {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+}
 .info-block { position: relative; min-height: 30px; box-sizing: border-box; }
-#infoImagesList .info-block-image {
-    display: inline-block !important; vertical-align: top !important; width: auto !important;
-    margin: 0 10px 10px 0 !important; padding-left: 0;
+
+/* Text blocks take full width by default */
+.info-block-fullwidth { width: 100%; flex-basis: 100%; padding-left: 30px; }
+
+/* Image blocks */
+.info-block-image {
+    display: inline-flex;
+    flex-direction: column;
+    margin: 0;
+    padding-left: 0;
 }
-#infoImagesList .info-block-fullwidth {
-    display: block !important; width: 100% !important; margin: 0 0 10px !important;
-    padding-left: 30px; 
-}
+
+/* Alignment Classes */
+.align-left { text-align: left; justify-content: flex-start; }
+.align-center { text-align: center; justify-content: center; }
+.align-right { text-align: right; justify-content: flex-end; }
+
+/* When centered, the image block itself might need to center its content */
+.info-block-image.align-center { align-items: center; }
+
 .info-block:hover { background-color: #fafafa; }
-.info-block .content-wrapper { position: relative; } 
+.info-block .content-wrapper { position: relative; width: 100%; } 
 
 #infoImagesList .info-block-image .info-image-container {
-    display: inline-block; line-height: 0; margin: 0; position: relative;
+    display: block; line-height: 0; margin: 0; position: relative;
 }
 #infoImagesList .info-block-image .info-image-container img {
     display: block; max-width: 100%; width: auto; height: auto; object-fit: cover; border:1px solid transparent;
 }
 #infoImagesList .info-block-image:hover .info-image-container img { border:1px solid #ddd; }
 
-
 .info-text-block { min-height: 30px; padding: 5px; border: 1px solid transparent; }
 .info-text-block:hover { background-color: #f9f9f9; border: 1px solid #ddd; }
-.info-image-container img { max-width: 100%; height: auto; display: block; }
-
 .image-resize-handle {
     width: 20px; height: 20px; background-color: rgba(255,255,255,0.8); border: 2px solid #007bff;
     border-radius: 50%; position: absolute; bottom: 5px; right: 5px;
@@ -318,29 +272,16 @@ h3.name.editable { margin-bottom: 0 !important; }
 }
 .info-image-container:hover .image-resize-handle, #logoContainer:hover .image-resize-handle { display: block; }
 
-
 .controls-row { display: none; align-items: center; gap: 5px; z-index: 10; background: rgba(230,230,230,0.85); padding:3px; border-radius: 3px; border:1px solid #ccc; }
 .info-block:hover .controls-row { display: inline-flex; }
 
-#infoImagesList .info-block-image .controls-row {
-    position: absolute; top: 5px; right: 5px; flex-direction: row;
-}
-#infoImagesList .info-block-fullwidth .controls-row {
-    position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column;
-}
+#infoImagesList .info-block-image .controls-row { position: absolute; top: 5px; right: 5px; flex-direction: row; }
+#infoImagesList .info-block-fullwidth .controls-row { position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column; }
 
-.controls-row .control-btn {
-    cursor: pointer;
-    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; font-size: 14px;
-}
+.controls-row .control-btn { cursor: pointer; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; font-size: 14px; }
 .controls-row .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
-
-.controls-row .remove-icon { 
-    position: static; display: inline-flex; align-items:center; justify-content:center;
-    width: 20px; height: 20px; font-size: 14px; line-height: 20px;
-}
+.controls-row .remove-icon { position: static; display: inline-flex; align-items:center; justify-content:center; width: 20px; height: 20px; font-size: 14px; line-height: 20px; }
 .info-block:hover .controls-row .remove-icon { display: inline-flex; } 
-
 
 .drag-handle { background-color: #333; color: white; border-radius: 50%; text-align: center; line-height: 18px; cursor: move; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; user-select:none;}
 .info-image-up, .info-image-down { border-radius: 50%; text-align: center; line-height: 18px; cursor: pointer; font-size: 16px; background-color: #f0f0f0; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; border: 1px solid #ccc;}
@@ -359,15 +300,6 @@ h3.name.editable { margin-bottom: 0 !important; }
 #reduceImageFileSizesBtn { background-color: #3b82f6; }
 #reduceImageFileSizesBtn:hover { background-color: #2563eb; }
 #liveCurrencyRates { font-size: 12px !important; }
-
-/* Centering Styles */
-#infoImagesList.globally-centered .info-block.centering-default { text-align: center; }
-#infoImagesList.globally-centered .info-block-image.centering-default { display: block; }
-.info-block.centering-center { text-align: center; }
-.info-block-image.centering-center { display: block !important; }
-.info-block.centering-left { text-align: left; }
-#infoImagesList.globally-centered .info-block-image.centering-left { display: inline-block !important; }
-
 
 .item-meta .item-tooltip { display: none; position: absolute; top: -18px; right: 5px; background: rgba(255, 255, 255, 0.95); border-radius: 4px; padding: 2px 5px; font-size: 11px; display: flex; gap: 8px; align-items: center; z-index: 10; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .item-meta:hover .item-tooltip { display: flex; }
@@ -394,98 +326,64 @@ h3.name.editable { margin-bottom: 0 !important; }
 
 /* Logo specific styles */
 #logoContainer { position: relative; display: inline-block; line-height: 0; flex-shrink: 0; }
-#logoContainer .remove-icon { 
-    top: -10px; 
-    right: -10px; 
-    z-index: 20; 
-    width: 24px; 
-    height: 24px; 
-    line-height: 24px; 
-    font-size: 14px;
-}
+#logoContainer .remove-icon { top: -10px; right: -10px; z-index: 20; width: 24px; height: 24px; line-height: 24px; font-size: 14px; }
 #logoContainer:hover .remove-icon { display: block; }
 #logoContainer:hover #resetLogoSizeBtn { display: inline-block; }
 #uploadLogoBtn { padding: 10px; background-color: #f0f0f0; border: 2px dashed #ccc; cursor: pointer; }
 #uploadLogoBtn:hover { background-color: #e9e9e9; }
-#resetLogoSizeBtn {
-    display: none; position: absolute; top: -10px; right: 20px; z-index: 20;
-    padding: 2px 6px; font-size: 10px; cursor: pointer;
-    background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;
-}
+#resetLogoSizeBtn { display: none; position: absolute; top: -10px; right: 20px; z-index: 20; padding: 2px 6px; font-size: 10px; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; }
 
-.vendor-price-details, .vendor-item-notes {
-    display: none; /* Hidden by default on screen */
-    font-size: 9pt;
-    color: #333;
-    background-color: #fdfdfd;
-    border: 1px solid #e1e1e8;
-    border-radius: 4px;
-    margin-top: 5px;
-    padding: 8px;
-    margin-left: calc(70px + 10px);
-    grid-column: 2 / 5;
-}
-.included-item .vendor-price-details, .included-item .vendor-item-notes {
-    margin-left: 0; /* It's already indented by the included-item margin */
-}
-body.vendor-print-mode .vendor-price-details,
-body.vendor-print-mode .vendor-item-notes {
-    display: block !important; /* Show on screen when class is present */
-}
-.vendor-price-details div {
-    margin-bottom: 3px;
-}
-.vendor-price-details i {
-    font-style: italic;
-    color: #666;
-}
-.vendor-price-details b {
-    font-weight: bold;
-    color: #000;
-}
-.vendor-item-notes {
-    background-color: #fefee9;
-    min-height: 20px;
-    white-space: pre-wrap;
-}
-.info-tooltip-icon {
-    display: inline-block;
+.vendor-price-details, .vendor-item-notes { display: none; font-size: 9pt; color: #333; background-color: #fdfdfd; border: 1px solid #e1e1e8; border-radius: 4px; margin-top: 5px; padding: 8px; margin-left: calc(70px + 10px); grid-column: 2 / 5; }
+.included-item .vendor-price-details, .included-item .vendor-item-notes { margin-left: 0; }
+body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-item-notes { display: block !important; }
+.vendor-price-details div { margin-bottom: 3px; }
+.vendor-price-details i { font-style: italic; color: #666; }
+.vendor-price-details b { font-weight: bold; color: #000; }
+.vendor-item-notes { background-color: #fefee9; min-height: 20px; white-space: pre-wrap; }
+.info-tooltip-icon { display: inline-block; position: relative; cursor: help; margin-left: 5px; font-weight: bold; color: #007bff; }
+.info-tooltip-icon .info-tooltip-text { visibility: hidden; width: 250px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -125px; opacity: 0; transition: opacity 0.3s; font-size: 10pt; font-weight: normal; }
+.info-tooltip-icon:hover .info-tooltip-text { visibility: visible; opacity: 1; }
+#compressionStatus { font-size: 10pt; margin-top: 10px; padding: 8px; background-color: #f0f8ff; border: 1px solid #b0c4de; border-radius: 4px; }
+
+/* Cropper Modal */
+.modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); }
+.modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 5px; }
+.cropper-container-wrapper { max-height: 60vh; overflow: hidden; margin-bottom: 15px; }
+.modal-footer { text-align: right; }
+.modal-footer button { padding: 8px 16px; margin-left: 10px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; }
+.btn-save { background-color: #28a745; color: white; }
+.btn-cancel { background-color: #dc3545; color: white; }
+
+/* Vendor Mode Tooltip */
+.vendor-mode-tooltip {
     position: relative;
-    cursor: help;
+    display: inline-block;
     margin-left: 5px;
-    font-weight: bold;
+    cursor: help;
     color: #007bff;
+    font-weight: bold;
 }
-.info-tooltip-icon .info-tooltip-text {
+.vendor-mode-tooltip .tooltip-text {
     visibility: hidden;
-    width: 250px;
-    background-color: #555;
+    width: 300px;
+    background-color: #333;
     color: #fff;
-    text-align: center;
+    text-align: left;
     border-radius: 6px;
-    padding: 5px;
+    padding: 10px;
     position: absolute;
-    z-index: 1;
+    z-index: 100;
     bottom: 125%;
     left: 50%;
-    margin-left: -125px;
+    margin-left: -150px;
     opacity: 0;
     transition: opacity 0.3s;
-    font-size: 10pt;
+    font-size: 9pt;
     font-weight: normal;
+    line-height: 1.4;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
-.info-tooltip-icon:hover .info-tooltip-text {
-    visibility: visible;
-    opacity: 1;
-}
-#compressionStatus {
-    font-size: 10pt;
-    margin-top: 10px;
-    padding: 8px;
-    background-color: #f0f8ff;
-    border: 1px solid #b0c4de;
-    border-radius: 4px;
-}
+.vendor-mode-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
 
 </style>
 </head>
@@ -498,6 +396,20 @@ body.vendor-print-mode .vendor-item-notes {
   <button id="dash-btn" title="Strecklista">-</button>
   <button id="ul-btn" title="Punktlista (HTML)">&#x2022; List</button>
   <button id="ol-btn" title="Numrerad lista (HTML)">1. List</button>
+</div>
+
+<!-- Cropper Modal -->
+<div id="cropperModal" class="modal screen-only">
+    <div class="modal-content">
+        <h3>Beskär Bild</h3>
+        <div class="cropper-container-wrapper">
+            <img id="imageToCrop" src="" style="max-width: 100%;">
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeCropperModal()">Avbryt</button>
+            <button class="btn-save" onclick="saveCroppedImage()">Spara</button>
+        </div>
+    </div>
 </div>
 
 <div id="quoteContent">
@@ -527,7 +439,6 @@ body.vendor-print-mode .vendor-item-notes {
     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
-        <label><input type="checkbox" id="centerImagesChk" /> Centrera bilder globalt</label>
         <div id="compressionOptionsWrapper" style="display: inline-flex; align-items: center; gap: 5px;">
              <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
              <div id="compressionOptions" style="display: inline-flex; align-items: center; gap: 5px;">
@@ -552,7 +463,18 @@ body.vendor-print-mode .vendor-item-notes {
         </label>
         <label><input type="checkbox" id="showBakedItemPrices" /> Visa inbakade artikelpriser</label>
         <label><input type="checkbox" id="showBakedSubItemPrices" /> Visa inbakade underpostpriser</label>
-        <label><input type="checkbox" id="vendorModeCheck" /> Vendor-läge (utskrift)</label>
+        <label>
+            <input type="checkbox" id="vendorModeCheck" /> Vendor-läge (utskrift)
+            <span class="vendor-mode-tooltip">?
+                <span class="tooltip-text">
+                    <b>Vendor-läge:</b> Visar detaljerade beräkningar på utskriften.<br><br>
+                    <b>Påslag (Markup):</b> Pris = Kostnad * (1 + %).<br>
+                    <i>Ex: 100kr * 1.20 = 120kr (20% påslag)</i><br><br>
+                    <b>Marginal (Margin):</b> Pris = Kostnad / (1 - %).<br>
+                    <i>Ex: 100kr / 0.80 = 125kr (20% marginal)</i>
+                </span>
+            </span>
+        </label>
     </div>
     <div id="sectionVisibilityControls" class="checkbox-group screen-only">
         <span id="showSectionsLabel">Visa sektioner:</span>
@@ -642,6 +564,7 @@ body.vendor-print-mode .vendor-item-notes {
         <div class="image-upload-container screen-only">
             <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
             <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
+            <button class="image-upload-button" onclick="autoLayoutImages()">Smart Layout (Auto)</button>
             <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
             <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="recompressTooltipText"></span></span>
             <button class="image-upload-button" id="reduceImageFileSizesBtn" onclick="reduceImageFileSizes()">Minska filstorlek (kvalitet)</button>
@@ -720,6 +643,7 @@ body.vendor-print-mode .vendor-item-notes {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 </script>
@@ -770,6 +694,7 @@ const translations = {
     marginModeLabelText: "Beräkna som marginal",
     markupLabel: "Påslag (%)",
     marginLabel: "Marginal (%)",
+    cropImage: "Beskär bild",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -815,6 +740,7 @@ const translations = {
     marginModeLabelText: "Calculate as margin",
     markupLabel: "Markup (%)",
     marginLabel: "Margin (%)",
+    cropImage: "Crop image",
   }
 };
 
@@ -823,6 +749,8 @@ let jsonData = null;
 let currentFileName = null; 
 window.liveExchangeRates = { usd: null, eur: null };
 const caesarShift = 17;
+let cropper = null;
+let currentCropIndex = -1;
 
 function encryptCaesar(text, shift) {
     return text.split('').map(char => {
@@ -854,9 +782,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: false, marginCalculationMode: 'markup' }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: false, marginCalculationMode: 'markup' };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -868,7 +796,7 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.defaultLogoWidth === undefined) jsonData.quote.defaultLogoWidth = 200;
         if(jsonData.quote.useCustomCurrency === undefined) jsonData.quote.useCustomCurrency = false;
         if(jsonData.quote.customCurrency === undefined) jsonData.quote.customCurrency = 'EUR';
-        if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
+        if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = false;
         if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { 
@@ -906,7 +834,7 @@ function decryptCaesar(text, shift) {
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         (jsonData.infoImages || []).forEach(it => {
             if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-            if (it.centering === undefined) it.centering = 'default';
+            if (it.centering === undefined) it.centering = 'left'; // Default to left
         });
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
@@ -948,7 +876,7 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
     if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
     if(q.customCurrency === undefined) q.customCurrency = 'EUR';
-    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
+    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = false;
     if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { 
@@ -987,7 +915,7 @@ function loadQuoteData(data, loadedFileName=null){
     });
     (jsonData.infoImages || []).forEach(it => {
         if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-        if (it.centering === undefined) it.centering = 'default';
+        if (it.centering === undefined) it.centering = 'left';
     });
 
 
@@ -1019,7 +947,6 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency || false;
     document.getElementById('customCurrencyInput').value = q.customCurrency || 'EUR';
     document.getElementById("customCurrencyInput").style.display = (q.useCustomCurrency || false) ? 'inline-block' : 'none';
-    document.getElementById('centerImagesChk').checked = q.centerImagesByDefault;
     document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
     
     currentFileName = loadedFileName;
@@ -1399,6 +1326,12 @@ function loadItems(items, containerId, distributionRatio = 1){
         });
         container.appendChild(itemDiv);
     });
+    
+    // Attach event listeners for direct input on quantity fields
+    container.querySelectorAll('input[type="number"]').forEach(input => {
+        input.addEventListener('input', () => handleQuantityChange(input));
+        input.addEventListener('change', () => handleQuantityChange(input));
+    });
 }
 function removeItem(containerId, idx){ const arr = (containerId ==='itemsList') ? jsonData.items : jsonData.optionalItems; arr.splice(idx,1); saveToLocal(); reRenderAll(); }
 function removeSubItem(containerId, idx, sIdx){ const arr=(containerId==='itemsList')?jsonData.items:jsonData.optionalItems; arr[idx].subItems.splice(sIdx,1); saveToLocal(); reRenderAll(); }
@@ -1467,11 +1400,11 @@ function duplicateTerm(index) {
 function loadInfoImages(){
     const c=document.getElementById('infoImagesList'); 
     c.innerHTML='';
-    c.className = jsonData.quote.centerImagesByDefault ? 'globally-centered' : '';
-
+    
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
-        block.className=`info-block centering-${obj.centering || 'default'}`; 
+        const centering = obj.centering || 'left';
+        block.className=`info-block align-${centering}`; 
         block.dataset.index=idx;
 
         const contentWrapper = document.createElement('div');
@@ -1516,13 +1449,13 @@ function loadInfoImages(){
         const controls = document.createElement('div');
         controls.className = 'controls-row screen-only';
         const immune = obj.compressionImmune || false;
-        const centering = obj.centering || 'default';
-        let centeringIcon = '◐'; // Default
+        
+        let centeringIcon = '◧'; // Left
         if (centering === 'center') centeringIcon = '●';
-        if (centering === 'left') centeringIcon = '◧';
+        if (centering === 'right') centeringIcon = '◨';
 
         let commonControls = `
-            <span class="control-btn" title="Centrering" onclick="toggleInfoItemCentering(${idx})">${centeringIcon}</span>
+            <span class="control-btn" title="Justering (Vänster/Center/Höger)" onclick="toggleInfoItemCentering(${idx})">${centeringIcon}</span>
             <span class="control-btn" title="Flytta längst upp" onclick="moveInfoItemToTop(${idx})">🔝</span>
             <span class="info-image-up" onclick="moveImageUp(${idx})">▲</span>
             <span class="drag-handle">≡</span>
@@ -1532,6 +1465,7 @@ function loadInfoImages(){
 
         if (obj.type === 'image') {
             controls.innerHTML = `
+                <span class="control-btn" title="${translations[currentLanguage].cropImage}" onclick="openCropper(${idx})">✂️</span>
                 <span class="control-btn" title="${translations[currentLanguage].downloadImage}" onclick="downloadImage(${idx})">⤓</span>
                 <span class="control-btn" id="immuneBtn_${idx}" title="${translations[currentLanguage].toggleCompressionImmune}" onclick="toggleCompressionImmune(${idx})" style="background-color: ${immune ? '#6c757d' : ''}; color: ${immune ? 'white' : ''};">🛡️</span>
                 <span class="info-image-up" title="Större (+10%)" onclick="adjustImageSize(${idx}, 1.10)">+</span>
@@ -1574,11 +1508,11 @@ function duplicateInfoItem(index) {
         reRenderAll();
     }
 }
-function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'default' }); saveToLocal(); reRenderAll(); }
+function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'left' }); saveToLocal(); reRenderAll(); }
 function addTable(){
     const rows=prompt('Antal rader','3'); const cols=prompt('Antal kolumner','3');
     if(rows && cols){
-        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'default' });
+        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'left' });
         saveToLocal(); reRenderAll();
     }
 }
@@ -1589,11 +1523,11 @@ function addPageBreak() {
 }
 function addImageFromUrl(){
     const url=prompt(translations[currentLanguage].promptImageUrl);
-    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'default' }); saveToLocal(); reRenderAll(); }
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
-        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'default' }); saveToLocal(); reRenderAll(); };
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); };
         if(document.getElementById('compressImagesChk').checked){
             const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
             const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
@@ -1950,14 +1884,17 @@ function handleQuantityChange(inp){
     const {item: containerId, index: idx, includedIndex: sIdx} = inp.closest('.quantity').dataset;
     const item = (containerId === 'itemsList' ? jsonData.items : jsonData.optionalItems)[idx];
     (sIdx ? item.subItems[sIdx] : item)[sIdx ? 'subItemQuantity' : 'quantity'] = parseInt(inp.value) || 0;
-    saveToLocal(); reRenderAll();
+    saveToLocal(); 
+    // Force update of prices immediately
+    updatePrices();
+    calculateTotalPrice();
+    updateLiveDOMPrices(containerId, idx, sIdx);
 }
 
 document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.companyA, jsonData.companyB] = [jsonData.companyB, jsonData.companyA]; saveToLocal(); loadQuoteData(jsonData, currentFileName); });
 document.getElementById('showProjectNumber').addEventListener('change', function(){ document.getElementById('projectNumberDiv').style.display=this.checked?'block':'none'; jsonData.quote.projectNumberVisible = this.checked; saveToLocal(); });
 document.getElementById('addSignatureCheck').addEventListener('change', function(){ document.getElementById('signatureSection').style.display=this.checked?'block':'none'; jsonData.quote.showSignature = this.checked; saveToLocal(); });
 document.getElementById('toggleTillSectionChk').addEventListener('change', function(){ jsonData.quote.showTillSection = this.checked; applyTillSectionVisibility(); saveToLocal(); updatePdfFileNameInput(); });
-document.getElementById('centerImagesChk').addEventListener('change', function() { jsonData.quote.centerImagesByDefault = this.checked; saveToLocal(); reRenderAll(); });
 
 document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
@@ -2905,17 +2842,88 @@ function updateMarginLabel() {
 function toggleInfoItemCentering(index) {
     const item = jsonData.infoImages[index];
     if (!item) return;
-    const current = item.centering || 'default';
-    // Cycle: default -> center -> left -> default
-    if (current === 'default') {
+    const current = item.centering || 'left';
+    // Cycle: left -> center -> right -> left
+    if (current === 'left') {
         item.centering = 'center';
     } else if (current === 'center') {
-        item.centering = 'left';
+        item.centering = 'right';
     } else {
-        item.centering = 'default';
+        item.centering = 'left';
     }
     saveToLocal();
     reRenderAll();
+}
+
+// --- Cropper Logic ---
+function openCropper(index) {
+    const imgObj = jsonData.infoImages[index];
+    if (!imgObj || imgObj.type !== 'image') return;
+    
+    currentCropIndex = index;
+    const modal = document.getElementById('cropperModal');
+    const imageElement = document.getElementById('imageToCrop');
+    
+    imageElement.src = imgObj.src;
+    modal.style.display = 'block';
+    
+    if (cropper) {
+        cropper.destroy();
+    }
+    cropper = new Cropper(imageElement, {
+        viewMode: 1,
+        autoCropArea: 1,
+    });
+}
+
+function closeCropperModal() {
+    document.getElementById('cropperModal').style.display = 'none';
+    if (cropper) {
+        cropper.destroy();
+        cropper = null;
+    }
+    currentCropIndex = -1;
+}
+
+function saveCroppedImage() {
+    if (!cropper || currentCropIndex === -1) return;
+    
+    const canvas = cropper.getCroppedCanvas();
+    if (canvas) {
+        const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        jsonData.infoImages[currentCropIndex].src = croppedDataUrl;
+        saveToLocal();
+        reRenderAll();
+        closeCropperModal();
+    }
+}
+
+// --- Smart Layout Logic ---
+function autoLayoutImages() {
+    if (!jsonData.infoImages) return;
+    
+    // Simple logic: If images are small enough, fit them side by side.
+    // We will iterate and set widths to ~48% for pairs, or ~32% for triplets if possible.
+    // For now, let's just make a "collage" of pairs.
+    
+    let imageIndices = [];
+    jsonData.infoImages.forEach((item, idx) => {
+        if (item.type === 'image') imageIndices.push(idx);
+    });
+    
+    // Reset all to default width first? Or just try to pair them up.
+    // Let's pair them up by setting width to 350px (approx half of A4 printable area minus margins)
+    
+    for (let i = 0; i < imageIndices.length; i++) {
+        const item = jsonData.infoImages[imageIndices[i]];
+        // Set a standard width that fits 2 per row comfortably
+        item.width = 340; 
+        item.centering = 'left'; // Ensure they float next to each other
+    }
+    
+    saveToLocal();
+    reRenderAll();
+    alert("Smart Layout: Bilder har justerats för att passa 2 per rad.");
 }
 
 </script>
