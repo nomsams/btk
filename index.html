@@ -1,4 +1,4 @@
-<!-- Version 96 -- Fixed Image Centering, Quantity Logic, and WYSIWYG Layout -->
+<!-- Version 97 -- Fixes JSON Loading Error, Image Centering, Quantity Logic -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -1972,17 +1972,40 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
     if(f && (f.type==='application/json' || f.name.endsWith('.json'))){
         const r=new FileReader();
         r.onload=(e)=>{ 
-            const fileContent = e.target.result.replace(/–/g, '-');
+            let fileContent = e.target.result;
+            // Strip BOM if present
+            if (fileContent.charCodeAt(0) === 0xFEFF) {
+                fileContent = fileContent.slice(1);
+            }
+            
             try {
+                // Attempt 1: Parse as plain JSON
+                // If it's plain JSON, we can safely replace dashes here if needed, 
+                // but usually better to do it after parsing or not at all if not needed.
+                // For compatibility with the original request, we apply replace ONLY if it parses successfully as plain JSON first?
+                // No, the original code applied replace globally. 
+                // The FIX is to try parsing plain JSON first WITHOUT replace.
+                
                 loadQuoteData(JSON.parse(fileContent), f.name);
                 saveToLocal();
             } catch (err) {
                 try {
+                    // Attempt 2: Decrypt then parse
+                    // Do NOT replace dashes before decryption!
                     const decryptedContent = decryptCaesar(fileContent, caesarShift);
+                    // Now we can parse
                     loadQuoteData(JSON.parse(decryptedContent), f.name);
                     saveToLocal();
                 } catch (err2) {
-                    alert('JSON-formatet verkar vara felaktigt eller krypterat med en annan nyckel: ' + err2);
+                    // Fallback: Maybe it was the dash replacement issue on a plain file?
+                    // Try the original logic as a last resort
+                    try {
+                         const replacedContent = fileContent.replace(/–/g, '-');
+                         loadQuoteData(JSON.parse(replacedContent), f.name);
+                         saveToLocal();
+                    } catch (err3) {
+                        alert('JSON-formatet verkar vara felaktigt eller krypterat med en annan nyckel: ' + err2);
+                    }
                 }
             }
         };
@@ -2961,4 +2984,3 @@ function autoLayoutImages() {
 </script>
 </body>
 </html>
-```
