@@ -1,4 +1,4 @@
-<!-- Version 97 -- Fixes JSON Loading Error, Image Centering, Quantity Logic -->
+<!-- Version 98 -- Cross-App Loading (LocalStorage & Compressed URL), Pako Integration -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -651,6 +651,11 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <button id="updateDateBtn" class="footer-button" style="margin-left: 10px; background-color: #5bc0de;">Uppdatera datum</button>
     </div>
     <div class="status-message" id="statusMessage"></div>
+    
+    <!-- Developer / Integration Tools -->
+    <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
+        <button class="footer-button" onclick="showIntegrationCode()" style="background-color: #555;">Developer / Integration</button>
+    </div>
 </div>
 
 
@@ -660,6 +665,9 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<!-- Pako for Decompression -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 </script>
@@ -1980,25 +1988,16 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
             
             try {
                 // Attempt 1: Parse as plain JSON
-                // If it's plain JSON, we can safely replace dashes here if needed, 
-                // but usually better to do it after parsing or not at all if not needed.
-                // For compatibility with the original request, we apply replace ONLY if it parses successfully as plain JSON first?
-                // No, the original code applied replace globally. 
-                // The FIX is to try parsing plain JSON first WITHOUT replace.
-                
                 loadQuoteData(JSON.parse(fileContent), f.name);
                 saveToLocal();
             } catch (err) {
                 try {
                     // Attempt 2: Decrypt then parse
-                    // Do NOT replace dashes before decryption!
                     const decryptedContent = decryptCaesar(fileContent, caesarShift);
-                    // Now we can parse
                     loadQuoteData(JSON.parse(decryptedContent), f.name);
                     saveToLocal();
                 } catch (err2) {
-                    // Fallback: Maybe it was the dash replacement issue on a plain file?
-                    // Try the original logic as a last resort
+                    // Fallback: Try the original logic as a last resort
                     try {
                          const replacedContent = fileContent.replace(/–/g, '-');
                          loadQuoteData(JSON.parse(replacedContent), f.name);
@@ -2227,6 +2226,7 @@ window.onload=()=>{
     loadQuoteData(jsonData); 
     fetchLiveCurrencyRates();
     setupLogo();
+    checkForIncomingData(); // Check for data from PDF Flow
 
     const compressChk = document.getElementById('compressImagesChk');
     const compressOpts = document.getElementById('compressionOptions');
@@ -2979,6 +2979,101 @@ function autoLayoutImages() {
     saveToLocal();
     reRenderAll();
     alert("Smart Layout: Bilder har justerats för att passa 2 per rad.");
+}
+
+// --- Cross-App Loading Logic (Receiver) ---
+function checkForIncomingData() {
+    const params = new URLSearchParams(window.location.search);
+    const quoteId = params.get('quoteId');
+    const hash = window.location.hash;
+
+    // 1. LocalStorage Mode
+    if (quoteId) {
+        const key = 'btk_quote_' + quoteId;
+        const data = localStorage.getItem(key);
+        if (data) {
+            try {
+                const json = JSON.parse(data);
+                loadQuoteData(json);
+                saveToLocal();
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                // Optional: Clean up localStorage to save space
+                // localStorage.removeItem(key); 
+                alert("Quote loaded successfully from external app!");
+            } catch (e) {
+                console.error("Failed to load quote from localStorage:", e);
+                alert("Failed to load quote data.");
+            }
+        }
+    } 
+    // 2. Compressed Hash Mode
+    else if (hash && hash.startsWith('#q=')) {
+        try {
+            const b64 = hash.substring(3); // Remove '#q='
+            // Decode Base64 -> Uint8Array -> Inflate -> String -> JSON
+            const binaryString = atob(b64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const decompressed = pako.inflate(bytes, { to: 'string' });
+            const json = JSON.parse(decompressed);
+            
+            loadQuoteData(json);
+            saveToLocal();
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            alert("Quote loaded successfully from shared link!");
+        } catch (e) {
+            console.error("Failed to load compressed quote:", e);
+            alert("Failed to load shared quote data.");
+        }
+    }
+}
+
+// --- Developer Tools: Generate Sender Code ---
+function showIntegrationCode() {
+    const code = `
+// --- PASTE THIS INTO YOUR PDF FLOW APP ---
+
+// 1. Add Pako Library to <head>:
+// <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"><\/script>
+
+// 2. Add this function to your script:
+function openInBTK(jsonData) {
+    // Method 1: LocalStorage (Best for same domain)
+    try {
+        const id = crypto.randomUUID();
+        localStorage.setItem('btk_quote_' + id, JSON.stringify(jsonData));
+        window.open('https://nomsams.github.io/btk/?quoteId=' + id, '_blank');
+    } catch (e) {
+        console.warn("LocalStorage failed, trying URL hash...", e);
+        
+        // Method 2: Compressed URL Hash (Fallback)
+        try {
+            const str = JSON.stringify(jsonData);
+            const compressed = pako.deflate(str);
+            // Convert Uint8Array to Base64
+            let binary = '';
+            const len = compressed.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(compressed[i]);
+            }
+            const b64 = btoa(binary);
+            window.open('https://nomsams.github.io/btk/#q=' + b64, '_blank');
+        } catch (err) {
+            alert("Failed to send data: " + err.message);
+        }
+    }
+}
+
+// 3. Add a button to your UI:
+// <button onclick="openInBTK(state.finalJson)">Open in BTK</button>
+    `;
+    
+    const win = window.open("", "Integration Code", "width=600,height=400");
+    win.document.write("<pre>" + code.replace(/</g, "&lt;") + "</pre>");
 }
 
 </script>
