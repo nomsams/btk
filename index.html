@@ -1,4 +1,4 @@
-<!-- Version 99 -- Cropper UI Fix, Smart Image Centering, Drag Handles, Layout Fixes -->
+<!-- Version 98 -- Cross-App Loading (LocalStorage & Compressed URL), Pako Integration -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -69,19 +69,13 @@
 
     .item-header, .item-meta {
         display: grid;
-        grid-template-columns: 30px 50px 1fr 80px 100px; /* Added column for drag handle */
+        grid-template-columns: 50px 1fr 80px 100px;
         gap: 5mm;
         align-items: start;
         padding-bottom: 1.5mm;
     }
     .item-header { border-bottom: 1pt solid #000; margin-top: 3mm; font-weight: bold; }
     .item-header > div, .item-meta > div { word-wrap: break-word; overflow-wrap: break-word; }
-    
-    /* Hide drag handle on print */
-    .drag-col { display: none !important; }
-    .item-header { grid-template-columns: 50px 1fr 80px 100px; } /* Reset columns for print */
-    .item-meta { grid-template-columns: 50px 1fr 80px 100px; }
-
     .item-number { text-align: left; }
     .item-name { text-align: left; }
     .quantity, .quantity-header { text-align: center; justify-content: center; padding-right:0; }
@@ -97,7 +91,7 @@
     }
     .included-item .item-meta {
         margin-left: 0;
-        grid-template-columns: 40px 1fr 75px 95px; /* Subitems don't need drag handle on print */
+        grid-template-columns: 40px 1fr 75px 95px;
         gap: 2.5mm;
         padding-left: 0;
     }
@@ -180,21 +174,16 @@ body.show-baked-item-prices .quote-item.baked-in .targetPrice span,
 body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice span { color: inherit !important; text-decoration: none; }
 
 .quote-item:hover .item-actions, .included-item:hover .item-actions { display: flex; }
-.item-header { display: grid; grid-template-columns: 30px 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
+.item-header { display: grid; grid-template-columns: 70px minmax(200px, 1fr) 100px 120px; gap: 10px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-top: 20px; align-items: center; }
 .item-header > div { padding: 5px; }
-.item-meta { display: grid; grid-template-columns: 30px 70px minmax(200px,1fr) 100px 120px; gap: 10px; align-items: center; position: relative; margin: 5px 0; padding-left: 0; }
-.included-item .item-meta { background-color: transparent; margin-left: 0; grid-template-columns: 30px 70px minmax(170px,1fr) 100px 120px; padding-left: 0; } 
+.item-meta { display: grid; grid-template-columns: 70px minmax(200px,1fr) 100px 120px; gap: 10px; align-items: center; position: relative; margin: 5px 0; padding-left: 0; }
+.included-item .item-meta { background-color: transparent; margin-left: 0; grid-template-columns: 70px minmax(170px,1fr) 100px 120px; padding-left: 0; } 
 .item-meta div { display: flex; align-items: center; padding: 5px; justify-content: flex-start; }
 .item-number { text-align: left; width: 100%; user-select: text; }
 .item-name { text-align: left; padding-right: 10px; word-wrap: break-word; }
 .item-name.bold { font-weight: 700; } 
 .subitem-name-style { font-weight: 600; } 
 .baked-in-icon { margin-left: 8px; cursor: help; }
-
-/* Drag Handle Styles */
-.drag-col { cursor: grab; color: #888; justify-content: center; user-select: none; }
-.drag-col:hover { color: #333; }
-.drag-col:active { cursor: grabbing; }
 
 .targetPrice, .price-header, .subItemTargetPrice { text-align: right; padding-right: 15px; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; justify-content: flex-end; }
 .quantity, .quantity-header { text-align: center; justify-content: center; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 80px; white-space: nowrap; position: relative; }
@@ -206,8 +195,8 @@ body.show-baked-subitem-prices .included-item.baked-in .subItemTargetPrice span 
 input[type="number"] { width: 60px; padding: 5px; text-align: right; border: none; background-color: transparent; font-size: 12pt; vertical-align: middle; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
 input[type="number"] { -moz-appearance: textfield; }
-.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 3 / 6; padding-left: 5px; padding-right: 260px; max-width: calc(100% - (30px + 70px + 10px + 260px)); word-wrap: break-word; margin-left: calc(30px + 70px + 10px); }
-.included-item .item-details { margin-left: calc(30px + 70px + 10px); max-width: calc(100% - (30px + 70px + 10px + 260px)); }
+.item-details, .included-item .item-details { margin-top: 5px; font-weight: normal; position: relative; grid-column: 2 / 5; padding-left: 5px; padding-right: 260px; max-width: calc(100% - (70px + 10px + 260px)); word-wrap: break-word; margin-left: calc(70px + 10px); }
+.included-item .item-details { margin-left: calc(70px + 10px); max-width: calc(100% - (70px + 10px + 260px)); }
 .editable { border: 1px solid transparent; padding: 5px; width: 100%; word-wrap: break-word; }
 .editable:hover { border: 1px solid #ddd; background-color: #f9f9f9; }
 .editable:focus { outline: 2px solid #007bff; border-radius: 3px; background-color: #fff; }
@@ -328,41 +317,14 @@ h3.name.editable { margin-bottom: 0 !important; }
 #reduceImageFileSizesBtn:hover { background-color: #2563eb; }
 #liveCurrencyRates { font-size: 12px !important; }
 
-/* Tooltip Layout Fix */
-.item-meta .item-tooltip { 
-    display: none; 
-    position: absolute; 
-    top: 50%; 
-    transform: translateY(-50%); 
-    right: 100px; /* Position to the left of the price/quantity area */
-    background: rgba(255, 255, 255, 0.98); 
-    border-radius: 4px; 
-    padding: 2px 5px; 
-    font-size: 11px; 
-    display: flex; 
-    flex-direction: row; /* Ensure horizontal layout */
-    gap: 8px; 
-    align-items: center; 
-    z-index: 10; 
-    border: 1px solid #ddd; 
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
-    white-space: nowrap; /* Prevent wrapping */
-}
+.item-meta .item-tooltip { display: none; position: absolute; top: -18px; right: 5px; background: rgba(255, 255, 255, 0.95); border-radius: 4px; padding: 2px 5px; font-size: 11px; display: flex; gap: 8px; align-items: center; z-index: 10; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .item-meta:hover .item-tooltip { display: flex; }
-.item-tooltip .original-price-display, .item-tooltip .margin-display { 
-    white-space: nowrap; 
-    border: 1px solid transparent; 
-    border-radius: 3px; 
-    padding: 1px 3px; 
-    min-width: 40px; 
-    text-align: right; 
-}
+.item-tooltip .original-price-display, .item-tooltip .margin-display { white-space: nowrap; border: 1px solid transparent; border-radius: 3px; padding: 1px 3px; min-width: 40px; text-align: right; }
 .item-tooltip .original-price-display { color: blue; }
 .item-tooltip .margin-display { color: green; font-weight: bold; }
 .item-tooltip .margin-display.discount { color: #b78a00; }
 .item-tooltip .editable:hover { border-color: #ccc; background-color: #f9f9f9; }
 .item-tooltip .editable:focus { border-color: #007bff; background-color: white; box-shadow: 0 0 0 1px #007bff; }
-
 .item-actions { display: none; position: absolute; right: -285px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
 .item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
 .item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
@@ -399,7 +361,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 .info-tooltip-icon:hover .info-tooltip-text { visibility: visible; opacity: 1; }
 #compressionStatus { font-size: 10pt; margin-top: 10px; padding: 8px; background-color: #f0f8ff; border: 1px solid #b0c4de; border-radius: 4px; }
 
-/* Cropper Modal & UI Improvements */
+/* Cropper Modal */
 .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); }
 .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 5px; }
 .cropper-container-wrapper { max-height: 60vh; overflow: hidden; margin-bottom: 15px; }
@@ -407,11 +369,6 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 .modal-footer button { padding: 8px 16px; margin-left: 10px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; }
 .btn-save { background-color: #28a745; color: white; }
 .btn-cancel { background-color: #dc3545; color: white; }
-
-/* High visibility handles for Cropper */
-.cropper-point { width: 15px; height: 15px; background-color: #007bff; opacity: 0.8; border-radius: 50%; }
-.cropper-line { background-color: #007bff; }
-.cropper-view-box { outline: 2px solid #007bff; }
 
 /* Vendor Mode Tooltip */
 .vendor-mode-tooltip {
@@ -498,7 +455,6 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
-        <label><input type="checkbox" id="smartImageCenterChk" checked /> Smart bildcentrering</label>
         <div id="compressionOptionsWrapper" style="display: inline-flex; align-items: center; gap: 5px;">
              <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
              <div id="compressionOptions" style="display: inline-flex; align-items: center; gap: 5px;">
@@ -592,7 +548,6 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <div id="mainItemsSectionContainer">
         <span class="section-remove-icon screen-only" onclick="removeMainSection()">✖</span>
         <div class="item-header">
-            <div class="drag-col screen-only"></div>
             <div id="nrHeader" class="editable" contenteditable="true" data-field="nrHeader">Nr</div>
             <div id="articleNameHeader" class="editable" contenteditable="true" data-field="articleNameHeader">Artikel / Namn</div>
             <div id="quantityHeader" class="quantity-header editable" contenteditable="true" data-field="quantityHeader">Antal</div>
@@ -608,7 +563,6 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <h3 id="optionalItemsHeading" class="name editable" contenteditable="true" data-field="optionalItemsHeading">Alternativ / Ytterligare Artiklar</h3>
         <span class="section-remove-icon screen-only" onclick="hideOptionalSection()">✖</span>
         <div class="item-header">
-            <div class="drag-col screen-only"></div>
             <div id="optNrHeader" class="editable" contenteditable="true" data-field="optNrHeader">Nr</div>
             <div id="optArticleHeader" class="editable" contenteditable="true" data-field="optArticleHeader">Artikel / Namn</div>
             <div id="optQuantityHeader" class="quantity-header editable" contenteditable="true" data-field="optQuantityHeader">Antal</div>
@@ -697,6 +651,11 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <button id="updateDateBtn" class="footer-button" style="margin-left: 10px; background-color: #5bc0de;">Uppdatera datum</button>
     </div>
     <div class="status-message" id="statusMessage"></div>
+    
+    <!-- Developer / Integration Tools -->
+    <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
+        <button class="footer-button" onclick="showIntegrationCode()" style="background-color: #555;">Developer / Integration</button>
+    </div>
 </div>
 
 
@@ -847,9 +806,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: false, marginCalculationMode: 'markup' }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: false, marginCalculationMode: 'markup' };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -861,7 +820,7 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.defaultLogoWidth === undefined) jsonData.quote.defaultLogoWidth = 200;
         if(jsonData.quote.useCustomCurrency === undefined) jsonData.quote.useCustomCurrency = false;
         if(jsonData.quote.customCurrency === undefined) jsonData.quote.customCurrency = 'EUR';
-        if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = false;
+        if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
         if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { 
@@ -899,7 +858,7 @@ function decryptCaesar(text, shift) {
         if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
         (jsonData.infoImages || []).forEach(it => {
             if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-            if (it.centering === undefined) it.centering = 'left'; // Default to left
+            if (it.centering === undefined) it.centering = 'center'; // Default to center
         });
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
@@ -941,7 +900,7 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
     if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
     if(q.customCurrency === undefined) q.customCurrency = 'EUR';
-    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = false;
+    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
     if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { 
@@ -980,7 +939,7 @@ function loadQuoteData(data, loadedFileName=null){
     });
     (jsonData.infoImages || []).forEach(it => {
         if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-        if (it.centering === undefined) it.centering = 'left';
+        if (it.centering === undefined) it.centering = 'center';
     });
 
 
@@ -1013,7 +972,6 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('customCurrencyInput').value = q.customCurrency || 'EUR';
     document.getElementById("customCurrencyInput").style.display = (q.useCustomCurrency || false) ? 'inline-block' : 'none';
     document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
-    document.getElementById('smartImageCenterChk').checked = q.centerImagesByDefault;
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -1220,12 +1178,9 @@ function loadItems(items, containerId, distributionRatio = 1){
             sepDiv.className = 'quote-item separator-item';
             sepDiv.dataset.index = idx;
             sepDiv.innerHTML = `
-                <div class="item-meta">
-                    <div class="drag-col screen-only"><span class="drag-handle">≡</span></div>
-                    <div class="screen-only" style="text-align:center; border-top: 2px dashed #ccc; padding: 8px; margin: 15px 0; position:relative; width:100%;">
-                        --- SIDBRYTNING / SEPARATOR ---
-                        <span class="remove-icon" style="display:inline-block; top: 50%; transform: translateY(-50%);" onclick="removeItem('${containerId}', ${idx})">✖</span>
-                    </div>
+                <div class="screen-only" style="text-align:center; border-top: 2px dashed #ccc; padding: 8px; margin: 15px 0; position:relative;">
+                    --- SIDBRYTNING / SEPARATOR ---
+                    <span class="remove-icon" style="display:inline-block; top: 50%; transform: translateY(-50%);" onclick="removeItem('${containerId}', ${idx})">✖</span>
                 </div>
                 <div class="print-only"></div>
             `;
@@ -1249,7 +1204,6 @@ function loadItems(items, containerId, distributionRatio = 1){
         const bakedInIconHTML = it.isPriceBakedIn ? `<span class="screen-only baked-in-icon" title="${translations[currentLanguage].bakedInPriceTooltip}">👨‍🍳</span>` : '';
 
         meta.innerHTML = `
-            <div class="drag-col screen-only"><span class="drag-handle">≡</span></div>
             <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="itemNumber" title="Klicka för att redigera nummer">${it.itemNumber}</div>
             <div class="item-name bold editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-field="name">${it.name||''} ${bakedInIconHTML}</div>
             <div class="quantity" data-item="${containerId}" data-index="${idx}" data-field="quantity"><div class="input-container"><input type="number" min="0" step="1" value="${it.quantity || 0}" class="${(it.quantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container screen-only"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
@@ -1328,7 +1282,6 @@ function loadItems(items, containerId, distributionRatio = 1){
             const subBakedInIconHTML = sItem.isPriceBakedIn ? `<span class="screen-only baked-in-icon" title="${translations[currentLanguage].bakedInPriceTooltip}">👨‍🍳</span>` : '';
 
             sMeta.innerHTML = `
-                <div class="drag-col screen-only"></div> <!-- Spacer for alignment -->
                 <div class="item-number editable" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemNumber" title="Klicka för att redigera nummer">${sItem.subItemNumber}</div>
                 <div class="item-name editable subitem-name-style" contenteditable="true" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemName">${sItem.subItemName||''} ${subBakedInIconHTML}</div>
                 <div class="quantity" data-item="${containerId}" data-index="${idx}" data-included-index="${sIdx}" data-field="subItemQuantity"><div class="input-container"><input type="number" min="0" step="1" value="${sItem.subItemQuantity || 0}" class="${(sItem.subItemQuantity || 0) === 0 ? 'zero-text' : ''}"/><div class="button-container screen-only"><button type="button" class="increment-btn">+</button><button type="button" class="decrement-btn">-</button></div></div></div>
@@ -1471,18 +1424,11 @@ function duplicateTerm(index) {
 function loadInfoImages(){
     const c=document.getElementById('infoImagesList'); 
     c.innerHTML='';
-    const smartCenter = document.getElementById('smartImageCenterChk').checked;
     
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
-        
-        // Smart Centering Logic
-        let effectiveCentering = obj.centering || 'left';
-        if (smartCenter && obj.type === 'image' && obj.width > 350 && effectiveCentering === 'left') {
-             effectiveCentering = 'center';
-        }
-        
-        block.className=`info-block align-${effectiveCentering}`; 
+        const centering = obj.centering || 'center';
+        block.className=`info-block align-${centering}`; 
         block.dataset.index=idx;
 
         const contentWrapper = document.createElement('div');
@@ -1529,7 +1475,7 @@ function loadInfoImages(){
         const immune = obj.compressionImmune || false;
         
         let centeringIcon = '◧'; // Left
-        if (obj.centering === 'center') centeringIcon = '●';
+        if (centering === 'center') centeringIcon = '●';
 
         let commonControls = `
             <span class="control-btn" title="Justering (Vänster/Center)" onclick="toggleInfoItemCentering(${idx})">${centeringIcon}</span>
@@ -1585,11 +1531,11 @@ function duplicateInfoItem(index) {
         reRenderAll();
     }
 }
-function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'left' }); saveToLocal(); reRenderAll(); }
+function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'center' }); saveToLocal(); reRenderAll(); }
 function addTable(){
     const rows=prompt('Antal rader','3'); const cols=prompt('Antal kolumner','3');
     if(rows && cols){
-        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'left' });
+        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'center' });
         saveToLocal(); reRenderAll();
     }
 }
@@ -1600,11 +1546,11 @@ function addPageBreak() {
 }
 function addImageFromUrl(){
     const url=prompt(translations[currentLanguage].promptImageUrl);
-    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); }
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'center' }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
-        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); };
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'center' }); saveToLocal(); reRenderAll(); };
         if(document.getElementById('compressImagesChk').checked){
             const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
             const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
@@ -2014,7 +1960,6 @@ function toggleMultipleCurrencyUI(isMultiActive) {
 
 
 document.getElementById('showDecimals').addEventListener('change', function(){ jsonData.quote.showDecimals = this.checked; saveToLocal(); reRenderAll(); });
-document.getElementById('smartImageCenterChk').addEventListener('change', function() { jsonData.quote.centerImagesByDefault = this.checked; saveToLocal(); reRenderAll(); });
 
 document.getElementById('addItemButton').addEventListener('click',()=>{ jsonData.items.push({ type: 'item', name:translations[currentLanguage].newArticleName, itemDescription:translations[currentLanguage].newDescription, quantity:1, originalPrice:0, targetPrice:0, marginPercentage: 0, subItems:[], isPriceBakedIn: false, isHiddenFromPrint: false, vendorNotes: "" }); saveToLocal(); reRenderAll(); });
 document.getElementById('addSeparatorButton').addEventListener('click', () => addSeparator('itemsList'));
@@ -2099,7 +2044,7 @@ function initializeDragAndDrop(){
     itemsSortable = Sortable.create(document.getElementById('itemsList'),{ 
         group:'sharedItems', 
         animation:150, 
-        handle: '.drag-handle', /* Updated handle */
+        handle: '.item-meta', 
         onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.items, evt); },
         onAdd: (evt) => { 
             if (evt.from.id === 'optionalItemsList') { 
@@ -2112,7 +2057,7 @@ function initializeDragAndDrop(){
     optionalItemsSortable=Sortable.create(document.getElementById('optionalItemsList'),{ 
         group:'sharedItems', 
         animation:150, 
-        handle: '.drag-handle', /* Updated handle */
+        handle: '.item-meta', 
         onEnd: (evt) => { if(evt.to === evt.from) onSortEnd(jsonData.optionalItems, evt); },
         onAdd: (evt) => { 
             if (evt.from.id === 'itemsList') { 
@@ -2962,7 +2907,7 @@ function updateMarginLabel() {
 function toggleInfoItemCentering(index) {
     const item = jsonData.infoImages[index];
     if (!item) return;
-    const current = item.centering || 'left';
+    const current = item.centering || 'center';
     // Cycle: left -> center -> left
     if (current === 'left') {
         item.centering = 'center';
@@ -2991,15 +2936,6 @@ function openCropper(index) {
     cropper = new Cropper(imageElement, {
         viewMode: 1,
         autoCropArea: 1,
-        dragMode: 'move',
-        guides: true,
-        center: true,
-        highlight: true,
-        background: false,
-        movable: true,
-        rotatable: true,
-        scalable: true,
-        zoomable: true,
     });
 }
 
@@ -3094,6 +3030,9 @@ function checkForIncomingData() {
             alert("Failed to load shared quote data.");
         }
     }
+}
+    const win = window.open("", "Integration Code", "width=600,height=400");
+    win.document.write("<pre>" + code.replace(/</g, "&lt;") + "</pre>");
 }
 
 </script>
