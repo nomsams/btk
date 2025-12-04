@@ -3031,6 +3031,47 @@ function checkForIncomingData() {
         }
     }
 }
+
+// --- Developer Tools: Generate Sender Code ---
+function showIntegrationCode() {
+    const code = `
+// --- PASTE THIS INTO YOUR PDF FLOW APP ---
+
+// 1. Add Pako Library to <head>:
+// <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"><\/script>
+
+// 2. Add this function to your script:
+function openInBTK(jsonData) {
+    // Method 1: LocalStorage (Best for same domain)
+    try {
+        const id = crypto.randomUUID();
+        localStorage.setItem('btk_quote_' + id, JSON.stringify(jsonData));
+        window.open('https://nomsams.github.io/btk/?quoteId=' + id, '_blank');
+    } catch (e) {
+        console.warn("LocalStorage failed, trying URL hash...", e);
+        
+        // Method 2: Compressed URL Hash (Fallback)
+        try {
+            const str = JSON.stringify(jsonData);
+            const compressed = pako.deflate(str);
+            // Convert Uint8Array to Base64
+            let binary = '';
+            const len = compressed.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(compressed[i]);
+            }
+            const b64 = btoa(binary);
+            window.open('https://nomsams.github.io/btk/#q=' + b64, '_blank');
+        } catch (err) {
+            alert("Failed to send data: " + err.message);
+        }
+    }
+}
+
+// 3. Add a button to your UI:
+// <button onclick="openInBTK(state.finalJson)">Open in BTK</button>
+    `;
+    
     const win = window.open("", "Integration Code", "width=600,height=400");
     win.document.write("<pre>" + code.replace(/</g, "&lt;") + "</pre>");
 }
