@@ -1,4 +1,4 @@
-<!-- Version 99 -- Bug Fixes (Currency/Qty), Vendor Mode Enhanced, Section Separators -->
+<!-- Version 100 -- Bug Fixes: Currency Logic, Quantity Buttons, Separators, Cross-Rates -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -146,7 +146,7 @@
     
     /* Section Separators Print */
     .section-separator-print-hr { display: block !important; border: 0; border-top: 1px solid #000; margin: 10mm 0; }
-    .section-separator-print-break { display: block !important; page-break-before: always; height: 0; }
+    .section-separator-print-break { display: block !important; page-break-before: always !important; height: 0 !important; margin: 0 !important; padding: 0 !important; visibility: hidden !important; }
 }
 
 @media screen {
@@ -536,7 +536,11 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px; font-size: 10px;"></div>
         <div id="singleCurrencyMultiplierDiv">
             <label for="currencyMultiplierInput">Valutakurs:</label>
-            <input type="number" id="currencyMultiplierInput" value="11.8" step="0.01" />
+            <input type="text" id="currencyMultiplierInput" value="11.8" />
+            <label style="font-size: 10pt; margin-left: 5px;">
+                <input type="checkbox" id="multiplyCustomCurrencyChk" />
+                <span>Multiplicera (istället för dividera)</span>
+            </label>
         </div>
         <label for="marginPercentageInput" id="marginLabel" style="margin-left: 10px;">Påslag (%):</label>
         <input type="number" id="marginPercentageInput" value="0" step="1" />
@@ -841,9 +845,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {} }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {} };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -858,6 +862,7 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
         if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
         if(jsonData.quote.separators === undefined) jsonData.quote.separators = {};
+        if(jsonData.quote.multiplyCustomCurrency === undefined) jsonData.quote.multiplyCustomCurrency = false;
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { 
             jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
@@ -939,6 +944,7 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
     if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
     if(q.separators === undefined) q.separators = {};
+    if(q.multiplyCustomCurrency === undefined) q.multiplyCustomCurrency = false;
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { 
         q.labels.totalLabel = q.totalLabel;
@@ -990,6 +996,7 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||11.8;
     document.getElementById('marginPercentageInput').value = q.marginPercentage || 0;
     document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth || 200;
+    document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency || false;
     
     document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
     document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
@@ -1220,7 +1227,7 @@ function loadItems(items, containerId, distributionRatio = 1){
                     --- SIDBRYTNING / SEPARATOR ---
                     <span class="remove-icon" style="display:inline-block; top: 50%; transform: translateY(-50%);" onclick="removeItem('${containerId}', ${idx})">✖</span>
                 </div>
-                <div class="print-only"></div>
+                <div class="print-only" style="page-break-before: always; height: 0; display: block;"></div>
             `;
             container.appendChild(sepDiv);
             return;
@@ -1824,7 +1831,7 @@ function updatePrices(){
     }
 
     const useMultiCurrency = q.useMultipleCurrencies;
-    const singleMultiplier = parseFloat(q.currencyMultiplicator) || 1;
+    const singleMultiplier = parseFloat(String(q.currencyMultiplicator).replace(',','.')) || 1;
     const usdRate = parseFloat(q.usdToSekRate) || 10.5;
     const eurRate = parseFloat(q.eurToSekRate) || 11.5;
 
@@ -1840,7 +1847,14 @@ function updatePrices(){
                 else if (currencyOrigin === 'EUR') basePriceInSEK *= eurRate;
                 else basePriceInSEK *= singleMultiplier; 
             } else {
-                basePriceInSEK *= singleMultiplier;
+                // If using custom currency and "Multiply" is checked, it means Rate = Custom/SEK.
+                // So to get SEK from Custom, we divide.
+                // If "Multiply" is unchecked (default), Rate = SEK/Custom. So we multiply.
+                if (q.useCustomCurrency && q.multiplyCustomCurrency) {
+                     basePriceInSEK /= singleMultiplier;
+                } else {
+                     basePriceInSEK *= singleMultiplier;
+                }
             }
         }
         return (basePriceInSEK * itemMarginMultiplier) * globalMultiplier;
@@ -1919,9 +1933,13 @@ function formatPrice(price, forceSEK = false){
     const useCustom = document.getElementById('useCustomCurrencyChk').checked;
 
     if (useCustom && !forceSEK) {
-        const multiplier = parseFloat(document.getElementById('currencyMultiplierInput').value) || 1;
+        const multiplier = parseFloat(String(document.getElementById('currencyMultiplierInput').value).replace(',','.')) || 1;
         if (multiplier > 0) {
-            displayPrice = displayPrice / multiplier;
+            if (document.getElementById('multiplyCustomCurrencyChk').checked) {
+                displayPrice = displayPrice * multiplier;
+            } else {
+                displayPrice = displayPrice / multiplier;
+            }
         }
     }
     
@@ -1935,8 +1953,14 @@ document.addEventListener('click',e=>{
     if (!par) return;
     const inp = par.querySelector('input[type="number"]');
     let val = parseInt(inp.value) || 0;
-    if(e.target.classList.contains('increment-btn')){ inp.value = val + 1; handleQuantityChange(inp); }
-    else if(e.target.classList.contains('decrement-btn')){ inp.value = Math.max(0, val - 1); handleQuantityChange(inp); }
+    if(e.target.classList.contains('increment-btn')){ 
+        inp.value = val + 1; 
+        handleQuantityChange(inp); 
+    }
+    else if(e.target.classList.contains('decrement-btn')){ 
+        inp.value = Math.max(0, val - 1); 
+        handleQuantityChange(inp); 
+    }
 });
 
 function createHiddenJsonDiv(container) { const div = document.createElement('div'); div.id = 'hidden-json'; div.style.display = 'none'; div.textContent = encryptCaesar(JSON.stringify(jsonData), caesarShift); (container || document.getElementById('quoteContent')).appendChild(div); }
@@ -1948,13 +1972,16 @@ function handleQuantityChange(inp){
     const item = (containerId === 'itemsList' ? jsonData.items : jsonData.optionalItems)[idx];
     
     // Update quantity
-    (sIdx ? item.subItems[sIdx] : item)[sIdx ? 'subItemQuantity' : 'quantity'] = parseInt(inp.value) || 0;
+    const qty = parseInt(inp.value) || 0;
+    if (sIdx) {
+        item.subItems[sIdx].subItemQuantity = qty;
+    } else {
+        item.quantity = qty;
+    }
     
     // Safety check: If originalPrice is 0 but targetPrice is set, reverse calculate originalPrice
-    // This handles cases where user typed a price manually before setting quantity
     const currentTarget = (sIdx ? item.subItems[sIdx].subItemTargetPrice : item.targetPrice) || 0;
     const currentOriginal = (sIdx ? item.subItems[sIdx].subItemOriginalPrice : item.originalPrice) || 0;
-    const qty = parseInt(inp.value) || 0;
     
     if (currentOriginal === 0 && currentTarget > 0 && qty > 0) {
          if (sIdx) item.subItems[sIdx].subItemOriginalPrice = currentTarget / qty;
@@ -1974,7 +2001,20 @@ document.getElementById('showProjectNumber').addEventListener('change', function
 document.getElementById('addSignatureCheck').addEventListener('change', function(){ document.getElementById('signatureSection').style.display=this.checked?'block':'none'; jsonData.quote.showSignature = this.checked; saveToLocal(); });
 document.getElementById('toggleTillSectionChk').addEventListener('change', function(){ jsonData.quote.showTillSection = this.checked; applyTillSectionVisibility(); saveToLocal(); updatePdfFileNameInput(); });
 
-document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ const val=parseFloat(this.value); if(!isNaN(val)){ jsonData.quote.currencyMultiplicator=val; saveToLocal(); reRenderAll(); }});
+document.getElementById('currencyMultiplierInput').addEventListener('input',function(){ 
+    const val=parseFloat(this.value.replace(',','.')); 
+    if(!isNaN(val)){ 
+        jsonData.quote.currencyMultiplicator=val; 
+        saveToLocal(); 
+        reRenderAll(); 
+    }
+});
+document.getElementById('multiplyCustomCurrencyChk').addEventListener('change', function() {
+    jsonData.quote.multiplyCustomCurrency = this.checked;
+    saveToLocal();
+    reRenderAll();
+});
+
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
 document.getElementById('defaultLogoWidthInput').addEventListener('input', function() { const val = parseInt(this.value); if (!isNaN(val)) { jsonData.quote.defaultLogoWidth = val; saveToLocal(); }});
 
@@ -2308,6 +2348,8 @@ async function fetchLiveCurrencyRates() {
     const container = document.getElementById('liveCurrencyRates');
     container.innerHTML = 'Laddar kurser...';
     let displayHtml = [];
+    let usdRate = null;
+    let eurRate = null;
 
     const fetchRate = async (base) => {
         for (let i = 0; i < 10; i++) { 
@@ -2319,6 +2361,8 @@ async function fetchLiveCurrencyRates() {
                 const rate = data?.[base.toLowerCase()]?.['sek'];
                 if (rate) {
                     window.liveExchangeRates[base.toLowerCase()] = parseFloat(rate);
+                    if (base.toLowerCase() === 'usd') usdRate = parseFloat(rate);
+                    if (base.toLowerCase() === 'eur') eurRate = parseFloat(rate);
                     return `1 ${base.toUpperCase()} = ${parseFloat(rate).toFixed(2)} SEK (${dateStr.slice(5)})`;
                 }
             } catch (err) { console.warn(`Failed to fetch ${base} for ${dateStr}:`, err); continue; }
@@ -2327,6 +2371,14 @@ async function fetchLiveCurrencyRates() {
     };
 
     displayHtml = await Promise.all(['usd', 'eur'].map(fetchRate));
+    
+    if (usdRate && eurRate) {
+        const usdToEur = usdRate / eurRate;
+        const eurToUsd = eurRate / usdRate;
+        displayHtml.push(`USD/EUR = ${usdToEur.toFixed(3)}`);
+        displayHtml.push(`EUR/USD = ${eurToUsd.toFixed(3)}`);
+    }
+
     container.innerHTML = displayHtml.join('<br/>');
     if (jsonData.quote.useMultipleCurrencies) { 
       updateMultiCurrencyInputsFromLiveRates(false); 
@@ -3087,7 +3139,7 @@ function renderSectionSeparators() {
         if (currentVal === 'hr') {
             displayHtml = `<div class="section-separator-display"><hr class="print-only section-separator-print-hr"><div class="screen-only" style="border-top:2px solid black; text-align:center; color:#888; font-size:10px;">(Utskrift: Linje)</div></div>`;
         } else if (currentVal === 'page-break') {
-            displayHtml = `<div class="section-separator-display"><div class="print-only section-separator-print-break"></div><div class="screen-only page-break-marker">--- SIDBRYTNING (Utskrift) ---</div></div>`;
+            displayHtml = `<div class="section-separator-display"><div class="print-only section-separator-print-break" style="page-break-before: always; height: 0; display: block;"></div><div class="screen-only page-break-marker">--- SIDBRYTNING (Utskrift) ---</div></div>`;
         }
 
         return `
