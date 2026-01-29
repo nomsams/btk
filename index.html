@@ -1,4 +1,4 @@
-<!-- Version 98 -- Cross-App Loading (LocalStorage & Compressed URL), Pako Integration -->
+<!-- Version 99 -- Bug Fixes (Currency/Qty), Vendor Mode Enhanced, Section Separators -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -143,6 +143,10 @@
     .vendor-item-notes { white-space: pre-wrap; background-color: #fefee9 !important; padding: 1.5mm; }
     .page-break-element { page-break-before: always !important; visibility: hidden !important; height: 0 !important; margin: 0 !important; padding: 0 !important; }
     .separator-item .print-only { page-break-before: always !important; height: 0; display: block !important; }
+    
+    /* Section Separators Print */
+    .section-separator-print-hr { display: block !important; border: 0; border-top: 1px solid #000; margin: 10mm 0; }
+    .section-separator-print-break { display: block !important; page-break-before: always; height: 0; }
 }
 
 @media screen {
@@ -401,6 +405,36 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 }
 .vendor-mode-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
 
+/* Section Separator Controls */
+.section-separator-control {
+    text-align: center;
+    margin: 10px 0;
+    padding: 5px;
+    border: 1px dashed #ddd;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    font-size: 12px;
+    color: #555;
+}
+.section-separator-control:hover {
+    background-color: #eee;
+    border-color: #bbb;
+}
+.section-separator-display {
+    margin: 10px 0;
+}
+.section-separator-display hr {
+    border: 0;
+    border-top: 2px solid #000;
+}
+.section-separator-display .page-break-marker {
+    text-align: center;
+    border: 2px dashed #ccc;
+    padding: 10px;
+    color: #888;
+    font-weight: bold;
+}
+
 </style>
 </head>
 <body class="">
@@ -559,6 +593,8 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <button class="add-button screen-only" id="addSeparatorButton">+ Lägg till separator</button>
     </div>
 
+    <div id="sep-items-optional-container"></div>
+
     <div id="optionalSectionContainer">
         <h3 id="optionalItemsHeading" class="name editable" contenteditable="true" data-field="optionalItemsHeading">Alternativ / Ytterligare Artiklar</h3>
         <span class="section-remove-icon screen-only" onclick="hideOptionalSection()">✖</span>
@@ -572,6 +608,8 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <button class="add-optional-button screen-only" id="addOptionalItemButton">+ Lägg till ny artikel</button>
         <button class="add-optional-button screen-only" id="addOptionalSeparatorButton">+ Lägg till separator</button>
     </div>
+
+    <div id="sep-optional-info-container"></div>
 
     <div id="infoSectionContainer">
         <h3 id="infoImagesHeading" class="name editable" contenteditable="true" data-field="infoImagesHeading">Info / Bilder</h3>
@@ -592,6 +630,8 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
             <div id="compressionStatus" class="screen-only" style="display: none;"></div>
         </div>
     </div>
+
+    <div id="sep-info-terms-container"></div>
 
     <div id="termsSectionContainer">
         <h3 id="termsHeading" class="name editable" contenteditable="true" data-field="termsHeading">Villkor</h3>
@@ -651,11 +691,6 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <button id="updateDateBtn" class="footer-button" style="margin-left: 10px; background-color: #5bc0de;">Uppdatera datum</button>
     </div>
     <div class="status-message" id="statusMessage"></div>
-    
-    <!-- Developer / Integration Tools -->
-    <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
-        <button class="footer-button" onclick="showIntegrationCode()" style="background-color: #555;">Developer / Integration</button>
-    </div>
 </div>
 
 
@@ -806,9 +841,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {} }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup' };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {} };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -822,6 +857,7 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.customCurrency === undefined) jsonData.quote.customCurrency = 'EUR';
         if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
         if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
+        if(jsonData.quote.separators === undefined) jsonData.quote.separators = {};
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { 
             jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
@@ -902,6 +938,7 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.customCurrency === undefined) q.customCurrency = 'EUR';
     if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
     if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
+    if(q.separators === undefined) q.separators = {};
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { 
         q.labels.totalLabel = q.totalLabel;
@@ -996,6 +1033,7 @@ function reRenderAll(){
     updateSectionVisibilityCheckboxes();
     checkQuoteDate();
     updateMarginLabel();
+    renderSectionSeparators();
 }
 
 function buildPdfFileName() {
@@ -1242,12 +1280,13 @@ function loadItems(items, containerId, distributionRatio = 1){
         const breakdownDiv = document.createElement('div');
         breakdownDiv.className = 'vendor-price-details';
         breakdownDiv.innerHTML = `
-            <div>Original: ${formatNumber(breakdown.originalPrice.toFixed(2))} ${breakdown.currencyOrigin}</div>
-            ${breakdown.rateText ? `<div>Kurs: ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK, true)} SEK</div>` : ''}
-            <div>Lokal (${(it.marginPercentage || 0)}%): <i>${formatPrice(breakdown.priceInSEK, true)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue), true)} = <b>${formatPrice(breakdown.priceAfterLocalMargin, true)} SEK</b></div>
-            <div>Global (${globalMarginLabel} ${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} SEK</b></div>
+            <div><b>Original:</b> ${formatNumber(breakdown.originalPrice.toFixed(2))} ${breakdown.currencyOrigin}</div>
+            ${breakdown.rateText ? `<div><b>Kurs:</b> ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK, true)} SEK</div>` : ''}
+            <div><b>Lokal (${(it.marginPercentage || 0)}%):</b> <i>${formatPrice(breakdown.priceInSEK, true)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue), true)} = <b>${formatPrice(breakdown.priceAfterLocalMargin, true)} SEK</b></div>
+            <div><b>Global (${globalMarginLabel} ${jsonData.quote.marginPercentage || 0}%):</b> <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} SEK (Enhetspris)</b></div>
+            <div><b>Antal:</b> x ${it.quantity || 0}</div>
             ${bakedInRow}
-            <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;">Total (Antal x Pris): <b>${formatPrice(breakdown.finalPricePerUnit * (it.quantity || 0), true)} SEK</b></div>
+            <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;"><b>Radtotal:</b> ${formatPrice(breakdown.finalPricePerUnit * (it.quantity || 0), true)} SEK</div>
         `;
         itemDiv.appendChild(breakdownDiv);
 
@@ -1317,12 +1356,13 @@ function loadItems(items, containerId, distributionRatio = 1){
             const subBreakdownDiv = document.createElement('div');
             subBreakdownDiv.className = 'vendor-price-details';
             subBreakdownDiv.innerHTML = `
-                <div>Original: ${formatNumber(subBreakdown.originalPrice.toFixed(2))} ${subBreakdown.currencyOrigin}</div>
-                ${subBreakdown.rateText ? `<div>Kurs: ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK, true)} SEK</div>` : ''}
-                <div>Lokal (${(sItem.marginPercentage || 0)}%): <i>${formatPrice(subBreakdown.priceInSEK, true)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue), true)} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin, true)} SEK</b></div>
-                <div>Global (${subGlobalMarginLabel} ${jsonData.quote.marginPercentage || 0}%): <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} SEK</b></div>
+                <div><b>Original:</b> ${formatNumber(subBreakdown.originalPrice.toFixed(2))} ${subBreakdown.currencyOrigin}</div>
+                ${subBreakdown.rateText ? `<div><b>Kurs:</b> ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK, true)} SEK</div>` : ''}
+                <div><b>Lokal (${(sItem.marginPercentage || 0)}%):</b> <i>${formatPrice(subBreakdown.priceInSEK, true)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue), true)} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin, true)} SEK</b></div>
+                <div><b>Global (${subGlobalMarginLabel} ${jsonData.quote.marginPercentage || 0}%):</b> <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} SEK (Enhetspris)</b></div>
+                <div><b>Antal:</b> x ${sItem.subItemQuantity || 0}</div>
                 ${subBakedInRow}
-                <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;">Total (Antal x Pris): <b>${formatPrice(subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0), true)} SEK</b></div>
+                <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;"><b>Radtotal:</b> ${formatPrice(subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0), true)} SEK</div>
             `;
             included.appendChild(subBreakdownDiv);
 
@@ -1925,7 +1965,8 @@ function handleQuantityChange(inp){
     // Force update of prices immediately
     updatePrices();
     calculateTotalPrice();
-    updateLiveDOMPrices(containerId, idx, sIdx);
+    // Force re-render to ensure totals and all dependent fields update correctly
+    reRenderAll();
 }
 
 document.getElementById('swapButton').addEventListener('click',()=>{ [jsonData.companyA, jsonData.companyB] = [jsonData.companyB, jsonData.companyA]; saveToLocal(); loadQuoteData(jsonData, currentFileName); });
@@ -3032,48 +3073,46 @@ function checkForIncomingData() {
     }
 }
 
-// --- Developer Tools: Generate Sender Code ---
-function showIntegrationCode() {
-    const code = `
-// --- PASTE THIS INTO YOUR PDF FLOW APP ---
+// --- Section Separator Logic ---
+function renderSectionSeparators() {
+    const separators = jsonData.quote.separators || {};
+    const containers = {
+        'items_optional': document.getElementById('sep-items-optional-container'),
+        'optional_info': document.getElementById('sep-optional-info-container'),
+        'info_terms': document.getElementById('sep-info-terms-container')
+    };
 
-// 1. Add Pako Library to <head>:
-// <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"><\/script>
-
-// 2. Add this function to your script:
-function openInBTK(jsonData) {
-    // Method 1: LocalStorage (Best for same domain)
-    try {
-        const id = crypto.randomUUID();
-        localStorage.setItem('btk_quote_' + id, JSON.stringify(jsonData));
-        window.open('https://nomsams.github.io/btk/?quoteId=' + id, '_blank');
-    } catch (e) {
-        console.warn("LocalStorage failed, trying URL hash...", e);
-        
-        // Method 2: Compressed URL Hash (Fallback)
-        try {
-            const str = JSON.stringify(jsonData);
-            const compressed = pako.deflate(str);
-            // Convert Uint8Array to Base64
-            let binary = '';
-            const len = compressed.byteLength;
-            for (let i = 0; i < len; i++) {
-                binary += String.fromCharCode(compressed[i]);
-            }
-            const b64 = btoa(binary);
-            window.open('https://nomsams.github.io/btk/#q=' + b64, '_blank');
-        } catch (err) {
-            alert("Failed to send data: " + err.message);
+    const renderControl = (key, currentVal) => {
+        let displayHtml = '';
+        if (currentVal === 'hr') {
+            displayHtml = `<div class="section-separator-display"><hr class="print-only section-separator-print-hr"><div class="screen-only" style="border-top:2px solid black; text-align:center; color:#888; font-size:10px;">(Utskrift: Linje)</div></div>`;
+        } else if (currentVal === 'page-break') {
+            displayHtml = `<div class="section-separator-display"><div class="print-only section-separator-print-break"></div><div class="screen-only page-break-marker">--- SIDBRYTNING (Utskrift) ---</div></div>`;
         }
-    }
+
+        return `
+            ${displayHtml}
+            <div class="section-separator-control screen-only" onclick="cycleSectionSeparator('${key}')">
+                ${currentVal ? (currentVal === 'hr' ? 'Byt separator (Nu: Linje)' : 'Byt separator (Nu: Sidbrytning)') : '+ Lägg till separator mellan sektioner'}
+            </div>
+        `;
+    };
+
+    if (containers['items_optional']) containers['items_optional'].innerHTML = renderControl('items_optional', separators['items_optional']);
+    if (containers['optional_info']) containers['optional_info'].innerHTML = renderControl('optional_info', separators['optional_info']);
+    if (containers['info_terms']) containers['info_terms'].innerHTML = renderControl('info_terms', separators['info_terms']);
 }
 
-// 3. Add a button to your UI:
-// <button onclick="openInBTK(state.finalJson)">Open in BTK</button>
-    `;
+function cycleSectionSeparator(key) {
+    if (!jsonData.quote.separators) jsonData.quote.separators = {};
+    const current = jsonData.quote.separators[key];
     
-    const win = window.open("", "Integration Code", "width=600,height=400");
-    win.document.write("<pre>" + code.replace(/</g, "&lt;") + "</pre>");
+    if (!current) jsonData.quote.separators[key] = 'hr';
+    else if (current === 'hr') jsonData.quote.separators[key] = 'page-break';
+    else jsonData.quote.separators[key] = null; // Remove
+    
+    saveToLocal();
+    reRenderAll();
 }
 
 </script>
