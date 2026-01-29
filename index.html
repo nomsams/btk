@@ -1,4 +1,4 @@
-<!-- Version 100 -- Bug Fixes: Currency Logic, Quantity Buttons, Separators, Cross-Rates -->
+<!-- Version 101 -- Bug Fixes: Currency Logic (SEK Normalization), Display Conversion, Section Separators -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -146,7 +146,18 @@
     
     /* Section Separators Print */
     .section-separator-print-hr { display: block !important; border: 0; border-top: 1px solid #000; margin: 10mm 0; }
-    .section-separator-print-break { display: block !important; page-break-before: always !important; height: 0 !important; margin: 0 !important; padding: 0 !important; visibility: hidden !important; }
+    /* Ensure the page break separator is invisible but functional */
+    .section-separator-print-break { 
+        display: block !important; 
+        page-break-before: always !important; 
+        height: 0 !important; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        visibility: hidden !important; 
+        border: none !important;
+        content: "" !important;
+    }
+    .section-separator-control { display: none !important; }
 }
 
 @media screen {
@@ -220,7 +231,7 @@ input[type="number"] { -moz-appearance: textfield; }
 .term-item .controls-row { display: none; position:absolute; left:2px; top: 50%; transform: translateY(-50%); flex-direction:column; gap: 2px; }
 .term-item:hover .controls-row { display: inline-flex; }
 .term-item .content-wrapper { width: 100%; }
-.term-item .editable { width: 100% !important; }
+.term-item .editable { width: 100% !important; } 
 .reference { margin: 20px 0; }
 .currency-multiplier { margin-top: 20px; margin-bottom: 20px; text-align: right; }
 .currency-multiplier label { font-weight: bold; }
@@ -648,7 +659,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <div id="signatureSection">
         <div class="signature-date">
             <span id="signatureDateLabel">Datum</span>:
-            <span class="editable" contenteditable="true" id="signatureDate" style="border-bottom: 1px solid black; padding: 0 10px;">                    </span>
+            <span class="editable" contenteditable="true" id="signatureDate" style="border-bottom: 1px solid black; padding: 0 10px;">                  </span>
         </div>
         <div id="signatureBlocksContainer" class="signature-row">
             <div class="signature-block info-block">
@@ -1187,6 +1198,8 @@ function getPriceBreakdown(item, parentCurrencyOrigin) {
 
     breakdown.rate = 1;
     breakdown.rateText = '';
+    
+    // SEK Normalization Logic for Vendor Breakdown
     if (breakdown.currencyOrigin !== 'SEK') {
         if (q.useMultipleCurrencies) {
             if (breakdown.currencyOrigin === 'USD') breakdown.rate = parseFloat(q.usdToSekRate) || 1;
@@ -1554,7 +1567,7 @@ function loadSignature() {
     if (!jsonData.signature) return;
     const sig = jsonData.signature;
     document.getElementById('signatureDateLabel').textContent = translations[currentLanguage].signatureDateLabel;
-    document.getElementById('signatureDate').innerHTML = sig.date || '                    ';
+    document.getElementById('signatureDate').innerHTML = sig.date || '                  ';
     
     const lessorBlock = document.querySelector('.signature-block:first-child');
     if (lessorBlock) {
@@ -1841,22 +1854,19 @@ function updatePrices(){
         let currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (q.useCustomCurrency && q.customCurrency) || 'SEK').toUpperCase();
         
         let basePriceInSEK = originalPrice;
+
+        // SEK Normalization: Always convert foreign currency to SEK for internal calculation.
+        // We ignore "Custom Currency" here because that is purely for display formatting.
         if (currencyOrigin !== 'SEK') {
             if (useMultiCurrency) {
                 if (currencyOrigin === 'USD') basePriceInSEK *= usdRate;
                 else if (currencyOrigin === 'EUR') basePriceInSEK *= eurRate;
-                else basePriceInSEK *= singleMultiplier; 
+                else basePriceInSEK *= singleMultiplier;
             } else {
-                // If using custom currency and "Multiply" is checked, it means Rate = Custom/SEK.
-                // So to get SEK from Custom, we divide.
-                // If "Multiply" is unchecked (default), Rate = SEK/Custom. So we multiply.
-                if (q.useCustomCurrency && q.multiplyCustomCurrency) {
-                     basePriceInSEK /= singleMultiplier;
-                } else {
-                     basePriceInSEK *= singleMultiplier;
-                }
+                basePriceInSEK *= singleMultiplier;
             }
         }
+
         return (basePriceInSEK * itemMarginMultiplier) * globalMultiplier;
     };
 
@@ -1928,23 +1938,38 @@ function calculateTotalPrice(){
     document.getElementById('totalValue').textContent= `${formatPrice(total)} ${currencyVal}`;
     document.getElementById('totalPrice').style.display = document.getElementById('removeTotalCheck').checked ? 'none' : '';
 }
-function formatPrice(price, forceSEK = false){
-    let displayPrice = price || 0;
-    const useCustom = document.getElementById('useCustomCurrencyChk').checked;
 
+function formatPrice(price, forceSEK = false) {
+    let displayPrice = Number(price) || 0;
+
+    const useCustom = document.getElementById('useCustomCurrencyChk').checked;
     if (useCustom && !forceSEK) {
-        const multiplier = parseFloat(String(document.getElementById('currencyMultiplierInput').value).replace(',','.')) || 1;
-        if (multiplier > 0) {
-            if (document.getElementById('multiplyCustomCurrencyChk').checked) {
-                displayPrice = displayPrice * multiplier;
-            } else {
-                displayPrice = displayPrice / multiplier;
-            }
+        const q = jsonData.quote || {};
+        const outCur = (document.getElementById('customCurrencyInput').value || 'SEK').trim().toUpperCase();
+        const multiply = document.getElementById('multiplyCustomCurrencyChk').checked;
+
+        // Pick the display rate "1 OUT = X SEK"
+        let rateToSEK = parseFloat(String(document.getElementById('currencyMultiplierInput').value).replace(',', '.')) || 1;
+
+        if (q.useMultipleCurrencies) {
+            const usd = parseFloat(document.getElementById('usdRateInput').value) || parseFloat(q.usdToSekRate) || 1;
+            const eur = parseFloat(document.getElementById('eurRateInput').value) || parseFloat(q.eurToSekRate) || 1;
+
+            if (outCur === 'USD') rateToSEK = usd;
+            else if (outCur === 'EUR') rateToSEK = eur;
+            // else fall back to currencyMultiplierInput for other custom currencies
+        }
+
+        if (rateToSEK > 0) {
+            // Default behavior: SEK -> OUT by dividing by (SEK per 1 OUT)
+            displayPrice = multiply ? (displayPrice * rateToSEK) : (displayPrice / rateToSEK);
         }
     }
-    
-    return formatNumber((document.getElementById('showDecimals').checked ? displayPrice.toFixed(2) : Math.round(displayPrice).toString()));
+
+    const showDecimals = document.getElementById('showDecimals').checked;
+    return formatNumber(showDecimals ? displayPrice.toFixed(2) : Math.round(displayPrice).toString());
 }
+
 function formatNumber(numStr){ return numStr.replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
 
 document.addEventListener('click',e=>{
@@ -2080,9 +2105,9 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
                 } catch (err2) {
                     // Fallback: Try the original logic as a last resort
                     try {
-                         const replacedContent = fileContent.replace(/–/g, '-');
-                         loadQuoteData(JSON.parse(replacedContent), f.name);
-                         saveToLocal();
+                          const replacedContent = fileContent.replace(/–/g, '-');
+                          loadQuoteData(JSON.parse(replacedContent), f.name);
+                          saveToLocal();
                     } catch (err3) {
                         alert('JSON-formatet verkar vara felaktigt eller krypterat med en annan nyckel: ' + err2);
                     }
@@ -2154,7 +2179,7 @@ function initializeDragAndDrop(){
         handle:'.drag-handle', 
         onEnd: (evt) => onSortEnd(jsonData.infoImages, evt) 
     });
-     signatureSortable=Sortable.create(document.getElementById('signatureBlocksContainer'), {
+      signatureSortable=Sortable.create(document.getElementById('signatureBlocksContainer'), {
         animation: 150,
         handle: '.drag-handle',
         onEnd: (evt) => {
