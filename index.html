@@ -1,4 +1,4 @@
-<!-- Version 101 -- Bug Fixes: Currency Logic (SEK Normalization), Display Conversion, Section Separators -->
+<!-- Version 102 -- Features: Custom Currency Matrix, Vendor Formulas, Layout Controls, JSON Naming -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -53,6 +53,13 @@
         flex-direction: column;
         align-items: flex-start !important;
         text-align: left !important;
+    }
+
+    /* Specific fix for Text Blocks aligned left in print */
+    .info-block.text-block-left {
+        width: 100% !important;
+        flex-basis: 100% !important;
+        display: block !important;
     }
 
     .info-image-container img {
@@ -283,6 +290,13 @@ h3.name.editable { margin-bottom: 0 !important; }
     text-align: left;
 }
 
+/* Specific class for text blocks aligned left to take full width */
+.info-block.text-block-left {
+    width: 100%;
+    flex-basis: 100%;
+    display: block;
+}
+
 .info-block:hover { background-color: #fafafa; }
 .info-block .content-wrapper { position: relative; width: 100%; } 
 
@@ -340,7 +354,7 @@ h3.name.editable { margin-bottom: 0 !important; }
 .item-tooltip .margin-display.discount { color: #b78a00; }
 .item-tooltip .editable:hover { border-color: #ccc; background-color: #f9f9f9; }
 .item-tooltip .editable:focus { border-color: #007bff; background-color: white; box-shadow: 0 0 0 1px #007bff; }
-.item-actions { display: none; position: absolute; right: -285px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
+.item-actions { display: none; position: absolute; right: -315px; top: 50%; transform: translateY(-50%); flex-direction: row; gap: 4px; z-index: 10; }
 .item-actions .control-btn { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight:bold; }
 .item-actions .control-btn:hover { background-color: #e0e0e0; border-color: #999; }
 .control-btn[id^="immuneBtn_"] { cursor: pointer; user-select: none; }
@@ -542,6 +556,10 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <label><input type="checkbox" id="showOptionalSectionChk" data-section="optional" /><span id="showOptionalLabel">Alternativ</span></label>
         <label><input type="checkbox" id="showInfoSectionChk" data-section="info" /><span id="showInfoLabel">Info/Bilder</span></label>
         <label><input type="checkbox" id="showTermsSectionChk" data-section="terms" /><span id="showTermsLabel">Villkor</span></label>
+        <label style="margin-left: 15px; border-left: 1px solid #ccc; padding-left: 15px;">
+            <input type="checkbox" id="moveInfoSectionChk" />
+            <span id="moveInfoLabel">Flytta Info/Bilder före artiklar</span>
+        </label>
     </div>
     <div class="currency-multiplier screen-only" style="position: relative;">
         <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px; font-size: 10px;"></div>
@@ -573,6 +591,10 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
                 <label for="eurRateInput" id="eurRateLabel">EUR-SEK Kurs:</label>
                 <input type="number" id="eurRateInput" step="0.01" />
             </div>
+            <div id="sekRateDiv" style="display:none;">
+                <label for="sekRateInput" id="sekRateLabel">SEK-SEK Kurs:</label>
+                <input type="number" id="sekRateInput" step="0.01" value="1" />
+            </div>
         </div>
     </div>
 
@@ -593,6 +615,28 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     </div>
 
     <div class="reference"><strong id="refLabel">Ref:</strong><span class="editable" contenteditable="true" id="reference"></span></div>
+
+    <div id="infoSectionContainer">
+        <h3 id="infoImagesHeading" class="name editable" contenteditable="true" data-field="infoImagesHeading">Info / Bilder</h3>
+        <hr class="horizontal-line" /><span class="section-remove-icon screen-only" onclick="hideInfoSection()">✖</span>
+        <div id="infoImagesList"></div>
+        <div class="image-upload-container screen-only">
+            <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
+            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
+            <button class="image-upload-button" onclick="autoLayoutImages()">Smart Layout (Auto)</button>
+            <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
+            <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="recompressTooltipText"></span></span>
+            <button class="image-upload-button" id="reduceImageFileSizesBtn" onclick="reduceImageFileSizes()">Minska filstorlek (kvalitet)</button>
+            <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="reduceSizeTooltipText"></span></span>
+            <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
+            <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
+            <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
+            <button class="image-upload-button" onclick="addPageBreak()">Lägg till sidbrytning</button>
+            <div id="compressionStatus" class="screen-only" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div id="sep-info-terms-container"></div>
 
     <div id="mainItemsSectionContainer">
         <span class="section-remove-icon screen-only" onclick="removeMainSection()">✖</span>
@@ -625,28 +669,6 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     </div>
 
     <div id="sep-optional-info-container"></div>
-
-    <div id="infoSectionContainer">
-        <h3 id="infoImagesHeading" class="name editable" contenteditable="true" data-field="infoImagesHeading">Info / Bilder</h3>
-        <hr class="horizontal-line" /><span class="section-remove-icon screen-only" onclick="hideInfoSection()">✖</span>
-        <div id="infoImagesList"></div>
-        <div class="image-upload-container screen-only">
-            <input type="file" id="imageUpload" accept="image/*" multiple style="display:none;" />
-            <button class="image-upload-button" onclick="document.getElementById('imageUpload').click()">Lägg till bild (fil)</button>
-            <button class="image-upload-button" onclick="autoLayoutImages()">Smart Layout (Auto)</button>
-            <button class="image-upload-button" onclick="recompressAllImages()">Komprimera om bilder</button>
-            <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="recompressTooltipText"></span></span>
-            <button class="image-upload-button" id="reduceImageFileSizesBtn" onclick="reduceImageFileSizes()">Minska filstorlek (kvalitet)</button>
-            <span class="info-tooltip-icon">ⓘ<span class="info-tooltip-text" id="reduceSizeTooltipText"></span></span>
-            <button class="image-upload-button" style="display:none;" onclick="addImageFromUrl()">Lägg till bild (URL)</button>
-            <button class="image-upload-button" onclick="addInfoText()">Lägg till text</button>
-            <button class="image-upload-button" onclick="addTable()">Lägg till tabell</button>
-            <button class="image-upload-button" onclick="addPageBreak()">Lägg till sidbrytning</button>
-            <div id="compressionStatus" class="screen-only" style="display: none;"></div>
-        </div>
-    </div>
-
-    <div id="sep-info-terms-container"></div>
 
     <div id="termsSectionContainer">
         <h3 id="termsHeading" class="name editable" contenteditable="true" data-field="termsHeading">Villkor</h3>
@@ -764,11 +786,13 @@ const translations = {
     addSeparator: "+ Lägg till separator",
     downloadImage: "Ladda ner bild",
     recompressTooltipText: "Komprimerar om alla icke-skyddade bilder till den angivna kvaliteten och maxbredden. Bra för att standardisera bilder.",
-    reduceSizeTooltipText: "Minskar filstorleken för alla icke-skyddade bilder genom att sänka deras JPEG-kvalitet med 10%. Kan användas flera gånger. Visuell storlek ändras ej.",
+    reduceSizeTooltipText: "Minskar filstorleken för alla icke-skyddade bilder genom att sänka deras JPEG-kvalitet med 10%. Kan be used multiple times. Visual size does not change.",
     marginModeLabelText: "Beräkna som marginal",
     markupLabel: "Påslag (%)",
     marginLabel: "Marginal (%)",
     cropImage: "Beskär bild",
+    addDescription: "Lägg till beskrivning",
+    moveInfoLabel: "Flytta Info/Bilder före artiklar",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -815,6 +839,8 @@ const translations = {
     markupLabel: "Markup (%)",
     marginLabel: "Margin (%)",
     cropImage: "Crop image",
+    addDescription: "Add description",
+    moveInfoLabel: "Move Info/Images before items",
   }
 };
 
@@ -856,9 +882,9 @@ function decryptCaesar(text, shift) {
     }
 
     if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
+        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false, customRates: { usd: 1.0, eur: 1.0, sek: 1.0 }, moveInfoSectionUp: false }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false };
+        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false, customRates: { usd: 1.0, eur: 1.0, sek: 1.0 }, moveInfoSectionUp: false };
         if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
         if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
         if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
@@ -874,6 +900,9 @@ function decryptCaesar(text, shift) {
         if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
         if(jsonData.quote.separators === undefined) jsonData.quote.separators = {};
         if(jsonData.quote.multiplyCustomCurrency === undefined) jsonData.quote.multiplyCustomCurrency = false;
+        if(jsonData.quote.customRates === undefined) jsonData.quote.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
+        if(jsonData.quote.moveInfoSectionUp === undefined) jsonData.quote.moveInfoSectionUp = false;
+
         if(!jsonData.quote.labels) jsonData.quote.labels = {};
         if (jsonData.quote.totalLabel) { 
             jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
@@ -956,6 +985,9 @@ function loadQuoteData(data, loadedFileName=null){
     if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
     if(q.separators === undefined) q.separators = {};
     if(q.multiplyCustomCurrency === undefined) q.multiplyCustomCurrency = false;
+    if(q.customRates === undefined) q.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
+    if(q.moveInfoSectionUp === undefined) q.moveInfoSectionUp = false;
+
     if(!q.labels) q.labels = {};
     if (q.totalLabel) { 
         q.labels.totalLabel = q.totalLabel;
@@ -1012,6 +1044,8 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
     document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
     document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate || 11.50).toFixed(2);
+    document.getElementById('sekRateInput').value = parseFloat(q.customRates?.sek || 1.0).toFixed(2);
+    
     toggleMultipleCurrencyUI(q.useMultipleCurrencies || false);
 
 
@@ -1027,6 +1061,7 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('customCurrencyInput').value = q.customCurrency || 'EUR';
     document.getElementById("customCurrencyInput").style.display = (q.useCustomCurrency || false) ? 'inline-block' : 'none';
     document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
+    document.getElementById('moveInfoSectionChk').checked = q.moveInfoSectionUp || false;
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
@@ -1052,6 +1087,7 @@ function reRenderAll(){
     checkQuoteDate();
     updateMarginLabel();
     renderSectionSeparators();
+    toggleInfoSectionPosition();
 }
 
 function buildPdfFileName() {
@@ -1077,6 +1113,10 @@ function buildPdfFileName() {
         return withReplacements.replace(/[^\w\s\-]/gi, '').replace(/\s+/g, ' ').trim();
     });
     return safeParts.join(' - ') + '.pdf';
+}
+
+function buildJsonFileName() {
+    return buildPdfFileName().replace('.pdf', '.json');
 }
 
 function updatePdfFileNameInput() {
@@ -1137,9 +1177,11 @@ function updateLanguageUI(lang){
     document.querySelector('#toggleTillLabel').lastChild.nodeValue = ` ${t.hideTillSectionLabelText}`;
     document.querySelector('#customCurrencyLabel').textContent = ` ${t.customCurrencyLabelText}`;
     document.querySelector('#useMultipleCurrenciesLabel').textContent = ` ${t.useMultipleCurrenciesLabelText}`;
-    document.querySelector('#usdRateLabel').textContent = `${t.usdRateLabelText} `;
-    document.querySelector('#eurRateLabel').textContent = `${t.eurRateLabelText} `;
     document.querySelector('#marginModeLabel').textContent = ` ${t.marginModeLabelText}`;
+    document.querySelector('#moveInfoLabel').textContent = ` ${t.moveInfoLabel}`;
+
+    // Dynamic labels for currency inputs
+    updateCurrencyInputLabels();
 
     document.getElementById('showSectionsLabel').textContent = t.showSectionsLabel;
     document.getElementById('showOptionalLabel').textContent = t.showOptionalLabel;
@@ -1162,6 +1204,21 @@ function updateLanguageUI(lang){
     updateMarginLabel();
 }
 
+function updateCurrencyInputLabels() {
+    const t = translations[currentLanguage];
+    const q = jsonData.quote;
+    const targetCurrency = (q.useCustomCurrency && q.customCurrency) ? q.customCurrency.toUpperCase() : 'SEK';
+    
+    if (q.useCustomCurrency) {
+        document.querySelector('#usdRateLabel').textContent = `USD-${targetCurrency} Kurs:`;
+        document.querySelector('#eurRateLabel').textContent = `EUR-${targetCurrency} Kurs:`;
+        document.querySelector('#sekRateLabel').textContent = `SEK-${targetCurrency} Kurs:`;
+    } else {
+        document.querySelector('#usdRateLabel').textContent = `${t.usdRateLabelText} `;
+        document.querySelector('#eurRateLabel').textContent = `${t.eurRateLabelText} `;
+    }
+}
+
 function updatePriceHeaders(){
     const customChk = document.getElementById("useCustomCurrencyChk");
     const currencyVal = document.getElementById("customCurrencyInput").value;
@@ -1182,43 +1239,58 @@ function getPriceBreakdown(item, parentCurrencyOrigin) {
     const q = jsonData.quote;
     const marginPercentage = parseFloat(q.marginPercentage) || 0;
     let globalMultiplier = 1;
+    let formulaString = "";
 
     if (q.marginCalculationMode === 'margin') {
         if (marginPercentage < 100) {
             globalMultiplier = 1 / (1 - (marginPercentage / 100));
+            formulaString = `Pris = Kostnad / (1 - ${marginPercentage}%)`;
         }
     } else { // markup
         globalMultiplier = 1 + (marginPercentage / 100);
+        formulaString = `Pris = Kostnad * (1 + ${marginPercentage}%)`;
     }
 
     const itemMarginMultiplier = 1 + ((item.marginPercentage || 0) / 100);
 
     breakdown.originalPrice = item.originalPrice ?? item.subItemOriginalPrice ?? 0;
     breakdown.currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (q.useCustomCurrency && q.customCurrency) || 'SEK').toUpperCase();
+    const targetCurrency = (q.useCustomCurrency && q.customCurrency) ? q.customCurrency.toUpperCase() : 'SEK';
 
     breakdown.rate = 1;
     breakdown.rateText = '';
     
-    // SEK Normalization Logic for Vendor Breakdown
-    if (breakdown.currencyOrigin !== 'SEK') {
-        if (q.useMultipleCurrencies) {
-            if (breakdown.currencyOrigin === 'USD') breakdown.rate = parseFloat(q.usdToSekRate) || 1;
-            else if (breakdown.currencyOrigin === 'EUR') breakdown.rate = parseFloat(q.eurToSekRate) || 1;
-            else breakdown.rate = parseFloat(q.currencyMultiplicator) || 1;
+    // Rate Logic
+    if (breakdown.currencyOrigin !== targetCurrency) {
+        if (q.useCustomCurrency) {
+            // Direct conversion to Custom Currency
+            if (breakdown.currencyOrigin === 'USD') breakdown.rate = parseFloat(q.customRates?.usd) || 1;
+            else if (breakdown.currencyOrigin === 'EUR') breakdown.rate = parseFloat(q.customRates?.eur) || 1;
+            else if (breakdown.currencyOrigin === 'SEK') breakdown.rate = parseFloat(q.customRates?.sek) || 1;
+            else breakdown.rate = 1; // Fallback
         } else {
-            breakdown.rate = parseFloat(q.currencyMultiplicator) || 1;
+            // Conversion to SEK
+            if (q.useMultipleCurrencies) {
+                if (breakdown.currencyOrigin === 'USD') breakdown.rate = parseFloat(q.usdToSekRate) || 1;
+                else if (breakdown.currencyOrigin === 'EUR') breakdown.rate = parseFloat(q.eurToSekRate) || 1;
+                else breakdown.rate = parseFloat(q.currencyMultiplicator) || 1;
+            } else {
+                breakdown.rate = parseFloat(q.currencyMultiplicator) || 1;
+            }
         }
-        breakdown.rateText = `1 ${breakdown.currencyOrigin} = ${breakdown.rate.toFixed(2)} SEK`;
+        breakdown.rateText = `1 ${breakdown.currencyOrigin} = ${breakdown.rate.toFixed(2)} ${targetCurrency}`;
     }
 
-    breakdown.priceInSEK = breakdown.originalPrice * breakdown.rate;
-    breakdown.priceAfterLocalMargin = breakdown.priceInSEK * itemMarginMultiplier;
-    breakdown.localMarginValue = breakdown.priceAfterLocalMargin - breakdown.priceInSEK;
+    breakdown.priceInTarget = breakdown.originalPrice * breakdown.rate;
+    breakdown.priceAfterLocalMargin = breakdown.priceInTarget * itemMarginMultiplier;
+    breakdown.localMarginValue = breakdown.priceAfterLocalMargin - breakdown.priceInTarget;
     const priceAfterGlobalMargin = breakdown.priceAfterLocalMargin * globalMultiplier;
     breakdown.globalMarginValue = priceAfterGlobalMargin - breakdown.priceAfterLocalMargin;
     
     breakdown.finalPricePerUnit = priceAfterGlobalMargin;
     breakdown.marginModeUsed = q.marginCalculationMode;
+    breakdown.formulaString = formulaString;
+    breakdown.targetCurrency = targetCurrency;
 
     return breakdown;
 }
@@ -1280,6 +1352,7 @@ function loadItems(items, containerId, distributionRatio = 1){
                 <button class="control-btn" title="Gör till underpost" onclick="toggleItemHierarchy('${containerId}', ${idx})">↳</button>
                 <button class="control-btn" title="Flytta till/från Alternativ" onclick="toggleItemOptionality('${containerId}', ${idx})">⇅</button>
                 <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateItem('${containerId}', ${idx})">❏</button>
+                <button class="control-btn" title="${translations[currentLanguage].addDescription}" onclick="addDescriptionToItem('${containerId}', ${idx})">📝</button>
                 <button class="control-btn" title="${translations[currentLanguage].removeRow}" style="background-color:red; color:white;" onclick="removeItem('${containerId}', ${idx})">✖</button>
             </div>
         `;
@@ -1294,19 +1367,20 @@ function loadItems(items, containerId, distributionRatio = 1){
 
         let bakedInRow = '';
         if (containerId === 'itemsList' && !it.isPriceBakedIn && !it.isHiddenFromPrint && Math.abs(bakedAmount) > 0.01) {
-            bakedInRow = `<div>Inbakat: <i>${formatPrice(priceAfterGlobalMargin, true)}</i> + ${formatPrice(bakedAmount, true)} = <b>${formatPrice(it.targetPrice, true)} SEK</b></div>`;
+            bakedInRow = `<div>Inbakat: <i>${formatPrice(priceAfterGlobalMargin, true)}</i> + ${formatPrice(bakedAmount, true)} = <b>${formatPrice(it.targetPrice, true)} ${breakdown.targetCurrency}</b></div>`;
         }
 
         const breakdownDiv = document.createElement('div');
         breakdownDiv.className = 'vendor-price-details';
         breakdownDiv.innerHTML = `
             <div><b>Original:</b> ${formatNumber(breakdown.originalPrice.toFixed(2))} ${breakdown.currencyOrigin}</div>
-            ${breakdown.rateText ? `<div><b>Kurs:</b> ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInSEK, true)} SEK</div>` : ''}
-            <div><b>Lokal (${(it.marginPercentage || 0)}%):</b> <i>${formatPrice(breakdown.priceInSEK, true)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue), true)} = <b>${formatPrice(breakdown.priceAfterLocalMargin, true)} SEK</b></div>
-            <div><b>Global (${globalMarginLabel} ${jsonData.quote.marginPercentage || 0}%):</b> <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} SEK (Enhetspris)</b></div>
+            ${breakdown.rateText ? `<div><b>Kurs:</b> ${breakdown.rateText} ➞ ${formatPrice(breakdown.priceInTarget, true)} ${breakdown.targetCurrency}</div>` : ''}
+            <div><b>Lokal (${(it.marginPercentage || 0)}%):</b> <i>${formatPrice(breakdown.priceInTarget, true)}</i> ${localSign} ${formatPrice(Math.abs(breakdown.localMarginValue), true)} = <b>${formatPrice(breakdown.priceAfterLocalMargin, true)} ${breakdown.targetCurrency}</b></div>
+            <div><b>Global (${globalMarginLabel} ${jsonData.quote.marginPercentage || 0}%):</b> <i>${formatPrice(breakdown.priceAfterLocalMargin, true)}</i> ${globalSign} ${formatPrice(Math.abs(breakdown.globalMarginValue), true)} = <b>${formatPrice(breakdown.finalPricePerUnit, true)} ${breakdown.targetCurrency} (Enhetspris)</b></div>
+            <div><i>Formel: ${breakdown.formulaString}</i></div>
             <div><b>Antal:</b> x ${it.quantity || 0}</div>
             ${bakedInRow}
-            <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;"><b>Radtotal:</b> ${formatPrice(breakdown.finalPricePerUnit * (it.quantity || 0), true)} SEK</div>
+            <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;"><b>Radtotal:</b> ${formatPrice(breakdown.finalPricePerUnit * (it.quantity || 0), true)} ${breakdown.targetCurrency}</div>
         `;
         itemDiv.appendChild(breakdownDiv);
 
@@ -1356,6 +1430,7 @@ function loadItems(items, containerId, distributionRatio = 1){
                     <button class="control-btn" title="${translations[currentLanguage].bakeInPriceLabel}" onclick="toggleBakeInSubItemPrice('${containerId}', ${idx}, ${sIdx})">👨‍🍳</button>
                     <button class="control-btn" title="Gör till huvudpost" onclick="toggleItemHierarchy('${containerId}', ${idx}, ${sIdx})">↰</button>
                     <button class="control-btn" title="${translations[currentLanguage].duplicateItem}" onclick="duplicateSubItem('${containerId}', ${idx}, ${sIdx})">❏</button>
+                    <button class="control-btn" title="${translations[currentLanguage].addDescription}" onclick="addDescriptionToSubItem('${containerId}', ${idx}, ${sIdx})">📝</button>
                     <button class="control-btn" title="${translations[currentLanguage].removeRow}" style="background-color:red; color:white;" onclick="removeSubItem('${containerId}',${idx},${sIdx})">✖</button>
                  </div>
             `;
@@ -1370,19 +1445,20 @@ function loadItems(items, containerId, distributionRatio = 1){
 
             let subBakedInRow = '';
             if (containerId === 'itemsList' && !sItem.isPriceBakedIn && !sItem.isHiddenFromPrint && Math.abs(subBakedAmount) > 0.01) {
-                subBakedInRow = `<div>Inbakat: <i>${formatPrice(subPriceAfterGlobalMargin, true)}</i> + ${formatPrice(subBakedAmount, true)} = <b>${formatPrice(sItem.subItemTargetPrice, true)} SEK</b></div>`;
+                subBakedInRow = `<div>Inbakat: <i>${formatPrice(subPriceAfterGlobalMargin, true)}</i> + ${formatPrice(subBakedAmount, true)} = <b>${formatPrice(sItem.subItemTargetPrice, true)} ${subBreakdown.targetCurrency}</b></div>`;
             }
 
             const subBreakdownDiv = document.createElement('div');
             subBreakdownDiv.className = 'vendor-price-details';
             subBreakdownDiv.innerHTML = `
                 <div><b>Original:</b> ${formatNumber(subBreakdown.originalPrice.toFixed(2))} ${subBreakdown.currencyOrigin}</div>
-                ${subBreakdown.rateText ? `<div><b>Kurs:</b> ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInSEK, true)} SEK</div>` : ''}
-                <div><b>Lokal (${(sItem.marginPercentage || 0)}%):</b> <i>${formatPrice(subBreakdown.priceInSEK, true)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue), true)} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin, true)} SEK</b></div>
-                <div><b>Global (${subGlobalMarginLabel} ${jsonData.quote.marginPercentage || 0}%):</b> <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} SEK (Enhetspris)</b></div>
+                ${subBreakdown.rateText ? `<div><b>Kurs:</b> ${subBreakdown.rateText} ➞ ${formatPrice(subBreakdown.priceInTarget, true)} ${subBreakdown.targetCurrency}</div>` : ''}
+                <div><b>Lokal (${(sItem.marginPercentage || 0)}%):</b> <i>${formatPrice(subBreakdown.priceInTarget, true)}</i> ${subLocalSign} ${formatPrice(Math.abs(subBreakdown.localMarginValue), true)} = <b>${formatPrice(subBreakdown.priceAfterLocalMargin, true)} ${subBreakdown.targetCurrency}</b></div>
+                <div><b>Global (${subGlobalMarginLabel} ${jsonData.quote.marginPercentage || 0}%):</b> <i>${formatPrice(subBreakdown.priceAfterLocalMargin, true)}</i> ${subGlobalSign} ${formatPrice(Math.abs(subBreakdown.globalMarginValue), true)} = <b>${formatPrice(subBreakdown.finalPricePerUnit, true)} ${subBreakdown.targetCurrency} (Enhetspris)</b></div>
+                <div><i>Formel: ${subBreakdown.formulaString}</i></div>
                 <div><b>Antal:</b> x ${sItem.subItemQuantity || 0}</div>
                 ${subBakedInRow}
-                <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;"><b>Radtotal:</b> ${formatPrice(subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0), true)} SEK</div>
+                <div style="border-top: 1px solid #ddd; margin-top: 3px; padding-top: 3px;"><b>Radtotal:</b> ${formatPrice(subBreakdown.finalPricePerUnit * (sItem.subItemQuantity || 0), true)} ${subBreakdown.targetCurrency}</div>
             `;
             included.appendChild(subBreakdownDiv);
 
@@ -1448,6 +1524,29 @@ function duplicateSubItem(containerId, mainIndex, subIndex) {
     }
 }
 
+function addDescriptionToItem(containerId, index) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    if (list && list[index]) {
+        if (!list[index].itemDescription) {
+            list[index].itemDescription = " ";
+            saveToLocal();
+            reRenderAll();
+        }
+    }
+}
+
+function addDescriptionToSubItem(containerId, mainIndex, subIndex) {
+    const list = (containerId === 'itemsList') ? jsonData.items : jsonData.optionalItems;
+    const parentItem = list[mainIndex];
+    if (parentItem && parentItem.subItems && parentItem.subItems[subIndex]) {
+        if (!parentItem.subItems[subIndex].subItemDescription) {
+            parentItem.subItems[subIndex].subItemDescription = " ";
+            saveToLocal();
+            reRenderAll();
+        }
+    }
+}
+
 function removeDescription(el){ const {item: cId, index: i, includedIndex: si, field} = el.dataset; const it = (cId==='itemsList' ? jsonData.items : jsonData.optionalItems)[i]; (si ? (it.subItems)[si] : it)[field] = ''; saveToLocal(); reRenderAll(); }
 
 function loadTerms(terms){
@@ -1488,14 +1587,21 @@ function loadInfoImages(){
     (jsonData.infoImages||[]).forEach((obj, idx)=>{
         const block=document.createElement('div');
         const centering = obj.centering || 'center';
-        block.className=`info-block align-${centering}`; 
+        
+        // Apply special class for left-aligned text blocks
+        let alignClass = `align-${centering}`;
+        if (obj.type === 'text' && centering === 'left') {
+            alignClass += ' text-block-left';
+        }
+
+        block.className=`info-block ${alignClass}`; 
         block.dataset.index=idx;
 
         const contentWrapper = document.createElement('div');
         contentWrapper.className = 'content-wrapper';
 
         if(obj.type==='text'){
-            block.classList.add('info-block-fullwidth');
+            if (centering !== 'left') block.classList.add('info-block-fullwidth');
             const txt=document.createElement('div');
             txt.className='info-text-block editable'; txt.contentEditable=true; txt.dataset.index=idx; txt.innerHTML=obj.content||'';
             txt.addEventListener('input',()=>{ jsonData.infoImages[idx].content=txt.innerHTML; saveToLocal(); });
@@ -1844,30 +1950,48 @@ function updatePrices(){
     }
 
     const useMultiCurrency = q.useMultipleCurrencies;
+    const useCustomCurrency = q.useCustomCurrency;
     const singleMultiplier = parseFloat(String(q.currencyMultiplicator).replace(',','.')) || 1;
-    const usdRate = parseFloat(q.usdToSekRate) || 10.5;
-    const eurRate = parseFloat(q.eurToSekRate) || 11.5;
+    
+    // Rates for conversion to SEK (Legacy/Standard Mode)
+    const usdToSek = parseFloat(q.usdToSekRate) || 10.5;
+    const eurToSek = parseFloat(q.eurToSekRate) || 11.5;
+
+    // Rates for conversion to Custom Currency (New Mode)
+    const usdToCustom = parseFloat(q.customRates?.usd) || 1.0;
+    const eurToCustom = parseFloat(q.customRates?.eur) || 1.0;
+    const sekToCustom = parseFloat(q.customRates?.sek) || 1.0;
 
     const calculateEntityPrice = (item, parentCurrencyOrigin) => {
         const itemMarginMultiplier = 1 + ((item.marginPercentage || 0) / 100);
         let originalPrice = item.originalPrice ?? item.subItemOriginalPrice ?? 0;
         let currencyOrigin = (item.currencyOrigin || parentCurrencyOrigin || (q.useCustomCurrency && q.customCurrency) || 'SEK').toUpperCase();
         
-        let basePriceInSEK = originalPrice;
+        let basePrice = originalPrice;
 
-        // SEK Normalization: Always convert foreign currency to SEK for internal calculation.
-        // We ignore "Custom Currency" here because that is purely for display formatting.
-        if (currencyOrigin !== 'SEK') {
-            if (useMultiCurrency) {
-                if (currencyOrigin === 'USD') basePriceInSEK *= usdRate;
-                else if (currencyOrigin === 'EUR') basePriceInSEK *= eurRate;
-                else basePriceInSEK *= singleMultiplier;
-            } else {
-                basePriceInSEK *= singleMultiplier;
+        if (useCustomCurrency) {
+            // Convert everything to Custom Currency directly
+            const targetCurrency = q.customCurrency.toUpperCase();
+            if (currencyOrigin !== targetCurrency) {
+                if (currencyOrigin === 'USD') basePrice *= usdToCustom;
+                else if (currencyOrigin === 'EUR') basePrice *= eurToCustom;
+                else if (currencyOrigin === 'SEK') basePrice *= sekToCustom;
+                // If origin is unknown but not target, assume 1:1 or handle error? Defaulting to 1:1
+            }
+        } else {
+            // Standard Mode: Convert everything to SEK
+            if (currencyOrigin !== 'SEK') {
+                if (useMultiCurrency) {
+                    if (currencyOrigin === 'USD') basePrice *= usdToSek;
+                    else if (currencyOrigin === 'EUR') basePrice *= eurToSek;
+                    else basePrice *= singleMultiplier;
+                } else {
+                    basePrice *= singleMultiplier;
+                }
             }
         }
 
-        return (basePriceInSEK * itemMarginMultiplier) * globalMultiplier;
+        return (basePrice * itemMarginMultiplier) * globalMultiplier;
     };
 
     let totalToDistribute = 0;
@@ -1941,31 +2065,37 @@ function calculateTotalPrice(){
 
 function formatPrice(price, forceSEK = false) {
     let displayPrice = Number(price) || 0;
-
     const useCustom = document.getElementById('useCustomCurrencyChk').checked;
-    if (useCustom && !forceSEK) {
-        const q = jsonData.quote || {};
-        const outCur = (document.getElementById('customCurrencyInput').value || 'SEK').trim().toUpperCase();
-        const multiply = document.getElementById('multiplyCustomCurrencyChk').checked;
 
-        // Pick the display rate "1 OUT = X SEK"
-        let rateToSEK = parseFloat(String(document.getElementById('currencyMultiplierInput').value).replace(',', '.')) || 1;
-
-        if (q.useMultipleCurrencies) {
-            const usd = parseFloat(document.getElementById('usdRateInput').value) || parseFloat(q.usdToSekRate) || 1;
-            const eur = parseFloat(document.getElementById('eurRateInput').value) || parseFloat(q.eurToSekRate) || 1;
-
-            if (outCur === 'USD') rateToSEK = usd;
-            else if (outCur === 'EUR') rateToSEK = eur;
-            // else fall back to currencyMultiplierInput for other custom currencies
-        }
-
-        if (rateToSEK > 0) {
-            // Default behavior: SEK -> OUT by dividing by (SEK per 1 OUT)
-            displayPrice = multiply ? (displayPrice * rateToSEK) : (displayPrice / rateToSEK);
-        }
+    // If we are NOT in Custom Currency mode, but want to display in Custom Currency (Legacy Mode)
+    // OR if we ARE in Custom Currency mode, the price is ALREADY in Custom Currency (New Mode)
+    
+    // Legacy Mode Check: If useCustom is true, but we calculated in SEK?
+    // In the new logic, if useCustom is true, updatePrices calculates directly in Custom Currency.
+    // So formatPrice should just format the number.
+    
+    // However, if forceSEK is true (e.g. for internal debug or specific display), we might need conversion.
+    // But currently forceSEK is only used in vendor details where we might want to show the SEK equivalent?
+    // Actually, vendor details now use getPriceBreakdown which handles currency explicitly.
+    
+    // Legacy handling for "Multiply Custom Currency" checkbox which was used when base was SEK.
+    // If we are in the new "Custom Currency Matrix" mode, we don't need the multiplier logic here 
+    // because updatePrices handled it.
+    
+    // But wait, if the user UNCHECKS "Use Multiple Currencies" but CHECKS "Use Custom Currency",
+    // we fall back to the single multiplier.
+    
+    if (useCustom && !jsonData.quote.useMultipleCurrencies && !forceSEK) {
+        // Single multiplier mode (Legacy behavior preserved)
+        // Here updatePrices calculated in SEK (because useMultipleCurrencies is false, so it used singleMultiplier to get to SEK?)
+        // Wait, look at updatePrices:
+        // if (useCustomCurrency) ... if (currencyOrigin !== target) ... else basePrice *= singleMultiplier
+        // So updatePrices ALREADY converted to Custom Currency using singleMultiplier if origin wasn't SEK.
+        // So displayPrice is already in Custom Currency.
     }
 
+    // So formatPrice really just needs to format the number now, because updatePrices does the heavy lifting.
+    
     const showDecimals = document.getElementById('showDecimals').checked;
     return formatNumber(showDecimals ? displayPrice.toFixed(2) : Math.round(displayPrice).toString());
 }
@@ -2050,16 +2180,63 @@ document.getElementById('useMultipleCurrenciesChk').addEventListener('change', f
     reRenderAll();
 });
 document.getElementById('usdRateInput').addEventListener('input', function() {
-    const val = parseFloat(this.value); if(!isNaN(val)) { jsonData.quote.usdToSekRate = val; saveToLocal(); reRenderAll(); }
+    const val = parseFloat(this.value); 
+    if(!isNaN(val)) { 
+        if (jsonData.quote.useCustomCurrency) jsonData.quote.customRates.usd = val;
+        else jsonData.quote.usdToSekRate = val; 
+        saveToLocal(); reRenderAll(); 
+    }
 });
 document.getElementById('eurRateInput').addEventListener('input', function() {
-    const val = parseFloat(this.value); if(!isNaN(val)) { jsonData.quote.eurToSekRate = val; saveToLocal(); reRenderAll(); }
+    const val = parseFloat(this.value); 
+    if(!isNaN(val)) { 
+        if (jsonData.quote.useCustomCurrency) jsonData.quote.customRates.eur = val;
+        else jsonData.quote.eurToSekRate = val; 
+        saveToLocal(); reRenderAll(); 
+    }
+});
+document.getElementById('sekRateInput').addEventListener('input', function() {
+    const val = parseFloat(this.value); 
+    if(!isNaN(val)) { 
+        jsonData.quote.customRates.sek = val; 
+        saveToLocal(); reRenderAll(); 
+    }
 });
 
 function toggleMultipleCurrencyUI(isMultiActive) {
     document.getElementById('multipleCurrencyRatesDiv').style.display = isMultiActive ? 'block' : 'none';
     document.getElementById('singleCurrencyMultiplierDiv').style.display = isMultiActive ? 'none' : 'block';
-    if(isMultiActive) {
+    
+    // Show/Hide SEK input based on Custom Currency mode
+    const useCustom = jsonData.quote.useCustomCurrency;
+    document.getElementById('sekRateDiv').style.display = (isMultiActive && useCustom) ? 'block' : 'none';
+
+    // Update values in inputs based on mode
+    if (useCustom) {
+        document.getElementById('usdRateInput').value = parseFloat(jsonData.quote.customRates?.usd || 1).toFixed(2);
+        document.getElementById('eurRateInput').value = parseFloat(jsonData.quote.customRates?.eur || 1).toFixed(2);
+        document.getElementById('sekRateInput').value = parseFloat(jsonData.quote.customRates?.sek || 1).toFixed(2);
+        
+        // Auto-lock USD if target is USD?
+        const target = jsonData.quote.customCurrency.toUpperCase();
+        document.getElementById('usdRateInput').disabled = (target === 'USD');
+        document.getElementById('eurRateInput').disabled = (target === 'EUR');
+        document.getElementById('sekRateInput').disabled = (target === 'SEK');
+        
+        if (target === 'USD') document.getElementById('usdRateInput').value = "1.00";
+        if (target === 'EUR') document.getElementById('eurRateInput').value = "1.00";
+        if (target === 'SEK') document.getElementById('sekRateInput').value = "1.00";
+
+    } else {
+        document.getElementById('usdRateInput').value = parseFloat(jsonData.quote.usdToSekRate || 10.5).toFixed(2);
+        document.getElementById('eurRateInput').value = parseFloat(jsonData.quote.eurToSekRate || 11.5).toFixed(2);
+        document.getElementById('usdRateInput').disabled = false;
+        document.getElementById('eurRateInput').disabled = false;
+    }
+
+    updateCurrencyInputLabels();
+
+    if(isMultiActive && !useCustom) {
         updateMultiCurrencyInputsFromLiveRates(false); 
     }
 }
@@ -2124,8 +2301,19 @@ document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{
     saveToLocal();
     reRenderAll();
 });
-document.getElementById("useCustomCurrencyChk").addEventListener('change', (e) => { document.getElementById("customCurrencyInput").style.display = e.target.checked ? 'inline-block' : 'none'; jsonData.quote.useCustomCurrency = e.target.checked; saveToLocal(); reRenderAll(); });
-document.getElementById("customCurrencyInput").addEventListener('input', function(){ jsonData.quote.customCurrency = this.value.trim(); saveToLocal(); reRenderAll(); });
+document.getElementById("useCustomCurrencyChk").addEventListener('change', (e) => { 
+    document.getElementById("customCurrencyInput").style.display = e.target.checked ? 'inline-block' : 'none'; 
+    jsonData.quote.useCustomCurrency = e.target.checked; 
+    toggleMultipleCurrencyUI(jsonData.quote.useMultipleCurrencies);
+    saveToLocal(); 
+    reRenderAll(); 
+});
+document.getElementById("customCurrencyInput").addEventListener('input', function(){ 
+    jsonData.quote.customCurrency = this.value.trim(); 
+    toggleMultipleCurrencyUI(jsonData.quote.useMultipleCurrencies);
+    saveToLocal(); 
+    reRenderAll(); 
+});
 document.getElementById('removeTotalCheck').addEventListener('change', function() {
     jsonData.quote.removeTotal = this.checked;
     saveToLocal();
@@ -2312,7 +2500,7 @@ function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
 }
 function buildFileName(ref, version){ const datePart= new Date().toISOString().slice(2,10).replace(/-/g,''); const safeRef = (ref||'').trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50); return `${safeRef || 'offert'}_${datePart}_v${version}.json`; }
 function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(encryptCaesar(JSON.stringify(jsonData,null,2), caesarShift)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
-document.getElementById('saveJson').addEventListener('click',()=>{ if (checkQuoteDate(true)) { doDownloadJson(buildFileName(jsonData.quote.reference,1)); } });
+document.getElementById('saveJson').addEventListener('click',()=>{ if (checkQuoteDate(true)) { doDownloadJson(buildJsonFileName()); } });
 
 function copyJsonToClipboard(){
     const dataToCopy = JSON.parse(JSON.stringify(jsonData));
@@ -2405,7 +2593,7 @@ async function fetchLiveCurrencyRates() {
     }
 
     container.innerHTML = displayHtml.join('<br/>');
-    if (jsonData.quote.useMultipleCurrencies) { 
+    if (jsonData.quote.useMultipleCurrencies && !jsonData.quote.useCustomCurrency) { 
       updateMultiCurrencyInputsFromLiveRates(false); 
     }
 }
@@ -2450,7 +2638,7 @@ document.addEventListener('DOMContentLoaded', function () {
             event.preventDefault();
             if (jsonData && jsonData.quote && typeof buildFileName === 'function' && typeof doDownloadJson === 'function') {
                 if (checkQuoteDate(true)) {
-                    doDownloadJson(buildFileName(jsonData.quote.reference, 1));
+                    doDownloadJson(buildJsonFileName());
                 }
             } else {
                 console.warn("Cannot save: jsonData or helper functions not ready.");
@@ -2482,7 +2670,14 @@ function updatePrintMultiplier(){
     const multiplierSpan = document.getElementById('multiplierValue');
     if (!multiplierSpan) return;
 
-    if (jsonData.quote.useMultipleCurrencies) {
+    if (jsonData.quote.useCustomCurrency) {
+        const target = jsonData.quote.customCurrency.toUpperCase();
+        let ratesText = [];
+        if (jsonData.quote.customRates.usd) ratesText.push(`USD: ${parseFloat(jsonData.quote.customRates.usd).toFixed(2)}`);
+        if (jsonData.quote.customRates.eur) ratesText.push(`EUR: ${parseFloat(jsonData.quote.customRates.eur).toFixed(2)}`);
+        if (jsonData.quote.customRates.sek) ratesText.push(`SEK: ${parseFloat(jsonData.quote.customRates.sek).toFixed(2)}`);
+        multiplierSpan.textContent = `Kurser till ${target}: ${ratesText.join(', ')}`;
+    } else if (jsonData.quote.useMultipleCurrencies) {
         let ratesText = [];
         if (jsonData.quote.usdToSekRate) ratesText.push(`USD: ${parseFloat(jsonData.quote.usdToSekRate).toFixed(2)}`);
         if (jsonData.quote.eurToSekRate) ratesText.push(`EUR: ${parseFloat(jsonData.quote.eurToSekRate).toFixed(2)}`);
@@ -2848,7 +3043,7 @@ function updateSectionVisibilityCheckboxes() {
 }
 
 document.getElementById('sectionVisibilityControls').addEventListener('change', (e) => {
-    if (e.target.type === 'checkbox') {
+    if (e.target.type === 'checkbox' && e.target.dataset.section) {
         const section = e.target.dataset.section;
         if (section && jsonData.quote.visibility.hasOwnProperty(section)) {
             jsonData.quote.visibility[section] = e.target.checked;
@@ -2932,7 +3127,7 @@ document.getElementById('vendorModeCheck').addEventListener('change', function()
 
 document.getElementById('saveJsonUnencrypted').addEventListener('click', () => {
     if (!checkQuoteDate(true)) return;
-    const fileName = buildFileName(jsonData.quote.reference, 1).replace('.json', '_unencrypted.json');
+    const fileName = buildJsonFileName().replace('.json', '_unencrypted.json');
     const dl = document.createElement('a');
     dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData, null, 2));
     dl.download = fileName;
@@ -2951,7 +3146,7 @@ document.getElementById('saveJsonUnencryptedNoImg').addEventListener('click', ()
             }
         });
     }
-    const fileName = buildFileName(jsonData.quote.reference, 1).replace('.json', '_unencrypted_no-images.json');
+    const fileName = buildJsonFileName().replace('.json', '_unencrypted_no-images.json');
     const dl = document.createElement('a');
     dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave, null, 2));
     dl.download = fileName;
@@ -3190,6 +3385,49 @@ function cycleSectionSeparator(key) {
     
     saveToLocal();
     reRenderAll();
+}
+
+// --- Move Info Section Logic ---
+document.getElementById('moveInfoSectionChk').addEventListener('change', function() {
+    jsonData.quote.moveInfoSectionUp = this.checked;
+    saveToLocal();
+    toggleInfoSectionPosition();
+});
+
+function toggleInfoSectionPosition() {
+    const mainContainer = document.getElementById('mainItemsSectionContainer');
+    const infoContainer = document.getElementById('infoSectionContainer');
+    const parent = mainContainer.parentNode;
+    const moveUp = jsonData.quote.moveInfoSectionUp;
+    
+    // Remove existing programmatic separator if any
+    const existingSep = document.getElementById('info-moved-separator');
+    if (existingSep) existingSep.remove();
+
+    if (moveUp) {
+        // Move Info before Main
+        parent.insertBefore(infoContainer, mainContainer);
+        
+        // Add a page break separator between Info and Main
+        const sepDiv = document.createElement('div');
+        sepDiv.id = 'info-moved-separator';
+        sepDiv.innerHTML = `<div class="print-only section-separator-print-break" style="page-break-before: always; height: 0; display: block;"></div><div class="screen-only page-break-marker" style="margin: 10px 0; text-align: center; border: 1px dashed #999; padding: 5px;">--- SIDBRYTNING (Auto: Info flyttad) ---</div>`;
+        parent.insertBefore(sepDiv, mainContainer);
+        
+    } else {
+        // Move Info back to original position (after Optional, before Terms)
+        // Original order: Main -> Optional -> Info -> Terms
+        const termsContainer = document.getElementById('termsSectionContainer');
+        // We insert before Terms. If Terms is hidden/removed, we might need to append to parent, 
+        // but termsSectionContainer always exists in DOM even if hidden.
+        parent.insertBefore(infoContainer, termsContainer);
+        
+        // Ensure the separator containers are in correct order too?
+        // The static HTML structure has specific separator containers.
+        // When we move #infoSectionContainer, we are taking it out of flow.
+        // The static separators (sep-optional-info-container) might look weird if Info is gone.
+        // But for now, just moving the main container is sufficient as per request.
+    }
 }
 
 </script>
