@@ -1,4 +1,4 @@
-<!-- Version 102 -- Features: Custom Currency Matrix, Vendor Formulas, Layout Controls, JSON Naming -->
+<!-- Version 103 -- Features: Robust JSON Parsing, Element-level Error Handling, Custom Currency Matrix, Vendor Formulas, Layout Controls -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -866,82 +866,85 @@ function decryptCaesar(text, shift) {
     }).join('');
 }
 
+// --- ROBUST JSON PARSER ---
+function robustJsonParse(fileContent) {
+    let warnings = [];
+
+    function tryParse(str) {
+        try { return JSON.parse(str); } catch (e) { return null; }
+    }
+
+    // 1. Standard Parse
+    let parsed = tryParse(fileContent);
+    if (parsed) return { data: parsed, warnings };
+
+    // 2. Decrypted Parse
+    let decrypted = "";
+    try { decrypted = decryptCaesar(fileContent, caesarShift); } catch (e) {}
+    parsed = tryParse(decrypted);
+    if (parsed) return { data: parsed, warnings };
+
+    // 3. Dash replacement (Standard & Decrypted)
+    parsed = tryParse(fileContent.replace(/–/g, '-'));
+    if (parsed) {
+        warnings.push("Åtgärdade ogiltiga bindestreck i filen.");
+        return { data: parsed, warnings };
+    }
+    if (decrypted) {
+        parsed = tryParse(decrypted.replace(/–/g, '-'));
+        if (parsed) {
+            warnings.push("Åtgärdade ogiltiga bindestreck i den krypterade filen.");
+            return { data: parsed, warnings };
+        }
+    }
+
+    // 4. Aggressive Truncation Rescue (Targeting infoImages or other arrays if file is cut off)
+    function rescueTruncated(str) {
+        if (!str) return null;
+        // Find the last valid major section before the corruption
+        const markers = ['"infoImages"', '"terms"', '"optionalItems"', '"items"'];
+        for (let marker of markers) {
+            const idx = str.lastIndexOf(marker);
+            if (idx > -1) {
+                // Cut the string right before this key
+                let rescued = str.substring(0, idx);
+                // Clean up trailing commas and close the JSON object
+                rescued = rescued.replace(/,\s*$/, '') + '}';
+                let resParsed = tryParse(rescued);
+                if (resParsed) {
+                    return { parsed: resParsed, dropped: marker.replace(/"/g, '') };
+                }
+            }
+        }
+        return null;
+    }
+
+    let rescue = rescueTruncated(fileContent) || rescueTruncated(decrypted);
+    if (rescue) {
+        warnings.push(`Filen var korrupt (troligen avklippt). Sektionen '${rescue.dropped}' och allt därefter togs bort för att rädda offerten.`);
+        return { data: rescue.parsed, warnings };
+    }
+
+    throw new Error("Kunde inte läsa filen. Den är för korrupt för att räddas.");
+}
+
 (function initData(){
     let localData = localStorage.getItem('quoteData');
     if(localData){
         try {
-            jsonData = JSON.parse(localData);
+            const parsedResult = robustJsonParse(localData);
+            jsonData = parsedResult.data;
         } catch (e) {
-            try {
-                jsonData = JSON.parse(decryptCaesar(localData, caesarShift));
-            } catch (e2) {
-                console.error("Failed to parse or decrypt local storage data.", e2);
-                localData = null; 
-            }
+            console.error("Failed to parse or decrypt local storage data.", e);
+            localData = null; 
         }
     }
 
     if(!localData){
         jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false, customRates: { usd: 1.0, eur: 1.0, sek: 1.0 }, moveInfoSectionUp: false }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
     } else {
-        if(!jsonData.quote)jsonData.quote={currencyMultiplicator:11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false, customRates: { usd: 1.0, eur: 1.0, sek: 1.0 }, moveInfoSectionUp: false };
-        if(jsonData.quote.marginPercentage === undefined) jsonData.quote.marginPercentage = 0;
-        if(jsonData.quote.currencyMultiplicator === undefined) jsonData.quote.currencyMultiplicator = 11.8;
-        if(jsonData.quote.useMultipleCurrencies === undefined) jsonData.quote.useMultipleCurrencies = false;
-        if(jsonData.quote.usdToSekRate === undefined) jsonData.quote.usdToSekRate = 10.50;
-        if(jsonData.quote.eurToSekRate === undefined) jsonData.quote.eurToSekRate = 11.50;
-        if(jsonData.quote.showSignature === undefined) jsonData.quote.showSignature = false;
-        if(jsonData.quote.showTillSection === undefined) jsonData.quote.showTillSection = true;
-        if(jsonData.quote.removeTotal === undefined) jsonData.quote.removeTotal = false;
-        if(jsonData.quote.defaultLogoWidth === undefined) jsonData.quote.defaultLogoWidth = 200;
-        if(jsonData.quote.useCustomCurrency === undefined) jsonData.quote.useCustomCurrency = false;
-        if(jsonData.quote.customCurrency === undefined) jsonData.quote.customCurrency = 'EUR';
-        if(jsonData.quote.centerImagesByDefault === undefined) jsonData.quote.centerImagesByDefault = true;
-        if(jsonData.quote.marginCalculationMode === undefined) jsonData.quote.marginCalculationMode = 'markup';
-        if(jsonData.quote.separators === undefined) jsonData.quote.separators = {};
-        if(jsonData.quote.multiplyCustomCurrency === undefined) jsonData.quote.multiplyCustomCurrency = false;
-        if(jsonData.quote.customRates === undefined) jsonData.quote.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
-        if(jsonData.quote.moveInfoSectionUp === undefined) jsonData.quote.moveInfoSectionUp = false;
-
-        if(!jsonData.quote.labels) jsonData.quote.labels = {};
-        if (jsonData.quote.totalLabel) { 
-            jsonData.quote.labels.totalLabel = jsonData.quote.totalLabel;
-            delete jsonData.quote.totalLabel;
-        }
-        if (!jsonData.quote.visibility) {
-            jsonData.quote.visibility = { optional: true, info: true, terms: true };
-        }
-        if(!jsonData.companyA)jsonData.companyA={}; if(!jsonData.companyB)jsonData.companyB={};
-        if(!Array.isArray(jsonData.items))jsonData.items=[]; 
-        jsonData.items.forEach(it => { 
-            if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-            if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-            if(it.vendorNotes === undefined) it.vendorNotes = "";
-            if(it.type === undefined && it.name !== undefined) it.type = 'item';
-            (it.subItems || []).forEach(sIt => { 
-                if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-                if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-                if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-            });
-        });
-        if(!Array.isArray(jsonData.optionalItems))jsonData.optionalItems=[];
-        jsonData.optionalItems.forEach(it => { 
-            if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-            if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-            if(it.vendorNotes === undefined) it.vendorNotes = "";
-            if(it.type === undefined && it.name !== undefined) it.type = 'item';
-            (it.subItems || []).forEach(sIt => { 
-                if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-                if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-                if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-            });
-        });
-        if(!Array.isArray(jsonData.terms))jsonData.terms=[]; if(!Array.isArray(jsonData.infoImages))jsonData.infoImages=[];
-        (jsonData.infoImages || []).forEach(it => {
-            if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-            if (it.centering === undefined) it.centering = 'center'; // Default to center
-        });
-        if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
+        // Fallback initialization is now handled safely inside loadQuoteData
+        loadQuoteData(jsonData, null, []);
     }
 })();
 
@@ -966,107 +969,226 @@ function formatCompanyInfo(companyObj) {
     return deepTraverseAndGetString(companyObj).join('<br>');
 }
 
-function loadQuoteData(data, loadedFileName=null){
-    jsonData=JSON.parse(JSON.stringify(data));
-    const q = jsonData.quote || {};
-    if(!q.quoteNumber)q.quoteNumber=Math.floor(Math.random()*100000).toString();
-    if(q.marginPercentage === undefined) q.marginPercentage = 0;
-    if(q.currencyMultiplicator === undefined) q.currencyMultiplicator = 11.8;
-    if(q.useMultipleCurrencies === undefined) q.useMultipleCurrencies = false;
-    if(q.usdToSekRate === undefined) q.usdToSekRate = 10.50; 
-    if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50; 
-    if(q.showSignature === undefined) q.showSignature = false;
-    if(q.showTillSection === undefined) q.showTillSection = true;
-    if(q.removeTotal === undefined) q.removeTotal = false;
-    if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
-    if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
-    if(q.customCurrency === undefined) q.customCurrency = 'EUR';
-    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
-    if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
-    if(q.separators === undefined) q.separators = {};
-    if(q.multiplyCustomCurrency === undefined) q.multiplyCustomCurrency = false;
-    if(q.customRates === undefined) q.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
-    if(q.moveInfoSectionUp === undefined) q.moveInfoSectionUp = false;
-
-    if(!q.labels) q.labels = {};
-    if (q.totalLabel) { 
-        q.labels.totalLabel = q.totalLabel;
-        delete q.totalLabel;
-    }
-    if (!q.visibility) {
-        q.visibility = { optional: true, info: true, terms: true };
-    }
-
-    jsonData.quote = q;
-    if(!Array.isArray(jsonData.terms))jsonData.terms=[];
-    if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
+// --- ROBUST DATA LOADER ---
+function loadQuoteData(rawData, loadedFileName=null, parseWarnings = []) {
+    let loadErrors = [...parseWarnings];
     
-    (jsonData.items || []).forEach(it => { 
-        if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-        if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-        if(it.vendorNotes === undefined) it.vendorNotes = "";
-        if(it.type === undefined && it.name !== undefined) it.type = 'item';
-        (it.subItems || []).forEach(sIt => { 
-            if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-            if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-            if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-        });
-    });
-    (jsonData.optionalItems || []).forEach(it => { 
-        if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-        if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-        if(it.vendorNotes === undefined) it.vendorNotes = "";
-        if(it.type === undefined && it.name !== undefined) it.type = 'item';
-        (it.subItems || []).forEach(sIt => { 
-            if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-            if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-            if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-        });
-    });
-    (jsonData.infoImages || []).forEach(it => {
-        if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-        if (it.centering === undefined) it.centering = 'center';
-    });
+    // Create a fresh object to prevent ghost data from previous states
+    let newJsonData = { 
+        quote: {}, companyA: {}, companyB: {}, 
+        items: [], optionalItems: [], terms: [], infoImages: [], signature: {} 
+    };
 
+    // Deep copy input safely
+    let data = {};
+    try {
+        data = JSON.parse(JSON.stringify(rawData));
+    } catch(e) {
+        data = rawData || {};
+    }
 
-    document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
-    document.getElementById('quoteDate').textContent = q.date || new Date().toLocaleDateString('sv-SE');
-    document.getElementById('projectNumber').textContent = q.projectNumber || '';
+    // --- QUOTE SETTINGS ---
+    try {
+        const q = data.quote || {};
+        newJsonData.quote = {
+            quoteNumber: q.quoteNumber || Math.floor(Math.random()*100000).toString(),
+            date: q.date || new Date().toLocaleDateString('sv-SE'),
+            projectNumber: q.projectNumber || '',
+            projectNumberVisible: q.projectNumberVisible || false,
+            reference: q.reference || '',
+            language: q.language || 'sv',
+            showDecimals: q.showDecimals || false,
+            marginPercentage: q.marginPercentage !== undefined ? q.marginPercentage : 0,
+            currencyMultiplicator: q.currencyMultiplicator !== undefined ? q.currencyMultiplicator : 11.8,
+            useMultipleCurrencies: q.useMultipleCurrencies || false,
+            usdToSekRate: q.usdToSekRate !== undefined ? q.usdToSekRate : 10.50,
+            eurToSekRate: q.eurToSekRate !== undefined ? q.eurToSekRate : 11.50,
+            showSignature: q.showSignature || false,
+            showTillSection: q.showTillSection !== undefined ? q.showTillSection : true,
+            removeTotal: q.removeTotal || false,
+            defaultLogoWidth: q.defaultLogoWidth || 200,
+            useCustomCurrency: q.useCustomCurrency || false,
+            customCurrency: q.customCurrency || 'EUR',
+            centerImagesByDefault: q.centerImagesByDefault !== undefined ? q.centerImagesByDefault : true,
+            marginCalculationMode: q.marginCalculationMode || 'markup',
+            separators: q.separators || {},
+            multiplyCustomCurrency: q.multiplyCustomCurrency || false,
+            customRates: q.customRates || { usd: 1.0, eur: 1.0, sek: 1.0 },
+            moveInfoSectionUp: q.moveInfoSectionUp || false,
+            labels: q.labels || {},
+            visibility: q.visibility || { optional: true, info: true, terms: true }
+        };
+        
+        // Legacy label migration
+        if (q.totalLabel) { 
+            newJsonData.quote.labels.totalLabel = q.totalLabel;
+        }
+    } catch (e) {
+        loadErrors.push("Kunde inte ladda offert-inställningar (quote). Använder standardvärden.");
+    }
+
+    // --- COMPANY INFO ---
+    try { newJsonData.companyA = data.companyA || {}; } catch(e) { loadErrors.push("Kunde inte ladda Företag A."); }
+    try { newJsonData.companyB = data.companyB || {}; } catch(e) { loadErrors.push("Kunde inte ladda Företag B."); }
+
+    // --- SIGNATURE ---
+    try {
+        newJsonData.signature = data.signature || { 
+            date: "", lessorLine: "", lesseeLine: "", 
+            lessorText: translations.sv.signatureLessorLabel, 
+            lesseeText: translations.sv.signatureLesseeLabel 
+        };
+    } catch(e) { loadErrors.push("Kunde inte ladda signatur-inställningar."); }
+
+    // --- ITEMS ---
+    if (Array.isArray(data.items)) {
+        data.items.forEach((it, idx) => {
+            try {
+                it.isPriceBakedIn = it.isPriceBakedIn || false;
+                it.isHiddenFromPrint = it.isHiddenFromPrint || false;
+                it.vendorNotes = it.vendorNotes || "";
+                it.type = it.type || (it.name ? 'item' : 'separator');
+                
+                if (Array.isArray(it.subItems)) {
+                    let validSubItems = [];
+                    it.subItems.forEach((sIt, sIdx) => {
+                        try {
+                            sIt.isPriceBakedIn = sIt.isPriceBakedIn || false;
+                            sIt.isHiddenFromPrint = sIt.isHiddenFromPrint || false;
+                            sIt.vendorNotes = sIt.vendorNotes || "";
+                            validSubItems.push(sIt);
+                        } catch (subErr) {
+                            loadErrors.push(`Kunde inte ladda underpost ${sIdx + 1} i artikel ${idx + 1}.`);
+                        }
+                    });
+                    it.subItems = validSubItems;
+                } else {
+                    it.subItems = [];
+                }
+                newJsonData.items.push(it);
+            } catch (err) {
+                loadErrors.push(`Kunde inte ladda artikel på rad ${idx + 1}.`);
+            }
+        });
+    }
+
+    // --- OPTIONAL ITEMS ---
+    if (Array.isArray(data.optionalItems)) {
+        data.optionalItems.forEach((it, idx) => {
+            try {
+                it.isPriceBakedIn = it.isPriceBakedIn || false;
+                it.isHiddenFromPrint = it.isHiddenFromPrint || false;
+                it.vendorNotes = it.vendorNotes || "";
+                it.type = it.type || (it.name ? 'item' : 'separator');
+                
+                if (Array.isArray(it.subItems)) {
+                    let validSubItems = [];
+                    it.subItems.forEach((sIt, sIdx) => {
+                        try {
+                            sIt.isPriceBakedIn = sIt.isPriceBakedIn || false;
+                            sIt.isHiddenFromPrint = sIt.isHiddenFromPrint || false;
+                            sIt.vendorNotes = sIt.vendorNotes || "";
+                            validSubItems.push(sIt);
+                        } catch (subErr) {
+                            loadErrors.push(`Kunde inte ladda underpost ${sIdx + 1} i alternativ artikel ${idx + 1}.`);
+                        }
+                    });
+                    it.subItems = validSubItems;
+                } else {
+                    it.subItems = [];
+                }
+                newJsonData.optionalItems.push(it);
+            } catch (err) {
+                loadErrors.push(`Kunde inte ladda alternativ artikel på rad ${idx + 1}.`);
+            }
+        });
+    }
+
+    // --- INFO IMAGES ---
+    if (Array.isArray(data.infoImages)) {
+        data.infoImages.forEach((it, idx) => {
+            try {
+                if (it.type === 'image') {
+                    it.compressionImmune = it.compressionImmune || false;
+                }
+                it.centering = it.centering || 'center';
+                newJsonData.infoImages.push(it);
+            } catch (err) {
+                loadErrors.push(`Kunde inte ladda info/bild-block ${idx + 1}.`);
+            }
+        });
+    }
+
+    // --- TERMS ---
+    if (Array.isArray(data.terms)) {
+        data.terms.forEach((t, idx) => {
+            try {
+                newJsonData.terms.push(t);
+            } catch (err) {
+                loadErrors.push(`Kunde inte ladda villkor ${idx + 1}.`);
+            }
+        });
+    }
+
+    // Replace global state with the safely constructed object
+    jsonData = newJsonData;
+    currentFileName = loadedFileName;
+    currentLanguage = jsonData.quote.language || 'sv';
+
+    // --- DOM UPDATES ---
+    const q = jsonData.quote;
+    document.getElementById('quoteNumber').textContent = q.quoteNumber;
+    document.getElementById('quoteDate').textContent = q.date;
+    document.getElementById('projectNumber').textContent = q.projectNumber;
     document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
     document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
-    document.getElementById('reference').textContent = q.reference||'';
+    document.getElementById('reference').textContent = q.reference;
     
-    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator||11.8;
-    document.getElementById('marginPercentageInput').value = q.marginPercentage || 0;
-    document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth || 200;
-    document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency || false;
+    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator;
+    document.getElementById('marginPercentageInput').value = q.marginPercentage;
+    document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth;
+    document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency;
     
-    document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
-    document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
-    document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate || 11.50).toFixed(2);
-    document.getElementById('sekRateInput').value = parseFloat(q.customRates?.sek || 1.0).toFixed(2);
+    document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies;
+    document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate).toFixed(2);
+    document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate).toFixed(2);
+    document.getElementById('sekRateInput').value = parseFloat(q.customRates.sek).toFixed(2);
     
-    toggleMultipleCurrencyUI(q.useMultipleCurrencies || false);
+    toggleMultipleCurrencyUI(q.useMultipleCurrencies);
 
-
-    document.getElementById('showDecimals').checked=q.showDecimals || false;
-    document.getElementById('showProjectNumber').checked = q.projectNumberVisible || false; 
-    document.getElementById('projectNumberDiv').style.display = (q.projectNumberVisible) ? 'block' : 'none';
-    document.getElementById('addSignatureCheck').checked = q.showSignature || false;
-    document.getElementById('signatureSection').style.display = (q.showSignature) ? 'block' : 'none';
+    document.getElementById('showDecimals').checked = q.showDecimals;
+    document.getElementById('showProjectNumber').checked = q.projectNumberVisible; 
+    document.getElementById('projectNumberDiv').style.display = q.projectNumberVisible ? 'block' : 'none';
+    document.getElementById('addSignatureCheck').checked = q.showSignature;
+    document.getElementById('signatureSection').style.display = q.showSignature ? 'block' : 'none';
     document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
     applyTillSectionVisibility();
-    document.getElementById('removeTotalCheck').checked = q.removeTotal || false;
-    document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency || false;
-    document.getElementById('customCurrencyInput').value = q.customCurrency || 'EUR';
-    document.getElementById("customCurrencyInput").style.display = (q.useCustomCurrency || false) ? 'inline-block' : 'none';
+    document.getElementById('removeTotalCheck').checked = q.removeTotal;
+    document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency;
+    document.getElementById('customCurrencyInput').value = q.customCurrency;
+    document.getElementById("customCurrencyInput").style.display = q.useCustomCurrency ? 'inline-block' : 'none';
     document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
-    document.getElementById('moveInfoSectionChk').checked = q.moveInfoSectionUp || false;
+    document.getElementById('moveInfoSectionChk').checked = q.moveInfoSectionUp;
     
-    currentFileName = loadedFileName;
-    currentLanguage = q.language || 'sv';
     reRenderAll();
     updateDocumentTitle();
+
+    // --- FEEDBACK ---
+    const msgEl = document.getElementById('statusMessage');
+    if (loadErrors.length > 0) {
+        alert("Offerten laddades med varningar:\n\n- " + loadErrors.join("\n- "));
+        if (msgEl) {
+            msgEl.textContent = `Laddades med ${loadErrors.length} varningar.`;
+            msgEl.style.color = 'orange';
+            setTimeout(() => { msgEl.textContent = ''; msgEl.style.color = 'green'; }, 8000);
+        }
+    } else if (loadedFileName) {
+        if (msgEl) {
+            msgEl.textContent = "Offerten laddades framgångsrikt!";
+            msgEl.style.color = 'green';
+            setTimeout(() => { msgEl.textContent = ''; }, 3000);
+        }
+    }
 }
 
 function reRenderAll(){
@@ -2065,37 +2187,6 @@ function calculateTotalPrice(){
 
 function formatPrice(price, forceSEK = false) {
     let displayPrice = Number(price) || 0;
-    const useCustom = document.getElementById('useCustomCurrencyChk').checked;
-
-    // If we are NOT in Custom Currency mode, but want to display in Custom Currency (Legacy Mode)
-    // OR if we ARE in Custom Currency mode, the price is ALREADY in Custom Currency (New Mode)
-    
-    // Legacy Mode Check: If useCustom is true, but we calculated in SEK?
-    // In the new logic, if useCustom is true, updatePrices calculates directly in Custom Currency.
-    // So formatPrice should just format the number.
-    
-    // However, if forceSEK is true (e.g. for internal debug or specific display), we might need conversion.
-    // But currently forceSEK is only used in vendor details where we might want to show the SEK equivalent?
-    // Actually, vendor details now use getPriceBreakdown which handles currency explicitly.
-    
-    // Legacy handling for "Multiply Custom Currency" checkbox which was used when base was SEK.
-    // If we are in the new "Custom Currency Matrix" mode, we don't need the multiplier logic here 
-    // because updatePrices handled it.
-    
-    // But wait, if the user UNCHECKS "Use Multiple Currencies" but CHECKS "Use Custom Currency",
-    // we fall back to the single multiplier.
-    
-    if (useCustom && !jsonData.quote.useMultipleCurrencies && !forceSEK) {
-        // Single multiplier mode (Legacy behavior preserved)
-        // Here updatePrices calculated in SEK (because useMultipleCurrencies is false, so it used singleMultiplier to get to SEK?)
-        // Wait, look at updatePrices:
-        // if (useCustomCurrency) ... if (currencyOrigin !== target) ... else basePrice *= singleMultiplier
-        // So updatePrices ALREADY converted to Custom Currency using singleMultiplier if origin wasn't SEK.
-        // So displayPrice is already in Custom Currency.
-    }
-
-    // So formatPrice really just needs to format the number now, because updatePrices does the heavy lifting.
-    
     const showDecimals = document.getElementById('showDecimals').checked;
     return formatNumber(showDecimals ? displayPrice.toFixed(2) : Math.round(displayPrice).toString());
 }
@@ -2258,6 +2349,8 @@ function addSeparator(containerId) {
 }
 
 function parseFileName(fileName){ const match = fileName.replace(/\.json$/i,'').match(/^(.*)_(\d{6})_v(\d+)$/); return match ? { prefix: match[1], datePart: match[2], version: parseInt(match[3],10) } : null; }
+
+// --- ROBUST FILE UPLOAD HANDLER ---
 document.getElementById('fileInput').addEventListener('change',function(ev){
     const f=ev.target.files[0];
     if(f && (f.type==='application/json' || f.name.endsWith('.json'))){
@@ -2270,25 +2363,11 @@ document.getElementById('fileInput').addEventListener('change',function(ev){
             }
             
             try {
-                // Attempt 1: Parse as plain JSON
-                loadQuoteData(JSON.parse(fileContent), f.name);
+                const parsedResult = robustJsonParse(fileContent);
+                loadQuoteData(parsedResult.data, f.name, parsedResult.warnings);
                 saveToLocal();
             } catch (err) {
-                try {
-                    // Attempt 2: Decrypt then parse
-                    const decryptedContent = decryptCaesar(fileContent, caesarShift);
-                    loadQuoteData(JSON.parse(decryptedContent), f.name);
-                    saveToLocal();
-                } catch (err2) {
-                    // Fallback: Try the original logic as a last resort
-                    try {
-                          const replacedContent = fileContent.replace(/–/g, '-');
-                          loadQuoteData(JSON.parse(replacedContent), f.name);
-                          saveToLocal();
-                    } catch (err3) {
-                        alert('JSON-formatet verkar vara felaktigt eller krypterat med en annan nyckel: ' + err2);
-                    }
-                }
+                alert('Ett kritiskt fel uppstod: ' + err.message);
             }
         };
         r.readAsText(f);
@@ -2517,7 +2596,7 @@ document.getElementById('printBtn').addEventListener('click', () => { if (checkQ
 function saveToLocal(){ localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift)); }
 
 window.onload=()=>{ 
-    loadQuoteData(jsonData); 
+    // loadQuoteData is now called inside initData to ensure safe loading
     fetchLiveCurrencyRates();
     setupLogo();
     checkForIncomingData(); // Check for data from PDF Flow
@@ -2711,6 +2790,8 @@ window.addEventListener('load', () => {
     setupFormattingToolbar();
     reRenderAll(); 
 });
+
+// --- ROBUST PDF UPLOAD HANDLER ---
 document.getElementById('uploadPdfBtn').addEventListener('click', () => document.getElementById('pdfUploadInput').click());
 document.getElementById('pdfUploadInput').addEventListener('change', async function(ev) {
   const file = ev.target.files[0]; if (!file) return;
@@ -2722,14 +2803,10 @@ document.getElementById('pdfUploadInput').addEventListener('change', async funct
   if (start >= 0 && end > start) { 
     try { 
         let extractedJson = fullText.substring(start, end + 1);
-        try {
-            loadQuoteData(JSON.parse(extractedJson), file.name);
-        } catch (e) {
-            extractedJson = decryptCaesar(extractedJson, caesarShift);
-            loadQuoteData(JSON.parse(extractedJson), file.name);
-        }
+        const parsedResult = robustJsonParse(extractedJson);
+        loadQuoteData(parsedResult.data, file.name, parsedResult.warnings);
         saveToLocal(); 
-    } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err); }
+    } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err.message); }
   } else { alert('Ingen inbäddad offertdata hittades i PDF-filen.'); }
 });
 
@@ -3306,8 +3383,8 @@ function checkForIncomingData() {
         const data = localStorage.getItem(key);
         if (data) {
             try {
-                const json = JSON.parse(data);
-                loadQuoteData(json);
+                const parsedResult = robustJsonParse(data);
+                loadQuoteData(parsedResult.data, null, parsedResult.warnings);
                 saveToLocal();
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -3331,9 +3408,9 @@ function checkForIncomingData() {
                 bytes[i] = binaryString.charCodeAt(i);
             }
             const decompressed = pako.inflate(bytes, { to: 'string' });
-            const json = JSON.parse(decompressed);
             
-            loadQuoteData(json);
+            const parsedResult = robustJsonParse(decompressed);
+            loadQuoteData(parsedResult.data, null, parsedResult.warnings);
             saveToLocal();
             // Clean up URL
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -3421,12 +3498,6 @@ function toggleInfoSectionPosition() {
         // We insert before Terms. If Terms is hidden/removed, we might need to append to parent, 
         // but termsSectionContainer always exists in DOM even if hidden.
         parent.insertBefore(infoContainer, termsContainer);
-        
-        // Ensure the separator containers are in correct order too?
-        // The static HTML structure has specific separator containers.
-        // When we move #infoSectionContainer, we are taking it out of flow.
-        // The static separators (sep-optional-info-container) might look weird if Info is gone.
-        // But for now, just moving the main container is sufficient as per request.
     }
 }
 
