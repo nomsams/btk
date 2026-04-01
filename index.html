@@ -1,4 +1,4 @@
-<!-- Version 103 -- Features: Robust JSON Parsing, Element-level Error Handling, Custom Currency Matrix, Vendor Formulas, Layout Controls -->
+<!-- Version 104 -- Features: Robust JSON Parsing, Element-level Error Handling, Custom Currency Matrix, Vendor Formulas, Layout Controls -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -851,6 +851,7 @@ window.liveExchangeRates = { usd: null, eur: null };
 const caesarShift = 17;
 let cropper = null;
 let currentCropIndex = -1;
+let loadWarnings = []; // Global variabel för att spara varningar tills DOM är redo
 
 function encryptCaesar(text, shift) {
     return text.split('').map(char => {
@@ -901,14 +902,11 @@ function robustJsonParse(fileContent) {
     // 4. Aggressive Truncation Rescue (Targeting infoImages or other arrays if file is cut off)
     function rescueTruncated(str) {
         if (!str) return null;
-        // Find the last valid major section before the corruption
         const markers = ['"infoImages"', '"terms"', '"optionalItems"', '"items"'];
         for (let marker of markers) {
             const idx = str.lastIndexOf(marker);
             if (idx > -1) {
-                // Cut the string right before this key
                 let rescued = str.substring(0, idx);
-                // Clean up trailing commas and close the JSON object
                 rescued = rescued.replace(/,\s*$/, '') + '}';
                 let resParsed = tryParse(rescued);
                 if (resParsed) {
@@ -934,17 +932,15 @@ function robustJsonParse(fileContent) {
         try {
             const parsedResult = robustJsonParse(localData);
             jsonData = parsedResult.data;
+            loadWarnings = parsedResult.warnings;
         } catch (e) {
             console.error("Failed to parse or decrypt local storage data.", e);
             localData = null; 
         }
     }
 
-    if(!localData){
+    if(!localData || !jsonData){
         jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false, customRates: { usd: 1.0, eur: 1.0, sek: 1.0 }, moveInfoSectionUp: false }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
-    } else {
-        // Fallback initialization is now handled safely inside loadQuoteData
-        loadQuoteData(jsonData, null, []);
     }
 })();
 
@@ -973,12 +969,6 @@ function formatCompanyInfo(companyObj) {
 function loadQuoteData(rawData, loadedFileName=null, parseWarnings = []) {
     let loadErrors = [...parseWarnings];
     
-    // Create a fresh object to prevent ghost data from previous states
-    let newJsonData = { 
-        quote: {}, companyA: {}, companyB: {}, 
-        items: [], optionalItems: [], terms: [], infoImages: [], signature: {} 
-    };
-
     // Deep copy input safely
     let data = {};
     try {
@@ -987,195 +977,160 @@ function loadQuoteData(rawData, loadedFileName=null, parseWarnings = []) {
         data = rawData || {};
     }
 
-    // --- QUOTE SETTINGS ---
-    try {
-        const q = data.quote || {};
-        newJsonData.quote = {
-            quoteNumber: q.quoteNumber || Math.floor(Math.random()*100000).toString(),
-            date: q.date || new Date().toLocaleDateString('sv-SE'),
-            projectNumber: q.projectNumber || '',
-            projectNumberVisible: q.projectNumberVisible || false,
-            reference: q.reference || '',
-            language: q.language || 'sv',
-            showDecimals: q.showDecimals || false,
-            marginPercentage: q.marginPercentage !== undefined ? q.marginPercentage : 0,
-            currencyMultiplicator: q.currencyMultiplicator !== undefined ? q.currencyMultiplicator : 11.8,
-            useMultipleCurrencies: q.useMultipleCurrencies || false,
-            usdToSekRate: q.usdToSekRate !== undefined ? q.usdToSekRate : 10.50,
-            eurToSekRate: q.eurToSekRate !== undefined ? q.eurToSekRate : 11.50,
-            showSignature: q.showSignature || false,
-            showTillSection: q.showTillSection !== undefined ? q.showTillSection : true,
-            removeTotal: q.removeTotal || false,
-            defaultLogoWidth: q.defaultLogoWidth || 200,
-            useCustomCurrency: q.useCustomCurrency || false,
-            customCurrency: q.customCurrency || 'EUR',
-            centerImagesByDefault: q.centerImagesByDefault !== undefined ? q.centerImagesByDefault : true,
-            marginCalculationMode: q.marginCalculationMode || 'markup',
-            separators: q.separators || {},
-            multiplyCustomCurrency: q.multiplyCustomCurrency || false,
-            customRates: q.customRates || { usd: 1.0, eur: 1.0, sek: 1.0 },
-            moveInfoSectionUp: q.moveInfoSectionUp || false,
-            labels: q.labels || {},
-            visibility: q.visibility || { optional: true, info: true, terms: true }
-        };
-        
-        // Legacy label migration
-        if (q.totalLabel) { 
-            newJsonData.quote.labels.totalLabel = q.totalLabel;
+    // Ensure base structure exists
+    if (!data.quote) data.quote = {};
+    if (!data.companyA) data.companyA = {};
+    if (!data.companyB) data.companyB = {};
+    if (!Array.isArray(data.items)) data.items = [];
+    if (!Array.isArray(data.optionalItems)) data.optionalItems = [];
+    if (!Array.isArray(data.infoImages)) data.infoImages = [];
+    if (!Array.isArray(data.terms)) data.terms = [];
+    if (!data.signature) data.signature = {};
+
+    const q = data.quote;
+    q.quoteNumber = q.quoteNumber || Math.floor(Math.random()*100000).toString();
+    q.date = q.date || new Date().toLocaleDateString('sv-SE');
+    q.marginPercentage = q.marginPercentage !== undefined ? q.marginPercentage : 0;
+    q.currencyMultiplicator = q.currencyMultiplicator !== undefined ? q.currencyMultiplicator : 11.8;
+    q.useMultipleCurrencies = q.useMultipleCurrencies || false;
+    q.usdToSekRate = q.usdToSekRate !== undefined ? q.usdToSekRate : 10.50;
+    q.eurToSekRate = q.eurToSekRate !== undefined ? q.eurToSekRate : 11.50;
+    q.showSignature = q.showSignature || false;
+    q.showTillSection = q.showTillSection !== undefined ? q.showTillSection : true;
+    q.removeTotal = q.removeTotal || false;
+    q.defaultLogoWidth = q.defaultLogoWidth || 200;
+    q.useCustomCurrency = q.useCustomCurrency || false;
+    q.customCurrency = q.customCurrency || 'EUR';
+    q.centerImagesByDefault = q.centerImagesByDefault !== undefined ? q.centerImagesByDefault : true;
+    q.marginCalculationMode = q.marginCalculationMode || 'markup';
+    q.separators = q.separators || {};
+    q.multiplyCustomCurrency = q.multiplyCustomCurrency || false;
+    q.customRates = q.customRates || { usd: 1.0, eur: 1.0, sek: 1.0 };
+    q.moveInfoSectionUp = q.moveInfoSectionUp || false;
+    q.labels = q.labels || {};
+    q.visibility = q.visibility || { optional: true, info: true, terms: true };
+
+    if (q.totalLabel) { 
+        q.labels.totalLabel = q.totalLabel;
+        delete q.totalLabel;
+    }
+
+    // Safe Item Parsing
+    const safeParseItems = (itemsArray, listName) => {
+        let validItems = [];
+        itemsArray.forEach((it, idx) => {
+            try {
+                if (!it) return;
+                it.isPriceBakedIn = it.isPriceBakedIn || false;
+                it.isHiddenFromPrint = it.isHiddenFromPrint || false;
+                it.vendorNotes = it.vendorNotes || "";
+                it.type = it.type || (it.name ? 'item' : 'separator');
+                
+                if (Array.isArray(it.subItems)) {
+                    let validSubItems = [];
+                    it.subItems.forEach((sIt, sIdx) => {
+                        try {
+                            if (!sIt) return;
+                            sIt.isPriceBakedIn = sIt.isPriceBakedIn || false;
+                            sIt.isHiddenFromPrint = sIt.isHiddenFromPrint || false;
+                            sIt.vendorNotes = sIt.vendorNotes || "";
+                            validSubItems.push(sIt);
+                        } catch (subErr) {
+                            loadErrors.push(`Kunde inte ladda underpost ${sIdx + 1} i ${listName} rad ${idx + 1}.`);
+                        }
+                    });
+                    it.subItems = validSubItems;
+                } else {
+                    it.subItems = [];
+                }
+                validItems.push(it);
+            } catch (err) {
+                loadErrors.push(`Kunde inte ladda ${listName} rad ${idx + 1}.`);
+            }
+        });
+        return validItems;
+    };
+
+    data.items = safeParseItems(data.items, "artikel");
+    data.optionalItems = safeParseItems(data.optionalItems, "alternativ artikel");
+
+    // Safe Info Images Parsing
+    let validInfoImages = [];
+    data.infoImages.forEach((it, idx) => {
+        try {
+            if (!it) return;
+            if (it.type === 'image') {
+                it.compressionImmune = it.compressionImmune || false;
+            }
+            it.centering = it.centering || 'center';
+            validInfoImages.push(it);
+        } catch (err) {
+            loadErrors.push(`Kunde inte ladda info/bild-block ${idx + 1}.`);
         }
-    } catch (e) {
-        loadErrors.push("Kunde inte ladda offert-inställningar (quote). Använder standardvärden.");
-    }
+    });
+    data.infoImages = validInfoImages;
 
-    // --- COMPANY INFO ---
-    try { newJsonData.companyA = data.companyA || {}; } catch(e) { loadErrors.push("Kunde inte ladda Företag A."); }
-    try { newJsonData.companyB = data.companyB || {}; } catch(e) { loadErrors.push("Kunde inte ladda Företag B."); }
+    // Safe Terms Parsing
+    let validTerms = [];
+    data.terms.forEach((t, idx) => {
+        try {
+            if (t !== null && t !== undefined) validTerms.push(t);
+        } catch (err) {
+            loadErrors.push(`Kunde inte ladda villkor ${idx + 1}.`);
+        }
+    });
+    data.terms = validTerms;
 
-    // --- SIGNATURE ---
-    try {
-        newJsonData.signature = data.signature || { 
-            date: "", lessorLine: "", lesseeLine: "", 
-            lessorText: translations.sv.signatureLessorLabel, 
-            lesseeText: translations.sv.signatureLesseeLabel 
-        };
-    } catch(e) { loadErrors.push("Kunde inte ladda signatur-inställningar."); }
-
-    // --- ITEMS ---
-    if (Array.isArray(data.items)) {
-        data.items.forEach((it, idx) => {
-            try {
-                it.isPriceBakedIn = it.isPriceBakedIn || false;
-                it.isHiddenFromPrint = it.isHiddenFromPrint || false;
-                it.vendorNotes = it.vendorNotes || "";
-                it.type = it.type || (it.name ? 'item' : 'separator');
-                
-                if (Array.isArray(it.subItems)) {
-                    let validSubItems = [];
-                    it.subItems.forEach((sIt, sIdx) => {
-                        try {
-                            sIt.isPriceBakedIn = sIt.isPriceBakedIn || false;
-                            sIt.isHiddenFromPrint = sIt.isHiddenFromPrint || false;
-                            sIt.vendorNotes = sIt.vendorNotes || "";
-                            validSubItems.push(sIt);
-                        } catch (subErr) {
-                            loadErrors.push(`Kunde inte ladda underpost ${sIdx + 1} i artikel ${idx + 1}.`);
-                        }
-                    });
-                    it.subItems = validSubItems;
-                } else {
-                    it.subItems = [];
-                }
-                newJsonData.items.push(it);
-            } catch (err) {
-                loadErrors.push(`Kunde inte ladda artikel på rad ${idx + 1}.`);
-            }
-        });
-    }
-
-    // --- OPTIONAL ITEMS ---
-    if (Array.isArray(data.optionalItems)) {
-        data.optionalItems.forEach((it, idx) => {
-            try {
-                it.isPriceBakedIn = it.isPriceBakedIn || false;
-                it.isHiddenFromPrint = it.isHiddenFromPrint || false;
-                it.vendorNotes = it.vendorNotes || "";
-                it.type = it.type || (it.name ? 'item' : 'separator');
-                
-                if (Array.isArray(it.subItems)) {
-                    let validSubItems = [];
-                    it.subItems.forEach((sIt, sIdx) => {
-                        try {
-                            sIt.isPriceBakedIn = sIt.isPriceBakedIn || false;
-                            sIt.isHiddenFromPrint = sIt.isHiddenFromPrint || false;
-                            sIt.vendorNotes = sIt.vendorNotes || "";
-                            validSubItems.push(sIt);
-                        } catch (subErr) {
-                            loadErrors.push(`Kunde inte ladda underpost ${sIdx + 1} i alternativ artikel ${idx + 1}.`);
-                        }
-                    });
-                    it.subItems = validSubItems;
-                } else {
-                    it.subItems = [];
-                }
-                newJsonData.optionalItems.push(it);
-            } catch (err) {
-                loadErrors.push(`Kunde inte ladda alternativ artikel på rad ${idx + 1}.`);
-            }
-        });
-    }
-
-    // --- INFO IMAGES ---
-    if (Array.isArray(data.infoImages)) {
-        data.infoImages.forEach((it, idx) => {
-            try {
-                if (it.type === 'image') {
-                    it.compressionImmune = it.compressionImmune || false;
-                }
-                it.centering = it.centering || 'center';
-                newJsonData.infoImages.push(it);
-            } catch (err) {
-                loadErrors.push(`Kunde inte ladda info/bild-block ${idx + 1}.`);
-            }
-        });
-    }
-
-    // --- TERMS ---
-    if (Array.isArray(data.terms)) {
-        data.terms.forEach((t, idx) => {
-            try {
-                newJsonData.terms.push(t);
-            } catch (err) {
-                loadErrors.push(`Kunde inte ladda villkor ${idx + 1}.`);
-            }
-        });
-    }
-
-    // Replace global state with the safely constructed object
-    jsonData = newJsonData;
+    // Assign back to global jsonData
+    jsonData = data;
     currentFileName = loadedFileName;
     currentLanguage = jsonData.quote.language || 'sv';
 
     // --- DOM UPDATES ---
-    const q = jsonData.quote;
-    document.getElementById('quoteNumber').textContent = q.quoteNumber;
-    document.getElementById('quoteDate').textContent = q.date;
-    document.getElementById('projectNumber').textContent = q.projectNumber;
-    document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
-    document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
-    document.getElementById('reference').textContent = q.reference;
-    
-    document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator;
-    document.getElementById('marginPercentageInput').value = q.marginPercentage;
-    document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth;
-    document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency;
-    
-    document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies;
-    document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate).toFixed(2);
-    document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate).toFixed(2);
-    document.getElementById('sekRateInput').value = parseFloat(q.customRates.sek).toFixed(2);
-    
-    toggleMultipleCurrencyUI(q.useMultipleCurrencies);
+    try {
+        document.getElementById('quoteNumber').textContent = q.quoteNumber;
+        document.getElementById('quoteDate').textContent = q.date;
+        document.getElementById('projectNumber').textContent = q.projectNumber || '';
+        document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
+        document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
+        document.getElementById('reference').textContent = q.reference || '';
+        
+        document.getElementById('currencyMultiplierInput').value = q.currencyMultiplicator;
+        document.getElementById('marginPercentageInput').value = q.marginPercentage;
+        document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth;
+        document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency;
+        
+        document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies;
+        document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate).toFixed(2);
+        document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate).toFixed(2);
+        document.getElementById('sekRateInput').value = parseFloat(q.customRates.sek).toFixed(2);
+        
+        toggleMultipleCurrencyUI(q.useMultipleCurrencies);
 
-    document.getElementById('showDecimals').checked = q.showDecimals;
-    document.getElementById('showProjectNumber').checked = q.projectNumberVisible; 
-    document.getElementById('projectNumberDiv').style.display = q.projectNumberVisible ? 'block' : 'none';
-    document.getElementById('addSignatureCheck').checked = q.showSignature;
-    document.getElementById('signatureSection').style.display = q.showSignature ? 'block' : 'none';
-    document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
-    applyTillSectionVisibility();
-    document.getElementById('removeTotalCheck').checked = q.removeTotal;
-    document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency;
-    document.getElementById('customCurrencyInput').value = q.customCurrency;
-    document.getElementById("customCurrencyInput").style.display = q.useCustomCurrency ? 'inline-block' : 'none';
-    document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
-    document.getElementById('moveInfoSectionChk').checked = q.moveInfoSectionUp;
-    
-    reRenderAll();
-    updateDocumentTitle();
+        document.getElementById('showDecimals').checked = q.showDecimals;
+        document.getElementById('showProjectNumber').checked = q.projectNumberVisible; 
+        document.getElementById('projectNumberDiv').style.display = q.projectNumberVisible ? 'block' : 'none';
+        document.getElementById('addSignatureCheck').checked = q.showSignature;
+        document.getElementById('signatureSection').style.display = q.showSignature ? 'block' : 'none';
+        document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
+        applyTillSectionVisibility();
+        document.getElementById('removeTotalCheck').checked = q.removeTotal;
+        document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency;
+        document.getElementById('customCurrencyInput').value = q.customCurrency;
+        document.getElementById("customCurrencyInput").style.display = q.useCustomCurrency ? 'inline-block' : 'none';
+        document.getElementById('marginModeChk').checked = q.marginCalculationMode === 'margin';
+        document.getElementById('moveInfoSectionChk').checked = q.moveInfoSectionUp;
+        
+        reRenderAll();
+        updateDocumentTitle();
+    } catch (domErr) {
+        console.error("DOM Update Error under inläsning:", domErr);
+    }
 
     // --- FEEDBACK ---
     const msgEl = document.getElementById('statusMessage');
     if (loadErrors.length > 0) {
+        console.warn("Load Warnings:", loadErrors);
         alert("Offerten laddades med varningar:\n\n- " + loadErrors.join("\n- "));
         if (msgEl) {
             msgEl.textContent = `Laddades med ${loadErrors.length} varningar.`;
@@ -2596,7 +2551,9 @@ document.getElementById('printBtn').addEventListener('click', () => { if (checkQ
 function saveToLocal(){ localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift)); }
 
 window.onload=()=>{ 
-    // loadQuoteData is now called inside initData to ensure safe loading
+    // Ladda in data säkert när DOM är redo
+    loadQuoteData(jsonData, null, loadWarnings);
+    
     fetchLiveCurrencyRates();
     setupLogo();
     checkForIncomingData(); // Check for data from PDF Flow
@@ -2765,31 +2722,6 @@ function updatePrintMultiplier(){
         multiplierSpan.textContent = `Valutakurs: ${jsonData.quote.currencyMultiplicator ?? 1}`; 
     }
 }
-
-window.addEventListener('load', () => { 
-    const q = jsonData.quote;
-    q.language = q.language || currentLanguage; q.customCurrency = q.customCurrency || '';
-    q.useCustomCurrency = q.useCustomCurrency === undefined ? !!q.customCurrency : q.useCustomCurrency;
-    currentLanguage = q.language;
-    document.getElementById('customCurrencyInput').value = q.customCurrency;
-    document.getElementById('useCustomCurrencyChk').checked = q.useCustomCurrency;
-    document.getElementById('useCustomCurrencyChk').dispatchEvent(new Event('change')); 
-    
-    document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies;
-    toggleMultipleCurrencyUI(q.useMultipleCurrencies);
-    document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
-    document.getElementById('eurRateInput').value = parseFloat(q.eurToSekRate || 11.50).toFixed(2);
-
-    document.getElementById('addSignatureCheck').checked = q.showSignature;
-    document.getElementById('addSignatureCheck').dispatchEvent(new Event('change'));
-    
-    document.getElementById('toggleTillSectionChk').checked = q.showTillSection;
-    applyTillSectionVisibility();
-
-    updatePrintMultiplier();
-    setupFormattingToolbar();
-    reRenderAll(); 
-});
 
 // --- ROBUST PDF UPLOAD HANDLER ---
 document.getElementById('uploadPdfBtn').addEventListener('click', () => document.getElementById('pdfUploadInput').click());
