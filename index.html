@@ -1,4 +1,4 @@
-<!-- Version 102 -- Features: Custom Currency Matrix, Vendor Formulas, Layout Controls, JSON Naming -->
+<!-- Version 103 -- Features: Custom Currency Matrix, Vendor Formulas, Layout Controls, JSON Naming, Clipboard Import, Robust Error Handling, Caesar Rescue Map -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -710,6 +710,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 <div class="footer screen-only">
     <input type="file" id="fileInput" accept=".json" style="display: none;" />
     <button class="footer-button" onclick="document.getElementById('fileInput').click()">Ladda JSON</button>
+    <button id="loadFromClipboardBtn" class="footer-button">Klistra in JSON (Urklipp)</button>
     <button id="saveJson" class="footer-button">Spara JSON</button>
     <button id="copyJsonBtn" class="footer-button">Kopiera JSON (text)</button>
     <button class="footer-button" id="uploadPdfBtn">Ladda PDF-offert</button>
@@ -793,6 +794,7 @@ const translations = {
     cropImage: "Beskär bild",
     addDescription: "Lägg till beskrivning",
     moveInfoLabel: "Flytta Info/Bilder före artiklar",
+    loadFromClipboardBtn: "Klistra in JSON (Urklipp)",
   },
   en: {
     quoteTitle: "Quote", quoteNumberLabel: "Quote No:", dateLabel: "Date:", projectNumberLabel: "Project Number:",
@@ -841,6 +843,7 @@ const translations = {
     cropImage: "Crop image",
     addDescription: "Add description",
     moveInfoLabel: "Move Info/Images before items",
+    loadFromClipboardBtn: "Paste JSON (Clipboard)",
   }
 };
 
@@ -860,8 +863,22 @@ function encryptCaesar(text, shift) {
 }
 
 function decryptCaesar(text, shift) {
+    // Rescue map for characters mangled by Windows-1252 / UTF-8 conversion
+    const mangleMap = {
+        '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135,
+        'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145,
+        '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '˜': 152,
+        '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159
+    };
+
     return text.split('').map(char => {
-        const code = char.charCodeAt(0);
+        let code = char.charCodeAt(0);
+        
+        // If the character was mangled by the OS, restore its original control code
+        if (mangleMap[char] !== undefined) {
+            code = mangleMap[char];
+        }
+        
         return String.fromCharCode(code - shift);
     }).join('');
 }
@@ -893,6 +910,54 @@ function robustJsonParse(fileContent) {
     try { return tryRescue(decryptCaesar(fileContent, caesarShift)); } catch (e) {}
 
     throw new Error("Kunde inte parsa JSON-filen, även med räddningsförsök.");
+}
+
+function clearAllContainers() {
+    const containers = ['itemsList', 'optionalItemsList', 'termsList', 'infoImagesList'];
+    containers.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+    // Reset jsonData to a safe empty state before loading
+    jsonData = { quote: {}, companyA: {}, companyB: {}, items: [], optionalItems: [], terms: [], infoImages: [], signature: {} };
+}
+
+function processIncomingJson(jsonString, fileName) {
+    try {
+        let parsedData = robustJsonParse(jsonString);
+        if (!parsedData) throw new Error("Parsed data is null or undefined.");
+        
+        clearAllContainers();
+        loadQuoteData(parsedData, fileName);
+        
+        try {
+            saveToLocal();
+        } catch (err) {
+            if (err.name === 'QuotaExceededError' || err.message.toLowerCase().includes('quota')) {
+                alert("Offerten har laddats, men är för stor för att sparas automatiskt i webbläsarens minne. Vänligen komprimera bilderna (använd knappen 'Minska filstorlek') för att autospar ska fungera.");
+                const statusMsg = document.getElementById('statusMessage');
+                if(statusMsg) {
+                    statusMsg.textContent = "Varning: Filen är för stor för autospar. Komprimera bilder!";
+                    statusMsg.style.color = "red";
+                }
+            } else {
+                console.error("Kunde inte spara till localStorage:", err);
+            }
+        }
+        
+        // Force a full re-render to ensure UI matches the newly loaded data
+        reRenderAll();
+        
+        const msgEl = document.getElementById('statusMessage');
+        if(msgEl) {
+            msgEl.textContent = "Offerten laddades framgångsrikt!";
+            msgEl.style.color = "green";
+            setTimeout(() => { msgEl.textContent = ''; }, 3000);
+        }
+    } catch (err) {
+        console.error("Kritiskt fel vid inläsning av offert:", err);
+        alert("Ett fel uppstod vid inläsning av offerten.\n\nDetaljer: " + err.message + "\n\nKontrollera att filen inte är korrupt.");
+    }
 }
 
 (function initData(){
@@ -1172,7 +1237,7 @@ function loadQuoteData(data, loadedFileName=null){
 
     // --- UI Uppdateringar ---
     document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
-    document.getElementById('quoteDate').textContent = q.date || new Date().toLocaleDateString('sv-SE');
+    document.getElementById('quoteDate').textContent = q.date || getTodaysDateString();
     document.getElementById('projectNumber').textContent = q.projectNumber || '';
     document.getElementById('companyA').innerHTML = formatCompanyInfo(jsonData.companyA);
     document.getElementById('companyB').innerHTML = formatCompanyInfo(jsonData.companyB);
@@ -1206,7 +1271,7 @@ function loadQuoteData(data, loadedFileName=null){
     
     currentFileName = loadedFileName;
     currentLanguage = q.language || 'sv';
-    reRenderAll();
+    // reRenderAll is called by processIncomingJson to ensure it happens after load
     updateDocumentTitle();
 
     if (loadErrors.length > 0) {
@@ -1318,6 +1383,9 @@ function updateLanguageUI(lang){
     document.getElementById('recompressTooltipText').textContent = t.recompressTooltipText;
     document.getElementById('reduceSizeTooltipText').textContent = t.reduceSizeTooltipText;
     
+    const clipboardBtn = document.getElementById('loadFromClipboardBtn');
+    if (clipboardBtn) clipboardBtn.textContent = t.loadFromClipboardBtn || "Klistra in JSON (Urklipp)";
+
     document.querySelector('#removeTotalCheckboxLabel').lastChild.nodeValue = ` ${t.removeTotalLabelText}`;
     document.querySelector('#addSignatureCheckboxLabel').lastChild.nodeValue = ` ${t.addSignatureLabelText}`;
     document.querySelector('#toggleTillLabel').lastChild.nodeValue = ` ${t.hideTillSectionLabelText}`;
@@ -2213,35 +2281,6 @@ function formatPrice(price, forceSEK = false) {
     let displayPrice = Number(price) || 0;
     const useCustom = document.getElementById('useCustomCurrencyChk').checked;
 
-    // If we are NOT in Custom Currency mode, but want to display in Custom Currency (Legacy Mode)
-    // OR if we ARE in Custom Currency mode, the price is ALREADY in Custom Currency (New Mode)
-    
-    // Legacy Mode Check: If useCustom is true, but we calculated in SEK?
-    // In the new logic, if useCustom is true, updatePrices calculates directly in Custom Currency.
-    // So formatPrice should just format the number.
-    
-    // However, if forceSEK is true (e.g. for internal debug or specific display), we might need conversion.
-    // But currently forceSEK is only used in vendor details where we might want to show the SEK equivalent?
-    // Actually, vendor details now use getPriceBreakdown which handles currency explicitly.
-    
-    // Legacy handling for "Multiply Custom Currency" checkbox which was used when base was SEK.
-    // If we are in the new "Custom Currency Matrix" mode, we don't need the multiplier logic here 
-    // because updatePrices handled it.
-    
-    // But wait, if the user UNCHECKS "Use Multiple Currencies" but CHECKS "Use Custom Currency",
-    // we fall back to the single multiplier.
-    
-    if (useCustom && !jsonData.quote.useMultipleCurrencies && !forceSEK) {
-        // Single multiplier mode (Legacy behavior preserved)
-        // Here updatePrices calculated in SEK (because useMultipleCurrencies is false, so it used singleMultiplier to get to SEK?)
-        // Wait, look at updatePrices:
-        // if (useCustomCurrency) ... if (currencyOrigin !== target) ... else basePrice *= singleMultiplier
-        // So updatePrices ALREADY converted to Custom Currency using singleMultiplier if origin wasn't SEK.
-        // So displayPrice is already in Custom Currency.
-    }
-
-    // So formatPrice really just needs to format the number now, because updatePrices does the heavy lifting.
-    
     const showDecimals = document.getElementById('showDecimals').checked;
     return formatNumber(showDecimals ? displayPrice.toFixed(2) : Math.round(displayPrice).toString());
 }
@@ -2411,42 +2450,26 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     const reader = new FileReader();
     
     reader.onload = function(ev) {
-        let parsedData = null;
-        
-        // 1. Isolera parsning
-        try {
-            parsedData = robustJsonParse(ev.target.result);
-        } catch (err) {
-            alert("Kunde inte läsa filen. Den verkar vara korrupt eller krypterad med fel nyckel.");
-            console.error("Parse error:", err);
-            return;
-        }
-
-        // 2. Ladda in datan i UI:t
-        if (parsedData) {
-            loadQuoteData(parsedData, file.name);
-        }
-
-        // 3. Isolera saveToLocal (Autospar) för att förhindra Quota-krasch
-        try {
-            saveToLocal();
-        } catch (err) {
-            if (err.name === 'QuotaExceededError' || err.message.toLowerCase().includes('quota')) {
-                alert("Offerten har laddats, men är för stor för att sparas automatiskt i webbläsarens minne. Vänligen komprimera bilderna (använd knappen 'Minska filstorlek') för att autospar ska fungera.");
-                const statusMsg = document.getElementById('statusMessage');
-                if(statusMsg) {
-                    statusMsg.textContent = "Varning: Filen är för stor för autospar. Komprimera bilder!";
-                    statusMsg.style.color = "red";
-                }
-            } else {
-                console.error("Kunde inte spara till localStorage:", err);
-            }
-        }
+        processIncomingJson(ev.target.result, file.name);
     };
     
     reader.readAsText(file);
     // Återställ input så samma fil kan laddas igen
     e.target.value = ''; 
+});
+
+document.getElementById('loadFromClipboardBtn').addEventListener('click', async () => {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (!text || text.trim() === '') {
+            alert("Urklipp är tomt.");
+            return;
+        }
+        processIncomingJson(text, "clipboard_import.json");
+    } catch (err) {
+        console.error("Failed to read clipboard:", err);
+        alert("Kunde inte läsa från urklipp. Kontrollera att du har gett webbläsaren behörighet.");
+    }
 });
 
 document.getElementById("toggleLanguageBtn").addEventListener('click', ()=>{ 
@@ -2877,12 +2900,11 @@ document.getElementById('pdfUploadInput').addEventListener('change', async funct
     try { 
         let extractedJson = fullText.substring(start, end + 1);
         try {
-            loadQuoteData(JSON.parse(extractedJson), file.name);
+            processIncomingJson(extractedJson, file.name);
         } catch (e) {
             extractedJson = decryptCaesar(extractedJson, caesarShift);
-            loadQuoteData(JSON.parse(extractedJson), file.name);
+            processIncomingJson(extractedJson, file.name);
         }
-        saveToLocal(); 
     } catch (err) { alert('Fel vid avkodning av PDF-data: ' + err); }
   } else { alert('Ingen inbäddad offertdata hittades i PDF-filen.'); }
 });
@@ -3310,7 +3332,11 @@ document.getElementById('saveJsonUnencryptedNoImg').addEventListener('click', ()
 });
 
 function getTodaysDateString() {
-    return new Date().toLocaleDateString('sv-SE');
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function checkQuoteDate(isAction = false) {
@@ -3351,7 +3377,9 @@ function checkQuoteDate(isAction = false) {
 
 document.getElementById('updateDateBtn').addEventListener('click', () => {
     const todayStr = getTodaysDateString();
-    document.getElementById('quoteDate').textContent = todayStr;
+    const quoteDateEl = document.getElementById('quoteDate');
+    quoteDateEl.textContent = todayStr;
+    if (!jsonData.quote) jsonData.quote = {};
     jsonData.quote.date = todayStr;
     saveToLocal();
     checkQuoteDate();
@@ -3460,14 +3488,9 @@ function checkForIncomingData() {
         const data = localStorage.getItem(key);
         if (data) {
             try {
-                const json = JSON.parse(data);
-                loadQuoteData(json);
-                saveToLocal();
+                processIncomingJson(data, "external_import.json");
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
-                // Optional: Clean up localStorage to save space
-                // localStorage.removeItem(key); 
-                alert("Quote loaded successfully from external app!");
             } catch (e) {
                 console.error("Failed to load quote from localStorage:", e);
                 alert("Failed to load quote data.");
@@ -3485,13 +3508,10 @@ function checkForIncomingData() {
                 bytes[i] = binaryString.charCodeAt(i);
             }
             const decompressed = pako.inflate(bytes, { to: 'string' });
-            const json = JSON.parse(decompressed);
             
-            loadQuoteData(json);
-            saveToLocal();
+            processIncomingJson(decompressed, "shared_link.json");
             // Clean up URL
             window.history.replaceState({}, document.title, window.location.pathname);
-            alert("Quote loaded successfully from shared link!");
         } catch (e) {
             console.error("Failed to load compressed quote:", e);
             alert("Failed to load shared quote data.");
@@ -3575,12 +3595,6 @@ function toggleInfoSectionPosition() {
         // We insert before Terms. If Terms is hidden/removed, we might need to append to parent, 
         // but termsSectionContainer always exists in DOM even if hidden.
         parent.insertBefore(infoContainer, termsContainer);
-        
-        // Ensure the separator containers are in correct order too?
-        // The static HTML structure has specific separator containers.
-        // When we move #infoSectionContainer, we are taking it out of flow.
-        // The static separators (sep-optional-info-container) might look weird if Info is gone.
-        // But for now, just moving the main container is sufficient as per request.
     }
 }
 
