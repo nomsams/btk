@@ -1,4 +1,4 @@
-<!-- Version 103 -- Features: Custom Currency Matrix, Vendor Formulas, Layout Controls, JSON Naming, Clipboard Import, Robust Error Handling, Caesar Rescue Map -->
+<!-- Version 104 -- Features: Custom Currency Matrix, Vendor Formulas, Layout Controls, JSON Naming, Clipboard Import, Robust Error Handling, Caesar Rescue Map, Quota Safe Autosave -->
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -930,29 +930,21 @@ function processIncomingJson(jsonString, fileName) {
         clearAllContainers();
         loadQuoteData(parsedData, fileName);
         
-        try {
-            saveToLocal();
-        } catch (err) {
-            if (err.name === 'QuotaExceededError' || err.message.toLowerCase().includes('quota')) {
-                alert("Offerten har laddats, men är för stor för att sparas automatiskt i webbläsarens minne. Vänligen komprimera bilderna (använd knappen 'Minska filstorlek') för att autospar ska fungera.");
-                const statusMsg = document.getElementById('statusMessage');
-                if(statusMsg) {
-                    statusMsg.textContent = "Varning: Filen är för stor för autospar. Komprimera bilder!";
-                    statusMsg.style.color = "red";
-                }
-            } else {
-                console.error("Kunde inte spara till localStorage:", err);
-            }
-        }
-        
-        // Force a full re-render to ensure UI matches the newly loaded data
+        // Nu när reRenderAll anropas kommer den rita ut alla bilder och rader. 
+        // Om autospar misslyckas i bakgrunden fångas det tyst upp av vår nya saveToLocal().
         reRenderAll();
         
+        // Bara för att trigga en första sparning och se om det får plats:
+        saveToLocal();
+        
         const msgEl = document.getElementById('statusMessage');
-        if(msgEl) {
+        // Om inget rött varningsmeddelande om autospar aktiverades...
+        if(msgEl && !msgEl.textContent.includes("Varning")) {
             msgEl.textContent = "Offerten laddades framgångsrikt!";
             msgEl.style.color = "green";
-            setTimeout(() => { msgEl.textContent = ''; }, 3000);
+            setTimeout(() => { 
+                if(msgEl.textContent === "Offerten laddades framgångsrikt!") msgEl.textContent = ''; 
+            }, 3000);
         }
     } catch (err) {
         console.error("Kritiskt fel vid inläsning av offert:", err);
@@ -2691,7 +2683,30 @@ function copyJsonToClipboard(){
     });
 }
 document.getElementById('printBtn').addEventListener('click', () => { if (checkQuoteDate(true)) { window.print(); } });
-function saveToLocal(){ localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift)); }
+
+function saveToLocal() {
+    try {
+        localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift));
+        
+        // Om det lyckas (minnet är inte längre fullt), ta bort eventuell varning
+        const statusEl = document.getElementById('statusMessage');
+        if (statusEl && statusEl.textContent.includes("autospar")) {
+            statusEl.textContent = "";
+        }
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.message.toLowerCase().includes('quota')) {
+            console.warn("Storage quota exceeded. Autosave suspended.");
+            // Krascha INTE, utan visa bara en varning för användaren att autospar är inaktiverat
+            const statusEl = document.getElementById('statusMessage');
+            if (statusEl) {
+                statusEl.textContent = "Varning: Filen är för stor för autospar. Du kan fortsätta jobba, men glöm inte att spara din JSON manuellt!";
+                statusEl.style.color = "red";
+            }
+        } else {
+            console.error("Oväntat fel vid autospar:", e);
+        }
+    }
+}
 
 window.onload=()=>{ 
     loadQuoteData(jsonData); 
