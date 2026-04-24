@@ -932,18 +932,16 @@ function processIncomingJson(jsonString, fileName) {
         let parsedData = robustJsonParse(jsonString);
         if (!parsedData) throw new Error("Parsed data is null or undefined.");
         
+        // We attach the data to the window object so wordify.js can see it.
+        window.jsonData = parsedData; 
+
         clearAllContainers();
         loadQuoteData(parsedData, fileName);
         
-        // Nu när reRenderAll anropas kommer den rita ut alla bilder och rader. 
-        // Om autospar misslyckas i bakgrunden fångas det tyst upp av vår nya saveToLocal().
         reRenderAll();
-        
-        // Bara för att trigga en första sparning och se om det får plats:
         saveToLocal();
         
         const msgEl = document.getElementById('statusMessage');
-        // Om inget rött varningsmeddelande om autospar aktiverades...
         if(msgEl && !msgEl.textContent.includes("Varning")) {
             msgEl.textContent = "Offerten laddades framgångsrikt!";
             msgEl.style.color = "green";
@@ -953,10 +951,9 @@ function processIncomingJson(jsonString, fileName) {
         }
     } catch (err) {
         console.error("Kritiskt fel vid inläsning av offert:", err);
-        alert("Ett fel uppstod vid inläsning av offerten.\n\nDetaljer: " + err.message + "\n\nKontrollera att filen inte är korrupt.");
+        alert("Ett fel uppstod vid inläsning av offerten.\n\nDetaljer: " + err.message);
     }
 }
-
 (function initData(){
     let localData = localStorage.getItem('quoteData');
     if(localData){
