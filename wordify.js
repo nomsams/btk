@@ -1,7 +1,7 @@
 /**
- * wordify.js - Production Ready Version
- * Includes: Black Headers, Translation Support, Smart Image Collage, 
- * Contextual Page Breaks, Flawless Bullet formatting, Address Spacing, and Zero-Hiding.
+ * wordify.js - Production Ready Version (Strict Formatting Update)
+ * Features: Extreme right Från-box alignment, Mid-sentence break removal, 
+ * Strict Max-2-Newline rule, perfect bullet logic, and Zero-Hiding.
  */
 
 (function () {
@@ -19,24 +19,46 @@
         HeadingLevel 
     } = docx;
 
-    // --- Utility: Clean UI Artifacts & Fix Bullets ---
+    // --- Utility: Clean UI Artifacts & STRICT Formatting Rules ---
     function stripUiArtifacts(htmlStr) {
         if (!htmlStr) return "";
         let s = String(htmlStr);
-        
-        // 1. Convert literal newlines to HTML breaks BEFORE parsing so address lines aren't lost
-        s = s.replace(/\r?\n|\r/g, '<br>');
 
-        // 2. Remove UI elements and emojis
+        // 1. Remove UI elements and emojis
         s = s.replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '');
         s = s.replace(/✖|👨‍🍳|📝/g, '');
-        
-        // 3. Smart Bullet Spacing: Ensure exactly ONE <br> before a bullet, preventing double spacing
+
+        // 2. Normalize all literal newlines
+        s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        // 3. MID-SENTENCE BREAK KILLER:
+        // Safely collapse single newlines into spaces unless they belong to a real paragraph/bullet.
+        s = s.split('\n').reduce((acc, line, i, arr) => {
+            if (i === 0) return line;
+            const prev = arr[i - 1];
+            const trimmedLine = line.trimStart();
+            
+            // Keep the newline ONLY if: prev line is blank, current line is blank, or it starts with a bullet/HTML tag
+            if (prev.trim() === '' || trimmedLine === '' || trimmedLine.startsWith('●') || trimmedLine.startsWith('<')) {
+                return acc + '\n' + line;
+            }
+            // Otherwise, it's a broken sentence. Stitch it together with a space.
+            return acc + ' ' + trimmedLine;
+        }, '');
+
+        // 4. Convert all preserved literal newlines to HTML breaks
+        s = s.replace(/\n/g, '<br>');
+
+        // 5. THE "MAX 2 NEWLINES" RULE: 
+        // If there are 3, 4, 5+ <br> tags in a row, squash them down to exactly 2.
+        s = s.replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>');
+
+        // 6. BULLET POINT RULE: Ensure exactly ONE break before a bullet.
         s = s.replace(/(?:<br\s*\/?>\s*)*●\s*/gi, '<br>● ');
         
-        // 4. Clean up any leftover breaks right at the very beginning of the string
+        // 7. Strip leftover breaks at the very top of the string
         s = s.replace(/^(?:<br\s*\/?>\s*)+/i, '');
-        
+
         return s.trim();
     }
 
@@ -150,8 +172,10 @@
     const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
     
     const COL_WIDTHS_DXA = [900, 4950, 1350, 1800]; // Total 9000
-    // Increased the middle gap to 20% to push "Från" closer to the right edge
-    const ADDRESS_WIDTHS_DXA = [3600, 1800, 3600]; // 40% (Till), 20% (Gap), 40% (Från)
+    
+    // EXTREME RIGHT ALIGNMENT FOR "FRÅN"
+    // 50% for 'Till', 22% invisible gap, 28% for 'Från' to push it far to the right edge.
+    const ADDRESS_WIDTHS_DXA = [4500, 2000, 2500]; 
 
     const MAX_IMG_FULL = 550; // Max width for full span image
     const MAX_IMG_HALF = 260; // Max width for grid image
@@ -208,7 +232,7 @@
             }));
             docChildren.push(emptyParagraph());
 
-            // 2. Addresses (Spaced out using 3 columns)
+            // 2. Addresses (Spaced out using 3 columns to push "Från" right)
             const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
             const compA = addressLines(data.companyA);
             const compB = addressLines(data.companyB);
@@ -219,9 +243,9 @@
                 borders: INVISIBLE_BORDERS,
                 rows: [new TableRow({
                     children: [
-                        new TableCell({ width: { size: 40, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
-                        new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, children: [emptyParagraph()] }), // Invisible Spacer to push 'Från' to the right
-                        new TableCell({ width: { size: 40, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
+                        new TableCell({ children: [emptyParagraph()] }), // Large invisible spacer column
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
                     ]
                 })]
             }));
@@ -251,7 +275,7 @@
 
                     rows.push(new TableRow({
                         children: [
-                            // Main items are NORMAL, no italics, no spacing
+                            // Main items are normal text, no space
                             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(item.itemNumber || "") })] })] }),
                             new TableCell({ children: cellChildren }),
                             new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.quantity), alignment: AlignmentType.CENTER })] }),
@@ -270,7 +294,7 @@
 
                             rows.push(new TableRow({
                                 children: [
-                                    // Sub-items ONLY get the space and the italics
+                                    // Sub-items get a space and italics
                                     new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(sub.subItemNumber || "")}`, italics: true })] })] }),
                                     new TableCell({ children: subCellChildren }),
                                     new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(sub.subItemQuantity), alignment: AlignmentType.CENTER })] }),
@@ -336,7 +360,6 @@
                 }));
                 infoImagesBlock.push(emptyParagraph());
 
-                // Smart Image Collage Logic
                 let imgBuffer = [];
                 const flushImageBuffer = async () => {
                     if (imgBuffer.length === 0) return;
@@ -346,7 +369,7 @@
                         const imgData = await getDocxImageData(img.src);
                         if (imgData) {
                             let w = parseFloat(img.width) || imgData.width;
-                            if (w > MAX_IMG_FULL) w = MAX_IMG_FULL; // Safely cap full width
+                            if (w > MAX_IMG_FULL) w = MAX_IMG_FULL; 
                             const h = Math.round((w / imgData.width) * imgData.height);
                             let align = img.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
                             
@@ -357,7 +380,6 @@
                             infoImagesBlock.push(emptyParagraph());
                         }
                     } else {
-                        // Grid Mode
                         for (let i = 0; i < imgBuffer.length; i += 2) {
                             const img1 = imgBuffer[i];
                             const img2 = imgBuffer[i + 1];
@@ -367,7 +389,7 @@
                                 const imgData = await getDocxImageData(imgObj.src);
                                 if (imgData) {
                                     let w = parseFloat(imgObj.width) || imgData.width;
-                                    if (w > MAX_IMG_HALF) w = MAX_IMG_HALF; // Safely cap grid width
+                                    if (w > MAX_IMG_HALF) w = MAX_IMG_HALF; 
                                     const h = Math.round((w / imgData.width) * imgData.height);
                                     let align = imgObj.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
                                     
