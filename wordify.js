@@ -1,15 +1,25 @@
 /**
  * wordify.js - Robust, Failsafe, and Aligned Word Document Exporter
- * Requires docx and FileSaver.js to be loaded in the global scope.
+ * (Now with extreme verbose logging for debugging)
  */
 
 (function () {
+    console.log("[Wordify] 🚀 Script loaded and executing...");
+
     // --- 1. Library Extraction & Failsafe Check ---
+    console.log("[Wordify] Checking for required libraries...");
     if (typeof docx === 'undefined') {
-        console.error("Error: docx library is not loaded. Please ensure it is included via CDN.");
+        console.error("[Wordify] ❌ ERROR: docx library is not loaded in the global scope. Check your CDN links.");
         return;
     }
+    console.log("[Wordify] ✅ docx library found.");
     
+    if (typeof saveAs === 'undefined') {
+        console.warn("[Wordify] ⚠️ WARNING: FileSaver.js (saveAs) is not loaded. Fallback download method will be used.");
+    } else {
+        console.log("[Wordify] ✅ FileSaver.js (saveAs) found.");
+    }
+
     const { 
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
         ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
@@ -17,8 +27,6 @@
     } = docx;
 
     // --- 2. Robust Helpers ---
-
-    // Safely convert Data URL/Base64 to ArrayBuffer
     function base64ToArrayBuffer(dataUrl) {
         try {
             const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
@@ -30,15 +38,13 @@
             }
             return bytes.buffer;
         } catch (e) {
-            console.error("Failed to decode base64 image data.", e);
-            return new ArrayBuffer(0); // Return empty buffer to prevent total crash
+            console.error("[Wordify] ❌ Failed to decode base64 image data.", e);
+            return new ArrayBuffer(0);
         }
     }
 
-    // Advanced HTML to TextRun parser (preserves Bold, Italics, and Newlines)
     function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
         if (!htmlStr) return [new TextRun({ text: "", italics: defaultItalics, bold: defaultBold })];
-        
         const cleanHtml = String(htmlStr).replace(/<br\s*\/?>/gi, '\n');
         const parser = new DOMParser();
         const docNode = parser.parseFromString(cleanHtml, 'text/html');
@@ -48,11 +54,10 @@
             if (node.nodeType === Node.TEXT_NODE) {
                 const text = node.textContent;
                 if (!text) return;
-                
                 const lines = text.split('\n');
                 lines.forEach((line, index) => {
                     const runOpts = { text: line, bold: isBold, italics: isItalic };
-                    if (index > 0) runOpts.break = 1; // Strict docx v8 API
+                    if (index > 0) runOpts.break = 1;
                     runs.push(new TextRun(runOpts));
                 });
             } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -67,11 +72,13 @@
         return runs.length > 0 ? runs : [new TextRun({ text: "", italics: defaultItalics, bold: defaultBold })];
     }
 
-    // Get image dimensions safely with a timeout
     async function getImageDimensions(dataUrl) {
         return new Promise(resolve => {
             const img = new Image();
-            const timeout = setTimeout(() => resolve({ width: 200, height: 200 }), 3000); 
+            const timeout = setTimeout(() => {
+                console.warn("[Wordify] ⚠️ Image dimension check timed out. Using default 200x200.");
+                resolve({ width: 200, height: 200 });
+            }, 3000); 
             
             img.onload = () => {
                 clearTimeout(timeout);
@@ -79,13 +86,13 @@
             };
             img.onerror = () => {
                 clearTimeout(timeout);
+                console.error("[Wordify] ❌ Failed to load image for dimension check.");
                 resolve({ width: 200, height: 200 }); 
             };
             img.src = dataUrl;
         });
     }
 
-    // Caesar Shift Decrypt for LocalStorage Rescue
     function decryptCaesar(text, shift) {
         const mangleMap = {
             '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135,
@@ -100,7 +107,6 @@
         }).join('');
     }
 
-    // Formatting Constants
     const INVISIBLE_BORDERS = {
         top: { style: BorderStyle.NONE, size: 0, color: "auto" },
         bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
@@ -109,7 +115,6 @@
         insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
         insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
     };
-
     const LIGHT_BORDER = { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" };
     const TABLE_BORDERS = {
         top: LIGHT_BORDER, bottom: LIGHT_BORDER, 
@@ -118,7 +123,6 @@
         right: { style: BorderStyle.NONE, size: 0, color: "auto" },
         insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
     };
-
     const COL_WIDTHS = [
         { size: "10%", type: WidthType.PERCENTAGE },
         { size: "55%", type: WidthType.PERCENTAGE },
@@ -127,25 +131,35 @@
     ];
 
     // --- 3. Main Document Generator ---
-
     async function generateWordDocument() {
-        // Bulletproof scope retrieval 
+        console.log("[Wordify] ------------------------------------------------");
+        console.log("[Wordify] 🎬 EXPORT PROCESS STARTED!");
+
         let data = typeof window !== 'undefined' && window.jsonData ? window.jsonData : (typeof jsonData !== 'undefined' ? jsonData : null);
+        console.log("[Wordify] Checking global jsonData variable:", data ? "Found" : "Missing");
         
-        // Failsafe: Rescue from LocalStorage if JS scope is detached
         if (!data || !data.quote) {
+            console.warn("[Wordify] Global jsonData is missing or incomplete. Attempting LocalStorage rescue...");
             try {
                 const localData = localStorage.getItem('quoteData');
-                if (localData) data = JSON.parse(decryptCaesar(localData, 17));
+                if (localData) {
+                    data = JSON.parse(decryptCaesar(localData, 17));
+                    console.log("[Wordify] ✅ Rescue successful. Data retrieved from LocalStorage.");
+                } else {
+                    console.warn("[Wordify] LocalStorage 'quoteData' is empty.");
+                }
             } catch (e) {
-                console.warn("Could not rescue data from localStorage.", e);
+                console.error("[Wordify] ❌ LocalStorage rescue failed.", e);
             }
         }
 
         if (!data || !data.quote) {
+            console.error("[Wordify] ❌ CRITICAL: No quote data found. Aborting export.");
             alert("Export misslyckades: Offertdatan saknas eller är korrupt.");
             return;
         }
+
+        console.log("[Wordify] Data validation passed. Quote Number:", data.quote?.quoteNumber);
 
         const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (data.quote.language || 'sv');
         const t = (typeof translations !== 'undefined' && translations[lang]) || {};
@@ -155,25 +169,23 @@
         const docChildren = [];
         const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
 
-        // --- Header Layout (Logo & Metadata) ---
+        // --- Header Layout ---
+        console.log("[Wordify] Building header and logo...");
         const logoData = localStorage.getItem('companyLogo');
         const logoRuns = [];
-        
         if (logoData) {
             try {
                 const dims = await getImageDimensions(logoData);
                 const targetWidth = data.quote?.defaultLogoWidth || 200;
-                // Strictly round integers to prevent XML crash
                 const targetHeight = Math.round((targetWidth / (dims.width || 1)) * (dims.height || targetWidth));
                 const buffer = base64ToArrayBuffer(logoData);
-                
                 if (buffer.byteLength > 0) {
                     logoRuns.push(new ImageRun({
                         data: buffer,
                         transformation: { width: Math.round(targetWidth), height: targetHeight }
                     }));
                 }
-            } catch (e) { console.warn("Could not embed logo.", e); }
+            } catch (e) { console.warn("[Wordify] Could not embed logo.", e); }
         }
 
         const headerTable = new Table({
@@ -217,9 +229,10 @@
             ]
         });
         docChildren.push(headerTable);
-        docChildren.push(emptyParagraph()); // Spacing
+        docChildren.push(emptyParagraph()); 
 
-        // --- Addresses Layout (To & From) ---
+        // --- Addresses ---
+        console.log("[Wordify] Building addresses...");
         const formatAddressLines = (companyData) => {
             if (!companyData || typeof companyData !== 'object') return [emptyParagraph()];
             const lines = Object.values(companyData).filter(val => val && String(val).trim() !== "");
@@ -248,7 +261,6 @@
         docChildren.push(addressTable);
         docChildren.push(emptyParagraph()); 
 
-        // Reference Line
         if (data.quote?.reference) {
             docChildren.push(new Paragraph({
                 children: [
@@ -260,6 +272,7 @@
         }
 
         // --- Unified Table Builder Logic ---
+        console.log("[Wordify] Processing item tables...");
         const safeFormatPrice = (val) => {
             if (val === undefined || val === null) return "0";
             return typeof formatPrice === 'function' ? formatPrice(val) : String(val);
@@ -313,14 +326,11 @@
 
                 (item.subItems || []).forEach(subItem => {
                     if (!subItem || subItem.isHiddenFromPrint) return;
-
                     const subCellChildren = [new Paragraph({ children: [new TextRun({ text: subItem.subItemName || "", bold: true, italics: true })], indent: { left: 360 } })];
                     if (subItem.subItemDescription) {
                         subCellChildren.push(new Paragraph({ children: parseHtmlToRuns(subItem.subItemDescription, true), indent: { left: 360 } }));
                     }
-
                     const subPriceStr = subItem.isPriceBakedIn ? "" : safeFormatPrice(subItem.subItemTargetPrice);
-
                     rows.push(new TableRow({
                         children: [
                             new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ children: [new TextRun({ text: String(subItem.subItemNumber || "") })] })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
@@ -335,7 +345,7 @@
             if (!addedVisibleItem) return null;
             return new Table({ 
                 width: { size: "100%", type: WidthType.PERCENTAGE }, 
-                columnWidths: [1000, 5500, 1500, 2000], // Hardware DXA proportional backups
+                columnWidths: [1000, 5500, 1500, 2000],
                 borders: TABLE_BORDERS, 
                 rows: rows 
             });
@@ -372,6 +382,7 @@
 
         // --- Optional Items ---
         if (visibility.optional && Array.isArray(data.optionalItems) && data.optionalItems.length > 0) {
+            console.log("[Wordify] Processing Optional Items...");
             const optTable = buildItemTable(data.optionalItems, true);
             if (optTable) {
                 docChildren.push(new Paragraph({
@@ -386,6 +397,7 @@
 
         // --- Info & Images ---
         if (visibility.info && Array.isArray(data.infoImages) && data.infoImages.length > 0) {
+            console.log("[Wordify] Processing Info & Images...");
             docChildren.push(new Paragraph({
                 children: [new TextRun({ text: labels.infoImagesHeading || t.infoImagesHeading || "Info/Images", size: 28, bold: true })],
                 heading: HeadingLevel.HEADING_2,
@@ -423,7 +435,6 @@
                     try {
                         const dims = await getImageDimensions(info.src);
                         const buffer = base64ToArrayBuffer(info.src);
-                        
                         if (buffer.byteLength > 0) {
                             let w = info.width || dims.width;
                             const maxA4Width = 600; 
@@ -436,13 +447,14 @@
                                 spacing: { after: 200 }
                             }));
                         }
-                    } catch (e) { console.warn("Skipped malformed image block.", e); }
+                    } catch (e) { console.warn("[Wordify] Skipped malformed image block.", e); }
                 }
             }
         }
 
         // --- Terms & Conditions ---
         if (visibility.terms && Array.isArray(data.terms) && data.terms.length > 0) {
+            console.log("[Wordify] Processing Terms...");
             docChildren.push(new Paragraph({
                 children: [new TextRun({ text: labels.termsHeading || t.termsHeading || "Terms", size: 28, bold: true })],
                 heading: HeadingLevel.HEADING_2,
@@ -461,12 +473,12 @@
 
         // --- Signatures ---
         if (data.quote?.showSignature && data.signature) {
+            console.log("[Wordify] Processing Signatures...");
             docChildren.push(emptyParagraph());
             docChildren.push(emptyParagraph());
             
             const sig = data.signature;
             const dateStr = `${t.signatureDateLabel || "Datum"}: ${sig.date || ""}`;
-
             docChildren.push(new Paragraph({ children: [new TextRun({ text: dateStr })], spacing: { after: 400 } }));
 
             docChildren.push(new Table({
@@ -497,20 +509,21 @@
         }
 
         // --- Packaging and Download ---
+        console.log("[Wordify] Packaging Document into Blob...");
         try {
             const doc = new Document({
                 creator: "Quote Generator",
                 sections: [{
                     properties: {
-                        page: {
-                            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } 
-                        }
+                        page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
                     },
                     children: docChildren
                 }]
             });
 
             const blob = await Packer.toBlob(doc);
+            console.log("[Wordify] ✅ Blob created successfully. Size:", blob.size, "bytes");
+
             const refSafe = (data.quote?.reference || "").trim().replace(/[^\w\s\-]/gi, '');
             const numSafe = (data.quote?.quoteNumber || "").trim();
             const fileNameTitle = (labels.quoteTitle || t.quoteTitle || "Quote").replace(/[^\w\s\-]/gi, '');
@@ -520,9 +533,13 @@
             if (numSafe) exportName += `_${numSafe}`;
             exportName += ".docx";
 
+            console.log("[Wordify] Attempting to save file as:", exportName);
+
             if (typeof saveAs === 'function') {
                 saveAs(blob, exportName);
+                console.log("[Wordify] ✅ File saved using FileSaver (saveAs).");
             } else {
+                console.log("[Wordify] FileSaver missing. Using fallback anchor tag download.");
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -531,25 +548,33 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+                console.log("[Wordify] ✅ Fallback download triggered.");
             }
         } catch (err) {
-            console.error("Critical error during document packaging:", err);
-            alert("Ett fel inträffade vid skapandet av Word-filen. Detaljer: " + err.message);
+            console.error("[Wordify] ❌ Critical error during document packaging or saving:", err);
+            alert("Ett fel inträffade vid skapandet av Word-filen. Kolla konsolen. Detaljer: " + err.message);
         }
+        console.log("[Wordify] 🏁 EXPORT PROCESS FINISHED!");
     }
 
     // --- 4. Event Binding ---
     function attachExportButton() {
+        console.log("[Wordify] Searching for DOM Element: #exportWordBtn...");
         const btn = document.getElementById('exportWordBtn');
         if (btn) {
+            console.log("[Wordify] ✅ Button found! Attaching event listeners.");
             btn.removeEventListener('click', generateWordDocument); 
             btn.addEventListener('click', generateWordDocument);
+        } else {
+            console.warn("[Wordify] ❌ WARNING: #exportWordBtn not found in the DOM!");
         }
     }
 
     attachExportButton(); 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', attachExportButton);
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("[Wordify] DOMContentLoaded fired. Re-running attachment...");
+            attachExportButton();
+        });
     }
-    
 })();
