@@ -1,26 +1,22 @@
 /**
- * wordify.js - Full Robust Version
- * Fixes: Global Scope, Uint8Array Images, XML Entity Safety, and Binding.
+ * wordify.js - Corrected & Robust Version
  */
 
 (function () {
     const TAG = "[Wordify]";
     console.log(`${TAG} 🚀 Script loaded and executing...`);
 
-    // --- 1. Library Check ---
     if (typeof docx === 'undefined') {
-        console.error(`${TAG} ❌ ERROR: docx library not found. Check CDN in index.html.`);
+        console.error(`${TAG} ❌ ERROR: docx library not found. Ensure you are using index.umd.js in index.html.`);
         return;
     }
+
     const { 
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
         ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
         HeadingLevel 
     } = docx;
 
-    // --- 2. Robust Helpers ---
-
-    // FIX: docx v8.x requires Uint8Array, not a raw ArrayBuffer
     function base64ToUint8Array(dataUrl) {
         try {
             const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
@@ -88,112 +84,132 @@
     const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
     const COL_WIDTHS = [{ size: "10%", type: WidthType.PERCENTAGE }, { size: "55%", type: WidthType.PERCENTAGE }, { size: "15%", type: WidthType.PERCENTAGE }, { size: "20%", type: WidthType.PERCENTAGE }];
 
-    // --- 3. Main Generator ---
-
     async function generateWordDocument() {
-        console.log(`${TAG} 🎬 EXPORT STARTED`);
+        // ENTIRE function is now wrapped in try/catch to prevent silent failures
+        try {
+            console.log(`${TAG} 🎬 EXPORT STARTED`);
 
-        // FIX: Check multiple scopes for data
-        let data = window.jsonData || (typeof jsonData !== 'undefined' ? jsonData : null);
-        
-        if (!data || !data.quote) {
-            console.warn(`${TAG} Global jsonData missing. Trying LocalStorage...`);
-            try {
+            let data = window.jsonData || (typeof jsonData !== 'undefined' ? jsonData : null);
+            
+            if (!data || !data.quote) {
+                console.warn(`${TAG} Global jsonData missing. Trying LocalStorage...`);
                 const localData = localStorage.getItem('quoteData');
                 if (localData) data = JSON.parse(decryptCaesar(localData, 17));
-            } catch (e) { console.error(`${TAG} Rescue failed.`, e); }
-        }
-
-        if (!data || !data.quote) {
-            alert("Export misslyckades: Ingen data hittades. Ladda upp en JSON-fil först.");
-            return;
-        }
-
-        const lang = data.quote.language || 'sv';
-        const t = (typeof translations !== 'undefined' && translations[lang]) || {};
-        const labels = data.quote.labels || {};
-        const visibility = data.quote.visibility || { optional: true, info: true, terms: true };
-        const docChildren = [];
-        const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
-
-        // Header & Logo
-        const logoData = localStorage.getItem('companyLogo');
-        const logoRuns = [];
-        if (logoData) {
-            const dims = await getImageDimensions(logoData);
-            const targetWidth = data.quote.defaultLogoWidth || 200;
-            const targetHeight = Math.round((targetWidth / (dims.width || 1)) * (dims.height || targetWidth));
-            const uint8 = base64ToUint8Array(logoData);
-            if (uint8) {
-                logoRuns.push(new ImageRun({ data: uint8, transformation: { width: Math.round(targetWidth), height: targetHeight } }));
             }
-        }
 
-        docChildren.push(new Table({
-            width: { size: "100%", type: WidthType.PERCENTAGE },
-            borders: INVISIBLE_BORDERS,
-            rows: [new TableRow({
-                children: [
-                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: logoRuns })], verticalAlign: VerticalAlign.CENTER }),
-                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [
-                        new Paragraph({ children: [new TextRun({ text: labels.quoteTitle || t.quoteTitle || "Offert", size: 32, bold: true })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ children: [new TextRun({ text: `${t.quoteNumberLabel || "Nr:"} ${data.quote.quoteNumber || ""}` })], alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ children: [new TextRun({ text: `${t.dateLabel || "Datum:"} ${data.quote.date || ""}` })], alignment: AlignmentType.RIGHT })
-                    ], verticalAlign: VerticalAlign.CENTER })
-                ]
-            })]
-        }));
+            if (!data || !data.quote) {
+                alert("Export misslyckades: Ingen data hittades.");
+                return;
+            }
 
-        docChildren.push(emptyParagraph());
+            const lang = data.quote.language || 'sv';
+            const t = (typeof translations !== 'undefined' && translations[lang]) || {};
+            const labels = data.quote.labels || {};
+            const docChildren = [];
+            const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
 
-        // Addresses
-        const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
-        docChildren.push(new Table({
-            width: { size: "100%", type: WidthType.PERCENTAGE },
-            borders: INVISIBLE_BORDERS,
-            rows: [new TableRow({
-                children: [
-                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: t.toLabel || "Till:", bold: true })] }), ...addressLines(data.companyA)] }),
-                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: t.fromLabel || "Från:", bold: true })] }), ...addressLines(data.companyB)] })
-                ]
-            })]
-        }));
+            // Header & Logo
+            const logoData = localStorage.getItem('companyLogo');
+            const logoRuns = [];
+            if (logoData) {
+                const dims = await getImageDimensions(logoData);
+                const targetWidth = data.quote.defaultLogoWidth || 200;
+                const targetHeight = Math.round((targetWidth / (dims.width || 1)) * (dims.height || targetWidth));
+                const uint8 = base64ToUint8Array(logoData);
+                
+                // Ensure docx gets an image type (png, jpeg, etc.)
+                const match = logoData.match(/^data:image\/(png|jpeg|jpg|gif);/);
+                const ext = match ? match[1].replace('jpeg', 'jpg') : 'png';
 
-        docChildren.push(emptyParagraph());
+                if (uint8) {
+                    logoRuns.push(new ImageRun({ 
+                        data: uint8, 
+                        transformation: { width: Math.round(targetWidth), height: targetHeight },
+                        type: ext 
+                    }));
+                }
+            }
 
-        // Table logic
-        const safeFormatPrice = (val) => (typeof formatPrice === 'function' ? formatPrice(val) : String(val || 0));
-        const buildTable = (items, isOpt) => {
-            if (!items || items.length === 0) return null;
-            const rows = [new TableRow({
-                tableHeader: true,
-                children: [
-                    new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Nr", bold: true })] })] }),
-                    new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Namn", bold: true })] })] }),
-                    new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Antal", bold: true })], alignment: AlignmentType.CENTER })] }),
-                    new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Pris", bold: true })], alignment: AlignmentType.RIGHT })] })
-                ]
-            })];
-
-            items.forEach(item => {
-                if (item.isHiddenFromPrint) return;
-                rows.push(new TableRow({
+            docChildren.push(new Table({
+                width: { size: "100%", type: WidthType.PERCENTAGE },
+                borders: INVISIBLE_BORDERS,
+                rows: [new TableRow({
                     children: [
-                        new TableCell({ children: [new Paragraph({ text: String(item.itemNumber || "") })] }),
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.name || "", bold: true })] }), ...(item.itemDescription ? [new Paragraph({ children: parseHtmlToRuns(item.itemDescription) })] : [])] }),
-                        new TableCell({ children: [new Paragraph({ text: String(item.quantity || ""), alignment: AlignmentType.CENTER })] }),
-                        new TableCell({ children: [new Paragraph({ text: item.isPriceBakedIn ? "" : safeFormatPrice(item.targetPrice), alignment: AlignmentType.RIGHT })] })
+                        new TableCell({ 
+                            width: { size: "50%", type: WidthType.PERCENTAGE }, 
+                            // Fallback to empty TextRun if logoRuns is empty to prevent docx crash
+                            children: [new Paragraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })], 
+                            verticalAlign: VerticalAlign.CENTER 
+                        }),
+                        new TableCell({ 
+                            width: { size: "50%", type: WidthType.PERCENTAGE }, 
+                            children: [
+                                new Paragraph({ children: [new TextRun({ text: labels.quoteTitle || t.quoteTitle || "Offert", size: 32, bold: true })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT }),
+                                new Paragraph({ children: [new TextRun({ text: `${t.quoteNumberLabel || "Nr:"} ${data.quote.quoteNumber || ""}` })], alignment: AlignmentType.RIGHT }),
+                                new Paragraph({ children: [new TextRun({ text: `${t.dateLabel || "Datum:"} ${data.quote.date || ""}` })], alignment: AlignmentType.RIGHT })
+                            ], 
+                            verticalAlign: VerticalAlign.CENTER 
+                        })
                     ]
-                }));
-            });
-            return new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows });
-        };
+                })]
+            }));
 
-        const mainTbl = buildTable(data.items, false);
-        if (mainTbl) docChildren.push(mainTbl);
+            docChildren.push(emptyParagraph());
 
-        // Packaging
-        try {
+            // Addresses
+            const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
+            const compA = addressLines(data.companyA);
+            const compB = addressLines(data.companyB);
+
+            docChildren.push(new Table({
+                width: { size: "100%", type: WidthType.PERCENTAGE },
+                borders: INVISIBLE_BORDERS,
+                rows: [new TableRow({
+                    children: [
+                        new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: t.toLabel || "Till:", bold: true })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
+                        new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: t.fromLabel || "Från:", bold: true })] }), ...(compB.length ? compB : [emptyParagraph()])] })
+                    ]
+                })]
+            }));
+
+            docChildren.push(emptyParagraph());
+
+            const safeFormatPrice = (val) => (typeof formatPrice === 'function' ? formatPrice(val) : String(val || 0));
+            const buildTable = (items, isOpt) => {
+                if (!items || items.length === 0) return null;
+                const rows = [new TableRow({
+                    tableHeader: true,
+                    children: [
+                        new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Nr", bold: true })] })] }),
+                        new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Namn", bold: true })] })] }),
+                        new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Antal", bold: true })], alignment: AlignmentType.CENTER })] }),
+                        new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Pris", bold: true })], alignment: AlignmentType.RIGHT })] })
+                    ]
+                })];
+
+                items.forEach(item => {
+                    if (item.isHiddenFromPrint) return;
+                    
+                    const descRuns = item.itemDescription ? parseHtmlToRuns(item.itemDescription) : [];
+                    const cellChildren = [new Paragraph({ children: [new TextRun({ text: item.name || "", bold: true })] })];
+                    if (descRuns.length > 0) cellChildren.push(new Paragraph({ children: descRuns }));
+
+                    rows.push(new TableRow({
+                        children: [
+                            new TableCell({ children: [new Paragraph({ text: String(item.itemNumber || "") })] }),
+                            new TableCell({ children: cellChildren }),
+                            new TableCell({ children: [new Paragraph({ text: String(item.quantity || ""), alignment: AlignmentType.CENTER })] }),
+                            new TableCell({ children: [new Paragraph({ text: item.isPriceBakedIn ? "" : safeFormatPrice(item.targetPrice), alignment: AlignmentType.RIGHT })] })
+                        ]
+                    }));
+                });
+                return new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows });
+            };
+
+            const mainTbl = buildTable(data.items, false);
+            if (mainTbl) docChildren.push(mainTbl);
+
+            // Packaging
             const doc = new Document({ sections: [{ children: docChildren }] });
             const blob = await Packer.toBlob(doc);
             const fileName = `Offert_${data.quote.quoteNumber || "Draft"}.docx`;
@@ -207,13 +223,13 @@
                 URL.revokeObjectURL(url);
             }
             console.log(`${TAG} ✅ Export Success`);
+
         } catch (err) {
-            console.error(`${TAG} ❌ Packing Error:`, err);
-            alert("Ett fel uppstod vid skapandet av filen.");
+            console.error(`${TAG} ❌ Detailed Error:`, err);
+            alert("Ett fel uppstod vid skapandet av filen. Kontrollera webbläsarens konsol (F12) för detaljer.");
         }
     }
 
-    // --- 4. Event Binding ---
     function attach() {
         const btn = document.getElementById('exportWordBtn');
         if (btn) {
