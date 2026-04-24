@@ -1,975 +1,486 @@
 /**
- * wordify.js
- * Comprehensive production-ready export functionality for generating DOCX documents.
- * Includes advanced layout, robust styling, smart image processing, and translation support.
+ * wordify.js - Complete Production-Ready DOCX Generator
+ * Depends on: docx (library must be loaded via script tag beforehand)
  */
 
-// Production script wrapper to avoid global namespace pollution
-(function() {
-    const TAG = "[Wordify]";
-    console.log(`${TAG} script executing...`);
+(function () {
+    // Standard page content width safe zones in dxa (Twips)
+    // Assumes A4 or US Letter with standard ~1 inch margins
+    const PAGE_CONTENT_WIDTH = 9360; 
+    
+    // !!! CHANGE THIS TO YOUR ACTUAL LOGO PATH (can be relative or base64) !!!
+    const logoUrl = 'path/to/your/logo.png'; 
 
-    // --- Safety Check: Ensure 'docx' library is loaded ---
-    if (typeof docx === 'undefined') {
-        console.error(`${TAG} docx library not found. Export functionality will be disabled.`);
-        return;
+    /**
+     * Helper to get image dimensions async before adding to doc.
+     * Prevents distortion by maintaining aspect ratio.
+     */
+    async function getImageDimensions(url) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                resolve({ width: img.naturalWidth, height: img.naturalHeight });
+            };
+            img.onerror = () => {
+                console.error(`Failed to load image: ${url}`);
+                resolve(null); // Return null so script doesn't crash, just skips image
+            };
+            img.src = url;
+        });
     }
 
-    // --- Core Library Imports (destructuring for cleaner code) ---
-    const {
-        Document,
-        Packer,
-        Paragraph,
-        TextRun,
-        Table,
-        TableRow,
-        TableCell,
-        ImageRun,
-        WidthType,
-        BorderStyle,
-        AlignmentType,
-        VerticalAlign,
-        HeadingLevel,
-        Footer
-    } = docx;
+    /**
+     * Goal 3 & Smart Scaling Helper:
+     * Returns ImageRun options with calculated dimensions based on target width.
+     */
+    async function createScaledImage(url, targetWidthDxa) {
+        const dims = await getImageDimensions(url);
+        if (!dims) return null;
 
-    // --- Helper Function: Generic Clean up of UI artifacts from HTML text ---
-    // Improvement: Treat "● " as a robust signal for a new line.
-    function cleanUiArtifacts(htmlStr) {
-        if (!htmlStr) return '';
-        return htmlStr
-            .replace(/✖/g, '') // Remove remove button artifact
-            .replace(/📝/g, '') // Remove edit icon
-            .replace(/👨‍🍳/g, '') // Remove cooking icon for baked prices
-            .replace(/<span[^>]*>.*?<\/span>/gi, '') // Remove UI spans
-            .replace(/● /g, '\n● ') // Treat bullet points generically as newline signals.
-            .replace(/<br\s*\/?>/gi, '\n') // Standardize line breaks
+        // DOCX handles images in pts internally (1pt = 20 dxa)
+        const targetWidthPt = targetWidthDxa / 20; 
+        
+        // Calculate aspect ratio
+        const aspectRatio = dims.width / dims.height;
+        
+        // Final pixel dimensions based on target width
+        const finalWidth = targetWidthPt;
+        const finalHeight = targetWidthPt / aspectRatio;
+
+        // Fetch the raw data
+        const response = await fetch(url);
+        const data = await response.arrayBuffer();
+
+        return new docx.ImageRun({
+            data: data,
+            transformation: {
+                width: finalWidth,
+                height: finalHeight,
+            },
+        });
+    }
+
+    /**
+     * Goal 2: String parsing helper.
+     * Converts raw text descriptions into docx Paragraphs/Runs, 
+     * forcing new lines before "● " or standard newlines.
+     */
+    function parseDescriptionToRuns(text) {
+        if (!text) return [new docx.TextRun("")];
+        
+        // 1. Force new lines before bullet points that might be squished
+        // 2. Normalize existing standard newlines
+        // 3. Handle HTML-like line breaks if they exist
+        let normalizedText = text
+            .replace(/<br\s*\/?>/gi, '\n') // Handle <br> just in case
+            .replace(/●\s+/g, '\n● ')     // Force newline before bullet+space
             .trim();
-    }
 
-    // --- Helper Function: Get ImageData as robust raw Uint8Array ---
-    async function getDocxImageData(src) {
-        if (!src) return null;
-        try {
-            // Handle Base64 Data URIs directly
-            if (src.startsWith('data:image')) {
-                const parts = src.split(',');
-                const match = parts[0].match(/data:image\/(png|jpeg|jpg|gif)/);
-                const ext = match ? match[1].replace('jpeg', 'jpg') : 'png';
-                const binary = window.atob(parts[1]);
-                const uint8 = new Uint8Array(binary.length);
-                for (let i = 0; i < binary.length; i++) {
-                    uint8[i] = binary.charCodeAt(i);
-                }
-                // Pre-load in memory-DOM to get original dimensions for proper aspect ratio calculations
-                return new Promise(resolve => {
-                    const img = new Image();
-                    img.onload = () => {
-                        resolve({
-                            uint8: uint8,
-                            type: ext,
-                            width: img.width,
-                            height: img.height
-                        });
-                    };
-                    img.onerror = () => {
-                        console.warn(`${TAG} Base64 image load failed.`);
-                        resolve(null);
-                    };
-                    img.src = src;
-                });
-            } else {
-                // Handle static URLs or full URLs: use fetch for robust binary data retrieval
-                const response = await fetch(src);
-                if (!response.ok) throw new Error('Network response was not ok.');
-                const blob = await response.blob();
-                const arrayBuffer = await blob.arrayBuffer();
-                const uint8 = new Uint8Array(arrayBuffer);
-                const ext = blob.type.split('/')[1].replace('jpeg', 'jpg') || 'png';
-                // Pre-load as object URL to get dimensions
-                const objectUrl = URL.createObjectURL(blob);
-                return new Promise(resolve => {
-                    const img = new Image();
-                    img.onload = () => {
-                        URL.revokeObjectURL(objectUrl);
-                        resolve({
-                            uint8: uint8,
-                            type: ext,
-                            width: img.width,
-                            height: img.height
-                        });
-                    };
-                    img.onerror = () => {
-                        URL.revokeObjectURL(objectUrl);
-                        console.warn(`${TAG} Image URL load failed.`);
-                        resolve(null);
-                    };
-                    img.src = objectUrl;
-                });
-            }
-        } catch (e) {
-            console.warn(`${TAG} Failed to get image data:`, e);
-            return null;
-        }
-    }
-
-    // --- Comprehensive HTML-to-Runs Converter for Rich Text Preservation ---
-    function htmlToDocxRuns(htmlValue) {
-        if (!htmlValue) return [];
-
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlValue, 'text/html');
-        // Clean leading/trailing newlines that might arise from DOM construction
-        let currentText = doc.body.textContent;
-        if (currentText.startsWith('\n')) currentText = currentText.substring(1);
-
-        if (!currentText) return [];
-
-        const lines = currentText.split('\n');
+        // Split by existing or generated newlines
+        const lines = normalizedText.split('\n');
         const runs = [];
 
         lines.forEach((line, index) => {
-            // Treat each line as a potential rich text block for formatting.
-            const richParser = new DOMParser();
-            // Re-wrap line with standardized paragraph tag to help parser handle potential leading bold/italic tags
-            const subDoc = richParser.parseFromString(`<p>${line}</p>`, 'text/html');
-            const nodes = Array.from(subDoc.body.firstChild.childNodes);
+            // Trim leading spaces from the start of a line (except maybe the bullet itself)
+            let trimmedLine = line.trim();
+            if (trimmedLine.startsWith('●')) {
+                 trimmedLine = trimmedLine.replace('●', '●\u00A0'); // Ensure non-breaking space after bullet
+            }
 
-            nodes.forEach((node, nodeIndex) => {
-                let bold = false;
-                let italics = false;
-                let text = '';
-                if (node.nodeType === Node.TEXT_NODE) {
-                    text = node.textContent;
-                } else if (node.nodeType === Node.ELEMENT_NODE) {
-                    const tag = node.tagName.toLowerCase();
-                    if (tag === 'b' || tag === 'strong') bold = true;
-                    if (tag === 'i' || tag === 'em') italics = true;
-                    // Handle case where text is wrapped twice e.g., '<b><i>test</i></b>'
-                    if (node.firstChild && node.firstChild.nodeType === Node.ELEMENT_NODE) {
-                        const childTag = node.firstChild.tagName.toLowerCase();
-                        if (childTag === 'b' || childTag === 'strong') bold = true;
-                        if (childTag === 'i' || childTag === 'em') italics = true;
-                        text = node.firstChild.textContent;
-                    } else {
-                        text = node.textContent;
-                    }
-                }
-                if (text) {
-                    runs.push(new TextRun({
-                        text: text,
-                        bold: bold,
-                        italics: italics,
-                        // Add line break before the FIRST run of every line (except first line)
-                        break: (index > 0 && nodeIndex === 0) ? 1 : undefined,
-                    }));
-                }
-            });
+            runs.push(new docx.TextRun({
+                text: trimmedLine,
+                // Add a line break property to every line except the very last one
+                break: index < lines.length - 1 ? 1 : 0 
+            }));
         });
+
         return runs;
     }
 
-    // --- Image Creation Helper: Smarter Aspect Ratio Scaling ---
-    // Improvement: Adds a robust height cap for safer scaling, especially portrait images.
-    async function createImageParagraph(infoItem, alignment) {
-        if (!infoItem || !infoItem.src) return null;
-        const imgData = await getDocxImageData(infoItem.src);
-        if (imgData) {
-            // Sane scaling logic based on aspect ratio
-            const maxPageWidthDXA = 600; // DXA based logic, standard page width
-            const maxImageHeightDXA = 500; // Robust height cap for smarter algorithm
-
-            let originalW = imgData.width;
-            let originalH = imgData.height;
-
-            // Cap the target width based on standard DXA logic and specified or native width.
-            let targetWidth = parseFloat(infoItem.width) || originalW;
-            if (targetWidth > maxPageWidthDXA) targetWidth = maxPageWidthDXA;
-
-            // Calculate scaled height based on aspect ratio
-            let targetHeight = Math.round((targetWidth / originalW) * originalH);
-
-            // Production Ready Smarter Scaling:
-            // Apply 'smart' height cap: if scaled height is too large ( portrait images), re-cap based on height.
-            if (targetHeight > maxImageHeightDXA) {
-                targetHeight = maxImageHeightDXA;
-                // Re-calculate width based on height cap
-                targetWidth = Math.round((targetHeight / originalH) * originalW);
-            }
-
-            return new Paragraph({
-                alignment: alignment,
-                children: [
-                    new ImageRun({
-                        data: imgData.uint8,
-                        transformation: {
-                            width: targetWidth,
-                            height: targetHeight
-                        },
-                        type: imgData.type
-                    })
-                ]
-            });
+    /**
+     * Goal 5 Helper: Formatter for Price/Quantity cells.
+     * If 0, returns space. Otherwise, normal formatted value.
+     */
+    function formatVal(val, formatterFn) {
+        const numVal = parseFloat(val);
+        if (isNaN(numVal) || numVal === 0) {
+            return " "; // Empty cell if zero or nan
         }
-        return null;
+        return formatterFn ? formatterFn(numVal) : String(numVal);
     }
 
-    // --- Layout Constant: Robust Style Definitions ---
-    const GLOBAL_LAYOUT = {
-        borders: {
-            invisible: {
-                top: {
-                    style: BorderStyle.NONE,
-                    size: 0
-                },
-                bottom: {
-                    style: BorderStyle.NONE,
-                    size: 0
-                },
-                left: {
-                    style: BorderStyle.NONE,
-                    size: 0
-                },
-                right: {
-                    style: BorderStyle.NONE,
-                    size: 0
-                },
-                insideHorizontal: {
-                    style: BorderStyle.NONE,
-                    size: 0
-                },
-                insideVertical: {
-                    style: BorderStyle.NONE,
-                    size: 0
-                },
+    // Main currency formatter for consistent looks
+    const currencyFormatter = new Intl.NumberFormat('sv-SE', {
+        style: 'currency',
+        currency: 'SEK',
+        minimumFractionDigits: 0, 
+    });
+
+    /**
+     * Main wordify function. Needs to be async to handle image dimension pre-loading.
+     */
+    async function wordify(jsonData) {
+        console.log("Generating DOCX with improved layout rules...");
+
+        if (!jsonData || !jsonData.quote) {
+            alert("Feil: Ingen offert-data funnet.");
+            return;
+        }
+
+        const quote = jsonData.quote;
+        const children = []; // The list of elements for the final section
+
+        // --- Styles Definition (for later reuse) ---
+        const styles = {
+            tableBorders: {
+                top: { style: docx.BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
+                bottom: { style: docx.BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
+                insideHorizontal: { style: docx.BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
+                // Remove vertical borders for cleaner look like image_2.png
+                left: { style: docx.BorderStyle.NONE }, 
+                right: { style: docx.BorderStyle.NONE },
+                insideVertical: { style: docx.BorderStyle.NONE },
             },
-            light: {
-                style: BorderStyle.SINGLE,
-                size: 1,
-                color: "E0E0E0" // A universal light gray line color
-            }
-        },
-        margins: {
-            cellText: {
-                top: 50,
-                bottom: 50
-            }, // standard spacing in twips
-        },
-    };
+            noBorders: {
+                top: { style: docx.BorderStyle.NONE },
+                bottom: { style: docx.BorderStyle.NONE },
+                left: { style: docx.BorderStyle.NONE },
+                right: { style: docx.BorderStyle.NONE },
+                insideVertical: { style: docx.BorderStyle.NONE },
+                insideHorizontal: { style: docx.BorderStyle.NONE },
+            },
+        };
 
-    // Make generate function available directly on window for simple UI binding
-    window.generateWordDocument = generateWordDocument;
 
-    async function generateWordDocument() {
-        try {
-            console.log(`${TAG} starting export...`);
-            // Fetch quote data, prioritizing JSON from global variable if possible (requires template to be rendered)
-            // Fallback for demo logic if no global variable is available.
-            let data = window.jsonData;
-            if (!data) {
-                const storedData = localStorage.getItem('btkQuoteData');
-                if (storedData) data = JSON.parse(storedData);
-            }
+        // --- Header Section ---
+        // Top right details block (Title, Nr, Datum)
+        children.push(
+            new docx.Paragraph({
+                children: [
+                    new docx.TextRun({ text: "Offert", bold: true, size: 32 }), // larger, bold
+                ],
+                alignment: docx.AlignmentType.RIGHT,
+            })
+        );
+        children.push(
+            new docx.Paragraph({
+                children: [
+                    new docx.TextRun({ text: "Offert nr: ", bold: true }),
+                    new docx.TextRun(quote.quoteNumber || "-"),
+                ],
+                alignment: docx.AlignmentType.RIGHT,
+                spacing: { before: 120 } // slight gap below title
+            })
+        );
+        children.push(
+            new docx.Paragraph({
+                children: [
+                    new docx.TextRun({ text: "Datum: ", bold: true }),
+                    new docx.TextRun(quote.date || new Date().toISOString().split('T')[0]),
+                ],
+                alignment: docx.AlignmentType.RIGHT,
+                spacing: { after: 400 } // gap below details block
+            })
+        );
 
-            if (!data || !data.quote) {
-                alert("Quote data not found. Cannot export.");
-                return;
-            }
 
-            const lang = data.quote.language || 'sv';
-            const t = translations[lang] || {};
-            const docChildren = [];
-            const emptyParagraph = () => new Paragraph({
-                children: [new TextRun("")]
-            });
+        // --- Logo and Top Addresses Table (Goal 1 Fix) ---
+        // Fetch and scale logo (target width: roughly 1/3 of page)
+        const scaledLogoRun = await createScaledImage(logoUrl, 3200);
 
-            // --- 1. Header with Logo and Title ---
-            const logoPath = 'logo.png'; // Production can use base64 URIs as example handled in helper.
-            const imgData = await getDocxImageData(logoPath);
-            const logoRuns = [];
-            if (imgData) {
-                // Scale logo width, maintaining aspect ratio.
-                const targetWidth = 180;
-                const targetHeight = Math.round((targetWidth / imgData.width) * imgData.height);
-                logoRuns.push(new ImageRun({
-                    data: imgData.uint8,
-                    transformation: {
-                        width: targetWidth,
-                        height: targetHeight
-                    },
-                    type: imgData.type
-                }));
-            } else {
-                logoRuns.push(new TextRun("")); // Fallback
-            }
+        // Define specific widths to ensure standard DOCX layout
+        // Col 1 is Logo (roughly 40%)
+        // Col 2 is From address (roughly 35%) -> pushed right
+        // Col 3 is spacer / edge of "Till" block (roughly 25%)
+        const topTableWidths = [
+            (PAGE_CONTENT_WIDTH * 0.40),
+            (PAGE_CONTENT_WIDTH * 0.35),
+            (PAGE_CONTENT_WIDTH * 0.25),
+        ];
 
-            const headerBlockLeft = [
-                new Paragraph({
-                    children: [
-                        new TextRun({
-                            children: logoRuns,
-                            verticalAlign: VerticalAlign.CENTER
-                        }),
-                    ],
-                }),
-            ];
-
-            const headerBlockRight = [
-                new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    heading: HeadingLevel.HEADING_1,
-                    children: [new TextRun({
-                        text: (data.quote.labels.quoteTitle || t.quoteTitle),
-                        size: 32,
-                        bold: true
-                    })]
-                }),
-                new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    children: [new TextRun({
-                        text: `${t.quoteNumberLabel} ${data.quote.quoteNumber}`,
-                        size: 24,
-                        bold: true
-                    })]
-                }),
-                new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    children: [new TextRun({
-                        text: `${t.dateLabel} ${data.quote.date}`,
-                        size: 20
-                    })]
-                }),
-            ];
-
-            // 1.2 Header Table: Right Aligned Title, Left Aligned Logo in borderless table
-            docChildren.push(new Table({
-                width: {
-                    size: 100,
-                    type: WidthType.PERCENTAGE
-                },
-                borders: GLOBAL_LAYOUT.borders.invisible,
-                rows: [new TableRow({
-                    children: [
-                        new TableCell({
-                            width: {
-                                size: 50,
-                                type: WidthType.PERCENTAGE
-                            },
-                            children: headerBlockLeft,
-                            verticalAlign: VerticalAlign.CENTER,
-                        }),
-                        new TableCell({
-                            width: {
-                                size: 50,
-                                type: WidthType.PERCENTAGE
-                            },
-                            verticalAlign: VerticalAlign.CENTER,
-                            children: headerBlockRight
-                        }),
-                    ],
-                }), ],
-            }));
-
-            docChildren.push(emptyParagraph());
-
-            // --- 2. Address Blocks: "Till" (To) and "Från" (From) ---
-            // Improvement: Align right-hand block (From) to the right to move it closer to edge.
-
-            const createAddressParagraphs = (company, blockTitle) => {
-                const lines = [
-                    new Paragraph({
-                        children: [new TextRun({
-                            text: blockTitle,
-                            bold: true
-                        })]
-                    })
-                ];
-                if (company) {
-                    if (company.name) lines.push(new Paragraph({
-                        children: [new TextRun({
-                            text: cleanUiArtifacts(company.name)
-                        })]
-                    }));
-                    if (company.address1) lines.push(new Paragraph({
-                        children: [new TextRun({
-                            text: cleanUiArtifacts(company.address1)
-                        })]
-                    }));
-                    if (company.zipCity) lines.push(new Paragraph({
-                        children: [new TextRun({
-                            text: cleanUiArtifacts(company.zipCity)
-                        })]
-                    }));
-                    if (company.country) lines.push(new Paragraph({
-                        children: [new TextRun({
-                            text: cleanUiArtifacts(company.country)
-                        })]
-                    }));
-                    if (company.orgNumber) lines.push(new Paragraph({
-                        children: [new TextRun({
-                            text: `${t.orgNumberLabel} ${company.orgNumber}`
-                        })]
-                    }));
-                }
-                return lines;
-            };
-
-            const leftAddrBlock = createAddressParagraphs(data.companyA, t.toLabel);
-            const rightAddrBlock = createAddressParagraphs(data.companyB, t.fromLabel);
-
-            // Add Mob. phone text line specifically after the 'From' address block
-            if (data.companyB && data.companyB.mobile) {
-                rightAddrBlock.push(emptyParagraph());
-                rightAddrBlock.push(new Paragraph({
-                    children: [new TextRun({
-                        text: `${t.mobLabel} ${data.companyB.mobile}`
-                    })]
-                }));
-            }
-
-            // Create 2-column borderless table to align blocks without gray lines.
-            const addressTable = new Table({
-                width: {
-                    size: 100,
-                    type: WidthType.PERCENTAGE
-                },
-                borders: GLOBAL_LAYOUT.borders.invisible,
-                rows: [new TableRow({
-                    children: [
-                        new TableCell({
-                            width: {
-                                size: 50,
-                                type: WidthType.PERCENTAGE
-                            },
-                            children: leftAddrBlock,
-                        }),
-                        new TableCell({
-                            width: {
-                                size: 50,
-                                type: WidthType.PERCENTAGE
-                            },
-                            // Production Ready: Align all address content cells to right to move block towards edge
-                            children: rightAddrBlock.map(p => {
-                                return new Paragraph({
-                                    ...p.properties,
-                                    alignment: AlignmentType.RIGHT,
-                                    children: p.properties.children.map(r => {
-                                        return new TextRun({
-                                            ...r.properties,
-                                            alignment: AlignmentType.RIGHT
-                                        }); // Ensure runs respect P alignment
-                                    })
-                                });
-                            }),
-                        }),
-                    ],
-                }), ],
-            });
-            docChildren.push(addressTable);
-
-            docChildren.push(emptyParagraph());
-
-            // --- 3. Items and Subitems Table Construction ---
-            const itemsBlock = [];
-            const optionalItemsBlock = [];
-
-            // Robust translation logic for table headers from dictionary
-            const isSwedish = lang === 'sv';
-            const priceLabel = isSwedish ? 'Pris' : 'Price';
-            const quantityLabel = isSwedish ? 'Antal' : 'Quantity';
-            const nameLabel = isSwedish ? 'Artikel / Namn' : 'Article / Name';
-            const numberLabel = isSwedish ? 'Nr' : 'No.';
-
-            // Add Items block title if Info section is moved up
-            if (data.quote.visibility.info && data.quote.moveInfoSectionUp) {
-                itemsBlock.push(new Paragraph({
-                    heading: HeadingLevel.HEADING_2,
-                    children: [new TextRun({
-                        text: (data.quote.labels.itemsHeading || t.itemsHeading),
-                        size: 28,
-                        bold: true
-                    })]
-                }));
-                itemsBlock.push(emptyParagraph());
-            }
-
-            const addItemTableHeader = (rows) => {
-                rows.push(new TableRow({
-                    tableHeader: true,
-                    children: [
-                        new TableCell({
-                            shading: {
-                                fill: "F0F0F0"
-                            }, // Gray header fill color
-                            children: [new Paragraph({
-                                text: numberLabel,
-                                bold: true
-                            })],
-                            width: {
-                                size: 10,
-                                type: WidthType.PERCENTAGE
-                            }
-                        }),
-                        new TableCell({
-                            shading: {
-                                fill: "F0F0F0"
-                            },
-                            children: [new Paragraph({
-                                text: nameLabel,
-                                bold: true
-                            })],
-                            width: {
-                                size: 50,
-                                type: WidthType.PERCENTAGE
-                            }
-                        }),
-                        new TableCell({
-                            shading: {
-                                fill: "F0F0F0"
-                            },
-                            children: [new Paragraph({
-                                text: quantityLabel,
-                                bold: true,
-                                alignment: AlignmentType.CENTER
-                            })],
-                            width: {
-                                size: 20,
-                                type: WidthType.PERCENTAGE
-                            }
-                        }),
-                        new TableCell({
-                            shading: {
-                                fill: "F0F0F0"
-                            },
-                            children: [new Paragraph({
-                                text: priceLabel,
-                                bold: true,
-                                alignment: AlignmentType.RIGHT
-                            })],
-                            width: {
-                                size: 20,
-                                type: WidthType.PERCENTAGE
-                            }
-                        }),
-                    ],
-                }));
-            };
-
-            const addItemsToRows = (items, rows, isMainBlock) => {
-                if (!items) return;
-
-                // Production Ready Data processing: helpers to handle zero value suppression
-                const formatPriceFromRawData = (value) => {
-                    if (value === 0) return ''; // Suppress zero value
-                    if (value === null || value === undefined) return '';
-                    // Force Swedish locale for price formatting e.g., '1 000'
-                    return `${Number(value).toLocaleString('sv-SE')} SEK`;
-                };
-
-                const formatQtyFromRawData = (value) => {
-                    if (value === 0) return ''; // Suppress zero value
-                    if (value === null || value === undefined) return '';
-                    return `${Number(value)}`; // standard numbering
-                };
-
-                items.forEach(item => {
-                    if (item.isHiddenFromPrint) return;
-
-                    // Handle generic separators
-                    if (item.type === 'separator') {
-                        rows.push(new TableRow({
-                            borders: GLOBAL_LAYOUT.borders.invisible,
-                            children: [new TableCell({
-                                children: [emptyParagraph()],
-                                columnSpan: 4
-                            })]
-                        }));
-                        return;
-                    }
-
-                    // Process Rich Text description runs, preserving existing rich text (bolding from HTML source)
-                    const nameRuns = htmlToDocxRuns(cleanUiArtifacts(item.htmlName || item.name));
-                    const descRuns = htmlToDocxRuns(cleanUiArtifacts(item.htmlValue || item.description));
-
-                    // Add Main Paragraph for the cell: Name (enforce bold) + Description (as is)
-                    const cellParagraphs = [
-                        new Paragraph({
-                            children: [new TextRun({
-                                text: item.name,
-                                bold: true
-                            })]
-                        }),
-                        new Paragraph({
-                            children: descRuns
-                        }),
-                    ];
-
-                    // Data suppression check for 0 values: price and quantity check raw number data
-                    let itemPriceText = '';
-                    let itemQtyText = '';
-
-                    // The logic here assumes that raw data (e.g., number values) is accessible during construction.
-                    // This is robust. The code creating `getBtkValueText` during rendering should be updated to handle raw data access.
-                    // Accessing raw data assuming it is part of the item object. I'll assume item.targetPrice exists.
-                    const rawPriceValue = (item.targetPrice || item.subItemTargetPrice || 0);
-                    const rawQtyValue = (item.quantity || item.subItemQuantity || 0);
-
-                    itemPriceText = (item.isPriceBakedIn) ? '' : formatPriceFromRawData(rawPriceValue);
-                    itemQtyText = formatQtyFromRawData(rawQtyValue);
-
-                    // Production Ready: format Number Cell: add preceding space and set entire number run as italic
-                    const numberCellChildren = [
-                        new Paragraph({
-                            children: [new TextRun({
-                                text: ` ${item.itemNumber || item.subItemNumber || ''}`, // space before
-                                italics: true, // Italic number format
-                            })]
-                        })
-                    ];
-
-                    rows.push(new TableRow({
+        children.push(
+            new docx.Table({
+                width: { size: PAGE_CONTENT_WIDTH, type: docx.WidthType.DXA },
+                borders: styles.noBorders,
+                rows: [
+                    new docx.TableRow({
                         children: [
-                            new TableCell({
-                                children: numberCellChildren
+                            // Column 1: Logo
+                            new docx.TableCell({
+                                width: { size: topTableWidths[0], type: docx.WidthType.DXA },
+                                children: scaledLogoRun ? [new docx.Paragraph({ children: [scaledLogoRun] })] : [],
                             }),
-                            new TableCell({
-                                margins: GLOBAL_LAYOUT.margins.cellText,
-                                children: cellParagraphs
-                            }),
-                            new TableCell({
-                                verticalAlign: VerticalAlign.CENTER,
-                                children: [new Paragraph({
-                                    text: itemQtyText,
-                                    alignment: AlignmentType.CENTER
-                                })]
-                            }),
-                            new TableCell({
-                                verticalAlign: VerticalAlign.CENTER,
-                                children: [new Paragraph({
-                                    text: itemPriceText,
-                                    alignment: AlignmentType.RIGHT
-                                })]
+                            // Column 2: empty spacer cell
+                            new docx.TableCell({ width: { size: topTableWidths[1], type: docx.WidthType.DXA }, children: [] }),
+                            // Column 3: "Från" block (pushed to right edge like image_2)
+                            new docx.TableCell({
+                                width: { size: topTableWidths[2], type: docx.WidthType.DXA },
+                                children: [
+                                    new docx.Paragraph({
+                                        children: [new docx.TextRun({ text: "Från:", bold: true })],
+                                        spacing: { after: 100 }
+                                    }),
+                                    // Map list items to paragraphs
+                                    ...(quote.fromAddress || []).map(line => 
+                                        new docx.Paragraph({ children: [new docx.TextRun(line)] })
+                                    ),
+                                    // Contact details
+                                    new docx.Paragraph({ children: [new docx.TextRun({text: `Mob: ${quote.fromPhone || ""}`, break: 1})] }),
+                                ],
                             }),
                         ],
-                    }));
-                });
-            };
+                    }),
+                ],
+                spacing: { after: 300 } // gap below logo row
+            })
+        );
 
-            // Main Items Table
-            const mainItemsRows = [];
-            addItemTableHeader(mainItemsRows);
-            addItemsToRows(data.items, mainItemsRows, true); // true for main block
-            itemsBlock.push(new Table({
-                width: {
-                    size: 100,
-                    type: WidthType.PERCENTAGE
-                },
-                borders: GLOBAL_LAYOUT.borders.light,
-                rows: mainItemsRows
-            }));
 
-            // Optional Items Table
-            if (data.quote.visibility.optional && data.optionalItems && data.optionalItems.length > 0) {
-                optionalItemsBlock.push(emptyParagraph());
-                optionalItemsBlock.push(new Paragraph({
-                    heading: HeadingLevel.HEADING_2,
-                    children: [new TextRun({
-                        text: (data.quote.labels.optionalHeading || t.optionalHeading),
-                        size: 28,
-                        bold: true
-                    })]
-                }));
-                optionalItemsBlock.push(emptyParagraph());
+        // --- "Till" Address Block (Below logo row) ---
+        children.push(
+            new docx.Paragraph({
+                children: [
+                    new docx.TextRun({ text: "Till:", bold: true }),
+                    new docx.TextRun({ text: quote.toCompany || "", break: 1 }),
+                    new docx.TextRun({ text: quote.toContactPerson || "", break: 1 }),
+                    new docx.TextRun({ text: quote.toAddressLine1 || "", break: 1 }),
+                    new docx.TextRun({ text: quote.toAddressLine2 || "", break: 1 }),
+                    new docx.TextRun({ text: quote.toPostalCodeCity || "", break: 1 }),
+                    quote.toOrgNumber ? new docx.TextRun({ text: `Org. nr: ${quote.toOrgNumber}`, break: 1 }) : null,
+                ],
+                spacing: { after: 600 } // large gap before item table
+            })
+        );
 
-                const optItemsRows = [];
-                addItemTableHeader(optItemsRows);
-                addItemsToRows(data.optionalItems, optItemsRows, false); // false for non-priced sub block
-                optionalItemsBlock.push(new Table({
-                    width: {
-                        size: 100,
-                        type: WidthType.PERCENTAGE
-                    },
-                    borders: GLOBAL_LAYOUT.borders.light,
-                    rows: optItemsRows
-                }));
-            }
 
-            docChildren.push(...itemsBlock);
-            docChildren.push(...optionalItemsBlock);
-            docChildren.push(emptyParagraph());
+        // --- Main Items Table ---
+        // CRITICAL: Define explicit column widths in DXA to prevent compressed columns (fixes image_0.png fail)
+        // Values are examples based on standard layout ratios
+        const colWidthsItems = {
+            nr: 720,        // small width for item number
+            name: 5800,     // wide for descriptions
+            qty: 900,       // centered qty
+            price: 1940,    // right aligned price
+        };
+        const tableHeaderShading = { fill: "F5F5F5", type: docx.ShadingType.CLEAR, color: "000000" };
 
-            // --- 4. Totals Summation Block in a Table for precise alignment ---
-            const totalsBlock = [];
-            // Robust calculation: sum number values from raw data
-            let totalSum = 0;
-            const sumItems = (items) => {
-                if (!items) return;
-                items.forEach(item => {
-                    if (!item.isHiddenFromPrint && !item.isSeparator) {
-                        if (item.targetPrice) totalSum += Number(item.targetPrice);
-                        if (item.subItemTargetPrice) totalSum += Number(item.subItemTargetPrice);
-                    }
-                });
-            };
-            sumItems(data.items);
-            // Sum subitems of items. Assume structure: item.subItems = [{subItemTargetPrice: 100, ...}, ...]
-            if (data.items) {
-                data.items.forEach(item => {
-                    if (item.subItems) sumItems(item.subItems);
-                });
-            }
+        const itemTableRows = [
+            // Table Header Row
+            new docx.TableRow({
+                tableHeader: true,
+                children: [
+                    new docx.TableCell({
+                        width: { size: colWidthsItems.nr, type: docx.WidthType.DXA },
+                        shading: tableHeaderShading,
+                        children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Nr", bold: true })] })],
+                    }),
+                    new docx.TableCell({
+                        width: { size: colWidthsItems.name, type: docx.WidthType.DXA },
+                        shading: tableHeaderShading,
+                        children: [new docx.Paragraph({ children: [new TextRun({ text: "Artikel / Namn", bold: true })] })],
+                    }),
+                    new docx.TableCell({
+                        width: { size: colWidthsItems.qty, type: docx.WidthType.DXA },
+                        shading: tableHeaderShading,
+                        children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Antal", bold: true })], alignment: docx.AlignmentType.CENTER })],
+                    }),
+                    new docx.TableCell({
+                        width: { size: colWidthsItems.price, type: docx.WidthType.DXA },
+                        shading: tableHeaderShading,
+                        children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Pris", bold: true })], alignment: docx.AlignmentType.RIGHT })],
+                    }),
+                ],
+            }),
+        ];
 
-            const totalText = `${t.totalLabel}: ${totalSum.toLocaleString('sv-SE')} SEK`;
+        let totalPrice = 0;
 
-            const totalsParagraphs = [
-                new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    children: [new TextRun({
-                        text: totalText,
-                        size: 28,
-                        bold: true
-                    })]
+        // Loop Main Items
+        (jsonData.items || []).forEach(item => {
+            if (item.isHidden) return; // Skip hidden items
+
+            totalPrice += parseFloat(item.totalPrice || 0);
+
+            // Goal 2 implemented here via parseDescriptionToRuns helper
+            const descriptionRuns = parseDescriptionToRuns(item.description);
+
+            // Create Main Item Row
+            itemTableRows.push(
+                new docx.TableRow({
+                    children: [
+                        // Nr
+                        new docx.TableCell({ children: [new docx.Paragraph({ text: item.itemNumber || " " })] }),
+                        // Name & Details (Goal 2 text representation)
+                        new docx.TableCell({
+                            children: [
+                                new docx.Paragraph({ children: [new docx.TextRun({ text: item.name || " ", bold: true })] }), // Title Bold
+                                new docx.Paragraph({ children: descriptionRuns, spacing: { before: 100 } }), // Details standard spacing
+                            ],
+                            verticalAlign: docx.VerticalAlign.TOP,
+                            margins: { top: 120, bottom: 120 },
+                        }),
+                        // Antal (Goal 5: blank if 0)
+                        new docx.TableCell({
+                            children: [new docx.Paragraph({ 
+                                children: [new docx.TextRun(formatVal(item.quantity, null))], 
+                                alignment: docx.AlignmentType.CENTER 
+                            })],
+                            verticalAlign: docx.VerticalAlign.TOP,
+                            margins: { top: 120, bottom: 120 },
+                        }),
+                        // Pris (Goal 5: blank if 0)
+                        new docx.TableCell({
+                            children: [new docx.Paragraph({ 
+                                children: [new docx.TextRun(formatVal(item.totalPrice, val => currencyFormatter.format(val)))], 
+                                alignment: docx.AlignmentType.RIGHT 
+                            })],
+                            verticalAlign: docx.VerticalAlign.TOP,
+                            margins: { top: 120, bottom: 120 },
+                        }),
+                    ],
                 })
-            ];
+            );
 
-            // Conditionally add MOMS/VAT text from dictionary
-            if (data.quote.labels.momsLabel || t.momsLabel) {
-                totalsParagraphs.push(
-                    new Paragraph({
-                        alignment: AlignmentType.RIGHT,
-                        children: [new TextRun({
-                            text: (data.quote.labels.momsLabel || t.momsLabel),
-                            size: 18
-                        })]
+            // Loop Sub-items (Goal 4 Implemented Here)
+            (item.subItems || []).forEach(subItem => {
+                if (subItem.isHidden) return; // Skip hidden
+
+                const subDescriptionRuns = parseDescriptionToRuns(subItem.description);
+                const subItemNrFormatted = " " + (subItem.subNumber || ""); // leading space prefix
+
+                itemTableRows.push(
+                    new docx.TableRow({
+                        children: [
+                            // Nr Cell (Goal 4: Italic and with space prefix)
+                            new docx.TableCell({
+                                children: [new docx.Paragraph({
+                                    children: [new docx.TextRun({ text: subItemNrFormatted, italics: true })] 
+                                })],
+                            }),
+                            // Name & Details Cell (Goal 4: bold title, normal description)
+                            new docx.TableCell({
+                                children: [
+                                    new docx.Paragraph({ children: [new docx.TextRun({ text: subItem.name || " ", bold: true })] }), // bold title
+                                    subDescriptionRuns.length > 0 && subItem.description // only add desc if exists
+                                      ? new docx.Paragraph({ children: subDescriptionRuns, spacing: { before: 80 } }) // keep description normal
+                                      : null,
+                                ],
+                                verticalAlign: docx.VerticalAlign.TOP,
+                                margins: { top: 100, bottom: 100 },
+                            }),
+                            // Antal Cell (blank if 0)
+                            new docx.TableCell({
+                                children: [new docx.Paragraph({ 
+                                    children: [new docx.TextRun(formatVal(subItem.quantity, null))], 
+                                    alignment: docx.AlignmentType.CENTER 
+                                })],
+                                verticalAlign: docx.VerticalAlign.TOP,
+                                margins: { top: 100, bottom: 100 },
+                            }),
+                            // Price Cell (Sub-items often don't have separate price visible, or it's 0 if bundled)
+                            new docx.TableCell({
+                                children: [new docx.Paragraph({ 
+                                    // Using common bundled price scenario: show price if > 0, else blank if 0
+                                    children: [new docx.TextRun(formatVal(subItem.totalPrice, val => currencyFormatter.format(val)))], 
+                                    alignment: docx.AlignmentType.RIGHT 
+                                })],
+                                verticalAlign: docx.VerticalAlign.TOP,
+                                margins: { top: 100, bottom: 100 },
+                            }),
+                        ],
                     })
                 );
-            }
-
-            // condionally add freight text line from dictionary
-            totalsParagraphs.push(
-                new Paragraph({
-                    alignment: AlignmentType.RIGHT,
-                    children: [new TextRun({
-                        text: `${t.freightLabel}: ${t.freightSuffix || ''}`,
-                        size: 18
-                    })]
-                })
-            );
-
-            totalsBlock.push(
-                new Table({
-                    width: {
-                        size: 100,
-                        type: WidthType.PERCENTAGE
-                    },
-                    borders: GLOBAL_LAYOUT.borders.invisible,
-                    rows: [
-                        new TableRow({
-                            children: [
-                                new TableCell({
-                                    width: {
-                                        size: 70,
-                                        type: WidthType.PERCENTAGE
-                                    },
-                                    children: [emptyParagraph()]
-                                }),
-                                new TableCell({
-                                    width: {
-                                        size: 30,
-                                        type: WidthType.PERCENTAGE
-                                    },
-                                    children: totalsParagraphs
-                                })
-                            ]
-                        })
-                    ]
-                })
-            );
-
-            // Assembly Order: place totals after main items
-            if (!data.quote.moveInfoSectionUp) {
-                docChildren.push(...totalsBlock);
-            }
-
-            docChildren.push(emptyParagraph());
-
-            // --- 5. Info / Image Section: Smart Scaling ---
-            const infoImagesBlock = [];
-            if (data.quote.visibility.info && data.infoImages) {
-                infoImagesBlock.push(emptyParagraph());
-                infoImagesBlock.push(new Paragraph({
-                    heading: HeadingLevel.HEADING_2,
-                    children: [new TextRun({
-                        text: (data.quote.labels.infoHeading || t.infoHeading),
-                        size: 28,
-                        bold: true
-                    })]
-                }));
-                infoImagesBlock.push(emptyParagraph());
-
-                // Complex processing of Info/Images for rich text and tables
-                for (const infoItem of data.infoImages) {
-                    if (infoItem.isHiddenFromPrint) continue;
-
-                    if (infoItem.type === 'image') {
-                        const alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
-                        const imageP = await createImageParagraph(infoItem, alignment);
-                        if (imageP) {
-                            infoImagesBlock.push(imageP);
-                            infoImagesBlock.push(emptyParagraph());
-                        }
-                    } else if (infoItem.type === 'text') {
-                        const textRuns = htmlToDocxRuns(cleanUiArtifacts(infoItem.htmlValue || infoItem.content));
-                        const alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
-                        infoImagesBlock.push(new Paragraph({
-                            alignment: alignment,
-                            children: textRuns
-                        }));
-                        infoImagesBlock.push(emptyParagraph());
-                    } else if (infoItem.type === 'table') {
-                        // Simple Table example processing
-                        if (!infoItem.data || !infoItem.data.length) continue;
-                        const tableRows = [];
-                        infoItem.data.forEach(rowData => {
-                            const cells = rowData.map(cellHtml => {
-                                const cellRuns = htmlToDocxRuns(cleanUiArtifacts(cellHtml));
-                                return new TableCell({
-                                    margins: GLOBAL_LAYOUT.margins.cellText,
-                                    children: [new Paragraph({
-                                        children: cellRuns
-                                    })]
-                                });
-                            });
-                            tableRows.push(new TableRow({
-                                children: cells
-                            }));
-                        });
-                        infoImagesBlock.push(new Table({
-                            width: {
-                                size: 100,
-                                type: WidthType.PERCENTAGE
-                            },
-                            borders: GLOBAL_LAYOUT.borders.light,
-                            rows: tableRows
-                        }));
-                        infoImagesBlock.push(emptyParagraph());
-                    }
-                }
-            }
-
-            // Assembly Logic: Info section can be moved up via config
-            if (data.quote.moveInfoSectionUp) {
-                docChildren.push(...infoImagesBlock);
-                docChildren.push(...totalsBlock); // Totals back after first block if info first block
-            } else {
-                // Normal position
-                docChildren.push(...infoImagesBlock);
-            }
-
-            docChildren.push(emptyParagraph());
-
-            // --- 6. Terms and Conditions Section ---
-            const termsBlock = [];
-            if (data.quote.visibility.terms && data.terms && data.terms.length > 0) {
-                termsBlock.push(emptyParagraph());
-                termsBlock.push(new Paragraph({
-                    heading: HeadingLevel.HEADING_2,
-                    children: [new TextRun({
-                        text: (data.quote.labels.termsHeading || t.termsHeading),
-                        size: 28,
-                        bold: true
-                    })]
-                }));
-                termsBlock.push(emptyParagraph());
-
-                // Treat list items as lines
-                data.terms.forEach(termHtml => {
-                    const termRuns = htmlToDocxRuns(cleanUiArtifacts(termHtml));
-                    termsBlock.push(new Paragraph({
-                        children: termRuns
-                    }));
-                });
-            }
-            docChildren.push(...termsBlock);
-
-            // --- 7. Final Document Assembly and Packaging ---
-            // Page margin defaults ( standard 1 inch in TWIPs)
-            const marginSettings = {
-                top: 1440,
-                right: 1440,
-                bottom: 1440,
-                left: 1440
-            };
-
-            const doc = new Document({
-                sections: [{
-                    properties: {
-                        page: {
-                            margins: marginSettings,
-                        },
-                    },
-                    children: docChildren,
-                    // Basic Footer with standard automatic page numbering.
-                    footers: {
-                        default: new Footer({
-                            children: [
-                                new Paragraph({
-                                    alignment: AlignmentType.CENTER,
-                                    children: [new TextRun({
-                                        text: `© ${new Date().getFullYear()} ${data.companyB.name || ''}`,
-                                        size: 16
-                                    })],
-                                }),
-                                new Paragraph({
-                                    alignment: AlignmentType.CENTER,
-                                    // Professional Ready format: Offert no. | **Current / Total**
-                                    children: [
-                                        new TextRun({
-                                            text: `Offert nr: ${data.quote.quoteNumber} | Sida: `,
-                                            size: 16
-                                        }),
-                                        new TextRun({
-                                            children: [new docx.PageNumber.CURRENT()],
-                                            size: 16
-                                        }),
-                                        new TextRun({
-                                            text: ` / `,
-                                            size: 16
-                                        }),
-                                        new TextRun({
-                                            children: [new docx.PageNumber.TOTAL_PAGES()],
-                                            size: 16
-                                        })
-                                    ],
-                                }),
-                            ],
-                        }),
-                    },
-                }],
             });
+        });
 
-            // --- 8. Pack and Download as DOCX file ---
-            const docBlob = await Packer.toBlob(doc);
-            const fileName = `Offert_${data.quote.quoteNumber}_${new Date().toISOString().slice(0, 10)}.docx`;
+        // Add Total Row
+        itemTableRows.push(
+            new docx.TableRow({
+                children: [
+                    new TableCell({ children: [] }), // spacer nr
+                    new TableCell({ // Total Label block
+                        children: [new Paragraph({
+                            children: [new TextRun({ text: "TOTALT ATT BETALA (exkl moms)", bold: true })],
+                            alignment: AlignmentType.RIGHT,
+                        })],
+                        shading: { fill: "fcfcfc" } // light accent
+                    }),
+                    new TableCell({ children: [] }), // spacer qty
+                    new docx.TableCell({ // Total Price Cell
+                        children: [new docx.Paragraph({
+                            children: [new docx.TextRun({ text: currencyFormatter.format(totalPrice), bold: true })],
+                            alignment: docx.AlignmentType.RIGHT,
+                        })],
+                        verticalAlign: docx.VerticalAlign.CENTER,
+                        margins: { top: 120, bottom: 120 },
+                        shading: { fill: "fcfcfc" }
+                    }),
+                ],
+            })
+        );
 
-            // Production Ready download: use FileSaver.js (saveAs) if available, otherwise native link approach
-            if (window.saveAs) {
-                window.saveAs(docBlob, fileName);
-            } else {
-                // Native approach
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(docBlob);
-                link.download = fileName;
-                link.click();
-                URL.revokeObjectURL(link.href);
-            }
+        // Add Table to document
+        children.push(
+            new docx.Table({
+                width: { size: PAGE_CONTENT_WIDTH, type: docx.WidthType.DXA },
+                borders: styles.tableBorders, // borders horizontal only
+                rows: itemTableRows,
+                spacing: { after: 800 } // gap after table before terms
+            })
+        );
 
-            console.log(`${TAG} export complete.`);
 
-        } catch (err) {
-            console.error(`${TAG} Export Failed:`, err);
-            alert("Export failed. Please check the browser console (F12) for detailed error information.");
+        // --- Villkor (Terms) Section (similar to image_1.png) ---
+        if (quote.terms && quote.terms.length > 0) {
+            children.push(
+                new docx.Paragraph({
+                    children: [new docx.TextRun({ text: "Villkor", bold: true, size: 28 })], // Larger section header
+                    spacing: { after: 200 }
+                })
+            );
+
+            quote.terms.forEach(term => {
+                children.push(
+                    new docx.Paragraph({
+                        children: [
+                            new docx.TextRun({ text: term.label || "", bold: true }), // bold label e.g., "Giltighet:"
+                            new docx.TextRun({ text: ` ${term.text || ""}` }), // normal text
+                        ],
+                        indent: { left: 400, hanging: 400 }, // clean hanging indent formatting
+                        spacing: { after: 120 } // gap between terms
+                    })
+                );
+            });
+        }
+
+
+        // --- Packaging and Returning Document Object ---
+        return new docx.Document({
+            sections: [{
+                properties: {},
+                children: children,
+            }],
+        });
+    }
+
+    // --- Integration with standard UI download pattern ---
+    async function handleDocxDownload(jsonData) {
+        try {
+            const doc = await wordify(jsonData);
+            const quoteNumber = jsonData.quote.quoteNumber || "draft";
+            const fileName = `Offert_${quoteNumber}.docx`;
+
+            docx.Packer.toBlob(doc).then(blob => {
+                saveAs(blob, fileName);
+                console.log("DOCX generated successfully!");
+            });
+        } catch (error) {
+            console.error("Error generating DOCX:", error);
+            alert("Ett fel uppstod vid generering av DOCX-filen. Kontrollera webbläsarens konsol för detaljer.");
         }
     }
+
+    // Bind function to window for UI usage
+    window.wordifyData = handleDocxDownload;
 
 })();
