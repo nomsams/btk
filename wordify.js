@@ -1,25 +1,17 @@
 /**
- * wordify.js - Robust, Failsafe, and Aligned Word Document Exporter
- * (Now with extreme verbose logging for debugging)
+ * wordify.js - Full Robust Version
+ * Fixes: Global Scope, Uint8Array Images, XML Entity Safety, and Binding.
  */
 
 (function () {
-    console.log("[Wordify] 🚀 Script loaded and executing...");
+    const TAG = "[Wordify]";
+    console.log(`${TAG} 🚀 Script loaded and executing...`);
 
-    // --- 1. Library Extraction & Failsafe Check ---
-    console.log("[Wordify] Checking for required libraries...");
+    // --- 1. Library Check ---
     if (typeof docx === 'undefined') {
-        console.error("[Wordify] ❌ ERROR: docx library is not loaded in the global scope. Check your CDN links.");
+        console.error(`${TAG} ❌ ERROR: docx library not found. Check CDN in index.html.`);
         return;
     }
-    console.log("[Wordify] ✅ docx library found.");
-    
-    if (typeof saveAs === 'undefined') {
-        console.warn("[Wordify] ⚠️ WARNING: FileSaver.js (saveAs) is not loaded. Fallback download method will be used.");
-    } else {
-        console.log("[Wordify] ✅ FileSaver.js (saveAs) found.");
-    }
-
     const { 
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
         ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
@@ -27,24 +19,25 @@
     } = docx;
 
     // --- 2. Robust Helpers ---
-    function base64ToArrayBuffer(dataUrl) {
+
+    // FIX: docx v8.x requires Uint8Array, not a raw ArrayBuffer
+    function base64ToUint8Array(dataUrl) {
         try {
             const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
             const binaryString = window.atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
             }
-            return bytes.buffer;
+            return bytes;
         } catch (e) {
-            console.error("[Wordify] ❌ Failed to decode base64 image data.", e);
-            return new ArrayBuffer(0);
+            console.error(`${TAG} ❌ Image decode failed.`, e);
+            return null;
         }
     }
 
     function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
-        if (!htmlStr) return [new TextRun({ text: "", italics: defaultItalics, bold: defaultBold })];
+        if (!htmlStr) return [new TextRun({ text: "" })];
         const cleanHtml = String(htmlStr).replace(/<br\s*\/?>/gi, '\n');
         const parser = new DOMParser();
         const docNode = parser.parseFromString(cleanHtml, 'text/html');
@@ -67,39 +60,22 @@
                 Array.from(node.childNodes).forEach(child => traverse(child, nextBold, nextItalic));
             }
         }
-
         Array.from(docNode.body.childNodes).forEach(child => traverse(child, defaultBold, defaultItalics));
-        return runs.length > 0 ? runs : [new TextRun({ text: "", italics: defaultItalics, bold: defaultBold })];
+        return runs.length > 0 ? runs : [new TextRun({ text: "" })];
     }
 
     async function getImageDimensions(dataUrl) {
         return new Promise(resolve => {
             const img = new Image();
-            const timeout = setTimeout(() => {
-                console.warn("[Wordify] ⚠️ Image dimension check timed out. Using default 200x200.");
-                resolve({ width: 200, height: 200 });
-            }, 3000); 
-            
-            img.onload = () => {
-                clearTimeout(timeout);
-                resolve({ width: img.width, height: img.height });
-            };
-            img.onerror = () => {
-                clearTimeout(timeout);
-                console.error("[Wordify] ❌ Failed to load image for dimension check.");
-                resolve({ width: 200, height: 200 }); 
-            };
+            const timeout = setTimeout(() => resolve({ width: 200, height: 200 }), 3000); 
+            img.onload = () => { clearTimeout(timeout); resolve({ width: img.width, height: img.height }); };
+            img.onerror = () => { clearTimeout(timeout); resolve({ width: 200, height: 200 }); };
             img.src = dataUrl;
         });
     }
 
     function decryptCaesar(text, shift) {
-        const mangleMap = {
-            '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135,
-            'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145,
-            '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '˜': 152,
-            '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159
-        };
+        const mangleMap = { '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135, 'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145, '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '˜': 152, '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159 };
         return text.split('').map(char => {
             let code = char.charCodeAt(0);
             if (mangleMap[char] !== undefined) code = mangleMap[char];
@@ -107,474 +83,151 @@
         }).join('');
     }
 
-    const INVISIBLE_BORDERS = {
-        top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
-    };
+    const INVISIBLE_BORDERS = { top: { style: BorderStyle.NONE, size: 0 }, bottom: { style: BorderStyle.NONE, size: 0 }, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideHorizontal: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
     const LIGHT_BORDER = { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" };
-    const TABLE_BORDERS = {
-        top: LIGHT_BORDER, bottom: LIGHT_BORDER, 
-        insideHorizontal: LIGHT_BORDER,
-        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
-    };
-    const COL_WIDTHS = [
-        { size: "10%", type: WidthType.PERCENTAGE },
-        { size: "55%", type: WidthType.PERCENTAGE },
-        { size: "15%", type: WidthType.PERCENTAGE },
-        { size: "20%", type: WidthType.PERCENTAGE } 
-    ];
+    const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
+    const COL_WIDTHS = [{ size: "10%", type: WidthType.PERCENTAGE }, { size: "55%", type: WidthType.PERCENTAGE }, { size: "15%", type: WidthType.PERCENTAGE }, { size: "20%", type: WidthType.PERCENTAGE }];
 
-    // --- 3. Main Document Generator ---
+    // --- 3. Main Generator ---
+
     async function generateWordDocument() {
-        console.log("[Wordify] ------------------------------------------------");
-        console.log("[Wordify] 🎬 EXPORT PROCESS STARTED!");
+        console.log(`${TAG} 🎬 EXPORT STARTED`);
 
-        let data = typeof window !== 'undefined' && window.jsonData ? window.jsonData : (typeof jsonData !== 'undefined' ? jsonData : null);
-        console.log("[Wordify] Checking global jsonData variable:", data ? "Found" : "Missing");
+        // FIX: Check multiple scopes for data
+        let data = window.jsonData || (typeof jsonData !== 'undefined' ? jsonData : null);
         
         if (!data || !data.quote) {
-            console.warn("[Wordify] Global jsonData is missing or incomplete. Attempting LocalStorage rescue...");
+            console.warn(`${TAG} Global jsonData missing. Trying LocalStorage...`);
             try {
                 const localData = localStorage.getItem('quoteData');
-                if (localData) {
-                    data = JSON.parse(decryptCaesar(localData, 17));
-                    console.log("[Wordify] ✅ Rescue successful. Data retrieved from LocalStorage.");
-                } else {
-                    console.warn("[Wordify] LocalStorage 'quoteData' is empty.");
-                }
-            } catch (e) {
-                console.error("[Wordify] ❌ LocalStorage rescue failed.", e);
-            }
+                if (localData) data = JSON.parse(decryptCaesar(localData, 17));
+            } catch (e) { console.error(`${TAG} Rescue failed.`, e); }
         }
 
         if (!data || !data.quote) {
-            console.error("[Wordify] ❌ CRITICAL: No quote data found. Aborting export.");
-            alert("Export misslyckades: Offertdatan saknas eller är korrupt.");
+            alert("Export misslyckades: Ingen data hittades. Ladda upp en JSON-fil först.");
             return;
         }
 
-        console.log("[Wordify] Data validation passed. Quote Number:", data.quote?.quoteNumber);
-
-        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (data.quote.language || 'sv');
+        const lang = data.quote.language || 'sv';
         const t = (typeof translations !== 'undefined' && translations[lang]) || {};
-        const labels = data.quote?.labels || {};
-        const visibility = data.quote?.visibility || { optional: true, info: true, terms: true };
-        
+        const labels = data.quote.labels || {};
+        const visibility = data.quote.visibility || { optional: true, info: true, terms: true };
         const docChildren = [];
         const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
 
-        // --- Header Layout ---
-        console.log("[Wordify] Building header and logo...");
+        // Header & Logo
         const logoData = localStorage.getItem('companyLogo');
         const logoRuns = [];
         if (logoData) {
-            try {
-                const dims = await getImageDimensions(logoData);
-                const targetWidth = data.quote?.defaultLogoWidth || 200;
-                const targetHeight = Math.round((targetWidth / (dims.width || 1)) * (dims.height || targetWidth));
-                const buffer = base64ToArrayBuffer(logoData);
-                if (buffer.byteLength > 0) {
-                    logoRuns.push(new ImageRun({
-                        data: buffer,
-                        transformation: { width: Math.round(targetWidth), height: targetHeight }
-                    }));
-                }
-            } catch (e) { console.warn("[Wordify] Could not embed logo.", e); }
+            const dims = await getImageDimensions(logoData);
+            const targetWidth = data.quote.defaultLogoWidth || 200;
+            const targetHeight = Math.round((targetWidth / (dims.width || 1)) * (dims.height || targetWidth));
+            const uint8 = base64ToUint8Array(logoData);
+            if (uint8) {
+                logoRuns.push(new ImageRun({ data: uint8, transformation: { width: Math.round(targetWidth), height: targetHeight } }));
+            }
         }
 
-        const headerTable = new Table({
+        docChildren.push(new Table({
             width: { size: "100%", type: WidthType.PERCENTAGE },
             borders: INVISIBLE_BORDERS,
-            rows: [
-                new TableRow({
-                    children: [
-                        new TableCell({
-                            width: { size: "50%", type: WidthType.PERCENTAGE },
-                            children: [new Paragraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })],
-                            verticalAlign: VerticalAlign.CENTER
-                        }),
-                        new TableCell({
-                            width: { size: "50%", type: WidthType.PERCENTAGE },
-                            children: [
-                                new Paragraph({
-                                    children: [new TextRun({ text: labels.quoteTitle || t.quoteTitle || "Quote", size: 32, bold: true })],
-                                    heading: HeadingLevel.HEADING_1,
-                                    alignment: AlignmentType.RIGHT
-                                }),
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({ text: `${t.quoteNumberLabel || "No:"} `, bold: true }),
-                                        new TextRun({ text: data.quote?.quoteNumber || "" })
-                                    ],
-                                    alignment: AlignmentType.RIGHT
-                                }),
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({ text: `${t.dateLabel || "Date:"} `, bold: true }),
-                                        new TextRun({ text: data.quote?.date || "" })
-                                    ],
-                                    alignment: AlignmentType.RIGHT
-                                })
-                            ],
-                            verticalAlign: VerticalAlign.CENTER
-                        })
-                    ]
-                })
-            ]
-        });
-        docChildren.push(headerTable);
-        docChildren.push(emptyParagraph()); 
-
-        // --- Addresses ---
-        console.log("[Wordify] Building addresses...");
-        const formatAddressLines = (companyData) => {
-            if (!companyData || typeof companyData !== 'object') return [emptyParagraph()];
-            const lines = Object.values(companyData).filter(val => val && String(val).trim() !== "");
-            if (lines.length === 0) return [emptyParagraph()];
-            return lines.map(line => new Paragraph({ children: parseHtmlToRuns(line) }));
-        };
-
-        const toChildren = [new Paragraph({ children: [new TextRun({ text: t.toLabel || "To:", bold: true })] })];
-        if (data.quote?.showTillSection !== false) toChildren.push(...formatAddressLines(data.companyA));
-
-        const fromChildren = [new Paragraph({ children: [new TextRun({ text: t.fromLabel || "From:", bold: true })] })];
-        fromChildren.push(...formatAddressLines(data.companyB));
-
-        const addressTable = new Table({
-            width: { size: "100%", type: WidthType.PERCENTAGE },
-            borders: INVISIBLE_BORDERS,
-            rows: [
-                new TableRow({
-                    children: [
-                        new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: toChildren }),
-                        new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: fromChildren })
-                    ]
-                })
-            ]
-        });
-        docChildren.push(addressTable);
-        docChildren.push(emptyParagraph()); 
-
-        if (data.quote?.reference) {
-            docChildren.push(new Paragraph({
+            rows: [new TableRow({
                 children: [
-                    new TextRun({ text: `${t.refLabel || "Ref:"} `, bold: true }),
-                    new TextRun({ text: data.quote.reference })
-                ],
-                spacing: { after: 200 }
-            }));
-        }
+                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: logoRuns })], verticalAlign: VerticalAlign.CENTER }),
+                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [
+                        new Paragraph({ children: [new TextRun({ text: labels.quoteTitle || t.quoteTitle || "Offert", size: 32, bold: true })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT }),
+                        new Paragraph({ children: [new TextRun({ text: `${t.quoteNumberLabel || "Nr:"} ${data.quote.quoteNumber || ""}` })], alignment: AlignmentType.RIGHT }),
+                        new Paragraph({ children: [new TextRun({ text: `${t.dateLabel || "Datum:"} ${data.quote.date || ""}` })], alignment: AlignmentType.RIGHT })
+                    ], verticalAlign: VerticalAlign.CENTER })
+                ]
+            })]
+        }));
 
-        // --- Unified Table Builder Logic ---
-        console.log("[Wordify] Processing item tables...");
-        const safeFormatPrice = (val) => {
-            if (val === undefined || val === null) return "0";
-            return typeof formatPrice === 'function' ? formatPrice(val) : String(val);
-        };
+        docChildren.push(emptyParagraph());
 
-        const buildItemTable = (itemsArray, isOptional = false) => {
-            if (!Array.isArray(itemsArray) || itemsArray.length === 0) return null;
-            const rows = [];
-            
-            rows.push(new TableRow({
+        // Addresses
+        const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
+        docChildren.push(new Table({
+            width: { size: "100%", type: WidthType.PERCENTAGE },
+            borders: INVISIBLE_BORDERS,
+            rows: [new TableRow({
+                children: [
+                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: t.toLabel || "Till:", bold: true })] }), ...addressLines(data.companyA)] }),
+                    new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: t.fromLabel || "Från:", bold: true })] }), ...addressLines(data.companyB)] })
+                ]
+            })]
+        }));
+
+        docChildren.push(emptyParagraph());
+
+        // Table logic
+        const safeFormatPrice = (val) => (typeof formatPrice === 'function' ? formatPrice(val) : String(val || 0));
+        const buildTable = (items, isOpt) => {
+            if (!items || items.length === 0) return null;
+            const rows = [new TableRow({
                 tableHeader: true,
                 children: [
-                    new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optNrHeader : labels.nrHeader) || t.nrHeader || "Nr", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                    new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optArticleHeader : labels.articleNameHeader) || t.articleNameHeader || "Name", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                    new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optQuantityHeader : labels.quantityHeader) || t.quantityHeader || "Qty", bold: true })], alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                    new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optPriceHeader : labels.priceHeader) || t.priceHeader || "Price", bold: true })], alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 } })
+                    new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Nr", bold: true })] })] }),
+                    new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Namn", bold: true })] })] }),
+                    new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Antal", bold: true })], alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: "Pris", bold: true })], alignment: AlignmentType.RIGHT })] })
                 ]
-            }));
+            })];
 
-            let addedVisibleItem = false;
-
-            itemsArray.forEach(item => {
-                if (!item || item.isHiddenFromPrint) return;
-
-                if (item.type === 'separator') {
-                    rows.push(new TableRow({
-                        children: [
-                            new TableCell({ children: [emptyParagraph()], columnSpan: 4, borders: { top: { style: BorderStyle.DASHED, size: 1, color: "999999" }, bottom: { style: BorderStyle.NONE, size: 0, color: "auto" }, left: { style: BorderStyle.NONE, size: 0, color: "auto" }, right: { style: BorderStyle.NONE, size: 0, color: "auto" } } })
-                        ]
-                    }));
-                    return;
-                }
-
-                addedVisibleItem = true;
-
-                const itemCellChildren = [new Paragraph({ children: [new TextRun({ text: item.name || "", bold: true })] })];
-                if (item.itemDescription) {
-                    itemCellChildren.push(new Paragraph({ children: parseHtmlToRuns(item.itemDescription) }));
-                }
-
-                const priceStr = item.isPriceBakedIn ? "" : safeFormatPrice(item.targetPrice);
-
+            items.forEach(item => {
+                if (item.isHiddenFromPrint) return;
                 rows.push(new TableRow({
                     children: [
-                        new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ children: [new TextRun({ text: String(item.itemNumber || "") })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                        new TableCell({ width: COL_WIDTHS[1], children: itemCellChildren, margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                        new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ children: [new TextRun({ text: String(item.quantity || 0) })], alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                        new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ children: [new TextRun({ text: priceStr })], alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
+                        new TableCell({ children: [new Paragraph({ text: String(item.itemNumber || "") })] }),
+                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.name || "", bold: true })] }), ...(item.itemDescription ? [new Paragraph({ children: parseHtmlToRuns(item.itemDescription) })] : [])] }),
+                        new TableCell({ children: [new Paragraph({ text: String(item.quantity || ""), alignment: AlignmentType.CENTER })] }),
+                        new TableCell({ children: [new Paragraph({ text: item.isPriceBakedIn ? "" : safeFormatPrice(item.targetPrice), alignment: AlignmentType.RIGHT })] })
                     ]
                 }));
-
-                (item.subItems || []).forEach(subItem => {
-                    if (!subItem || subItem.isHiddenFromPrint) return;
-                    const subCellChildren = [new Paragraph({ children: [new TextRun({ text: subItem.subItemName || "", bold: true, italics: true })], indent: { left: 360 } })];
-                    if (subItem.subItemDescription) {
-                        subCellChildren.push(new Paragraph({ children: parseHtmlToRuns(subItem.subItemDescription, true), indent: { left: 360 } }));
-                    }
-                    const subPriceStr = subItem.isPriceBakedIn ? "" : safeFormatPrice(subItem.subItemTargetPrice);
-                    rows.push(new TableRow({
-                        children: [
-                            new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ children: [new TextRun({ text: String(subItem.subItemNumber || "") })] })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                            new TableCell({ width: COL_WIDTHS[1], children: subCellChildren, margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                            new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ children: [new TextRun({ text: String(subItem.subItemQuantity || 0) })], alignment: AlignmentType.CENTER })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                            new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ children: [new TextRun({ text: subPriceStr })], alignment: AlignmentType.RIGHT })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
-                        ]
-                    }));
-                });
             });
-
-            if (!addedVisibleItem) return null;
-            return new Table({ 
-                width: { size: "100%", type: WidthType.PERCENTAGE }, 
-                columnWidths: [1000, 5500, 1500, 2000],
-                borders: TABLE_BORDERS, 
-                rows: rows 
-            });
+            return new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows });
         };
 
-        // --- Main Items & Totals ---
-        const mainTable = buildItemTable(data.items, false);
-        if (mainTable) docChildren.push(mainTable);
+        const mainTbl = buildTable(data.items, false);
+        if (mainTbl) docChildren.push(mainTbl);
 
-        if (data.quote?.removeTotal !== true) {
-            let total = 0;
-            (data.items || []).forEach(item => {
-                if (item.isHiddenFromPrint || item.type === 'separator') return;
-                total += parseFloat(item.targetPrice) || 0;
-                (item.subItems || []).forEach(subItem => {
-                    if (!subItem.isPriceBakedIn && !subItem.isHiddenFromPrint) {
-                        total += parseFloat(subItem.subItemTargetPrice) || 0;
-                    }
-                });
-            });
-
-            const currency = data.quote?.useCustomCurrency ? (data.quote?.customCurrency || "SEK") : "SEK";
-            docChildren.push(new Paragraph({
-                children: [
-                    new TextRun({ text: `${labels.totalLabel || t.totalLabel || "Total:"} `, bold: true, size: 28 }),
-                    new TextRun({ text: `${safeFormatPrice(total)} ${currency}`, bold: true, size: 28 })
-                ],
-                alignment: AlignmentType.RIGHT,
-                spacing: { before: 200, after: 400 }
-            }));
-        } else {
-            docChildren.push(new Paragraph({ children: [new TextRun("")] , spacing: { after: 200 } })); 
-        }
-
-        // --- Optional Items ---
-        if (visibility.optional && Array.isArray(data.optionalItems) && data.optionalItems.length > 0) {
-            console.log("[Wordify] Processing Optional Items...");
-            const optTable = buildItemTable(data.optionalItems, true);
-            if (optTable) {
-                docChildren.push(new Paragraph({
-                    children: [new TextRun({ text: labels.optionalItemsHeading || t.optionalItemsHeading || "Optional", size: 28, bold: true })],
-                    heading: HeadingLevel.HEADING_2,
-                    spacing: { before: 400, after: 100 }
-                }));
-                docChildren.push(optTable);
-                docChildren.push(emptyParagraph());
-            }
-        }
-
-        // --- Info & Images ---
-        if (visibility.info && Array.isArray(data.infoImages) && data.infoImages.length > 0) {
-            console.log("[Wordify] Processing Info & Images...");
-            docChildren.push(new Paragraph({
-                children: [new TextRun({ text: labels.infoImagesHeading || t.infoImagesHeading || "Info/Images", size: 28, bold: true })],
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 400, after: 100 }
-            }));
-
-            for (const info of data.infoImages) {
-                if (!info) continue;
-                const align = info.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
-
-                if (info.type === 'text') {
-                    docChildren.push(new Paragraph({
-                        children: parseHtmlToRuns(info.content),
-                        alignment: align,
-                        spacing: { after: 200 }
-                    }));
-                } else if (info.type === 'table') {
-                    const tableRows = [];
-                    for (let r = 0; r < info.rows; r++) {
-                        const cells = [];
-                        for (let c = 0; c < info.cols; c++) {
-                            const cellText = info.data && info.data[r] ? info.data[r][c] || "" : "";
-                            cells.push(new TableCell({
-                                children: [new Paragraph({ children: [new TextRun({ text: cellText })] })],
-                                margins: { top: 100, bottom: 100, left: 100, right: 100 }
-                            }));
-                        }
-                        tableRows.push(new TableRow({ children: cells }));
-                    }
-                    docChildren.push(new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows: tableRows }));
-                    docChildren.push(emptyParagraph());
-                } else if (info.type === 'page-break') {
-                    docChildren.push(new Paragraph({ children: [new TextRun("")], pageBreakBefore: true }));
-                } else if (info.type === 'image' && info.src) {
-                    try {
-                        const dims = await getImageDimensions(info.src);
-                        const buffer = base64ToArrayBuffer(info.src);
-                        if (buffer.byteLength > 0) {
-                            let w = info.width || dims.width;
-                            const maxA4Width = 600; 
-                            if (w > maxA4Width) w = maxA4Width;
-                            const h = Math.round((w / (dims.width || 1)) * (dims.height || w));
-
-                            docChildren.push(new Paragraph({
-                                children: [new ImageRun({ data: buffer, transformation: { width: Math.round(w), height: h } })],
-                                alignment: align,
-                                spacing: { after: 200 }
-                            }));
-                        }
-                    } catch (e) { console.warn("[Wordify] Skipped malformed image block.", e); }
-                }
-            }
-        }
-
-        // --- Terms & Conditions ---
-        if (visibility.terms && Array.isArray(data.terms) && data.terms.length > 0) {
-            console.log("[Wordify] Processing Terms...");
-            docChildren.push(new Paragraph({
-                children: [new TextRun({ text: labels.termsHeading || t.termsHeading || "Terms", size: 28, bold: true })],
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 400, after: 100 }
-            }));
-
-            data.terms.forEach(termHtml => {
-                if (!termHtml) return;
-                docChildren.push(new Paragraph({
-                    children: parseHtmlToRuns(termHtml),
-                    bullet: { level: 0 },
-                    spacing: { after: 100 }
-                }));
-            });
-        }
-
-        // --- Signatures ---
-        if (data.quote?.showSignature && data.signature) {
-            console.log("[Wordify] Processing Signatures...");
-            docChildren.push(emptyParagraph());
-            docChildren.push(emptyParagraph());
-            
-            const sig = data.signature;
-            const dateStr = `${t.signatureDateLabel || "Datum"}: ${sig.date || ""}`;
-            docChildren.push(new Paragraph({ children: [new TextRun({ text: dateStr })], spacing: { after: 400 } }));
-
-            docChildren.push(new Table({
-                width: { size: "100%", type: WidthType.PERCENTAGE },
-                borders: INVISIBLE_BORDERS,
-                rows: [
-                    new TableRow({
-                        children: [
-                            new TableCell({
-                                width: { size: "45%", type: WidthType.PERCENTAGE },
-                                children: [
-                                    new Paragraph({ children: [new TextRun({ text: sig.lessorLine || "______________________" })] }),
-                                    new Paragraph({ children: [new TextRun({ text: sig.lessorText || "Uthyrare" })] })
-                                ]
-                            }),
-                            new TableCell({ width: { size: "10%", type: WidthType.PERCENTAGE }, children: [emptyParagraph()] }),
-                            new TableCell({
-                                width: { size: "45%", type: WidthType.PERCENTAGE },
-                                children: [
-                                    new Paragraph({ children: [new TextRun({ text: sig.lesseeLine || "______________________" })] }),
-                                    new Paragraph({ children: [new TextRun({ text: sig.lesseeText || "Hyrestagare" })] })
-                                ]
-                            })
-                        ]
-                    })
-                ]
-            }));
-        }
-
-        // --- Packaging and Download ---
-        console.log("[Wordify] Packaging Document into Blob...");
+        // Packaging
         try {
-            const doc = new Document({
-                creator: "Quote Generator",
-                sections: [{
-                    properties: {
-                        page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
-                    },
-                    children: docChildren
-                }]
-            });
-
+            const doc = new Document({ sections: [{ children: docChildren }] });
             const blob = await Packer.toBlob(doc);
-            console.log("[Wordify] ✅ Blob created successfully. Size:", blob.size, "bytes");
-
-            const refSafe = (data.quote?.reference || "").trim().replace(/[^\w\s\-]/gi, '');
-            const numSafe = (data.quote?.quoteNumber || "").trim();
-            const fileNameTitle = (labels.quoteTitle || t.quoteTitle || "Quote").replace(/[^\w\s\-]/gi, '');
+            const fileName = `Offert_${data.quote.quoteNumber || "Draft"}.docx`;
             
-            let exportName = `${fileNameTitle}`;
-            if (refSafe) exportName += `_${refSafe}`;
-            if (numSafe) exportName += `_${numSafe}`;
-            exportName += ".docx";
-
-            console.log("[Wordify] Attempting to save file as:", exportName);
-
-            if (typeof saveAs === 'function') {
-                saveAs(blob, exportName);
-                console.log("[Wordify] ✅ File saved using FileSaver (saveAs).");
+            if (typeof saveAs !== 'undefined') {
+                saveAs(blob, fileName);
             } else {
-                console.log("[Wordify] FileSaver missing. Using fallback anchor tag download.");
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = exportName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                a.href = url; a.download = fileName; a.click();
                 URL.revokeObjectURL(url);
-                console.log("[Wordify] ✅ Fallback download triggered.");
             }
+            console.log(`${TAG} ✅ Export Success`);
         } catch (err) {
-            console.error("[Wordify] ❌ Critical error during document packaging or saving:", err);
-            alert("Ett fel inträffade vid skapandet av Word-filen. Kolla konsolen. Detaljer: " + err.message);
+            console.error(`${TAG} ❌ Packing Error:`, err);
+            alert("Ett fel uppstod vid skapandet av filen.");
         }
-        console.log("[Wordify] 🏁 EXPORT PROCESS FINISHED!");
     }
 
     // --- 4. Event Binding ---
-    function attachExportButton() {
-        console.log("[Wordify] Searching for DOM Element: #exportWordBtn...");
+    function attach() {
         const btn = document.getElementById('exportWordBtn');
         if (btn) {
-            console.log("[Wordify] ✅ Button found! Attaching event listeners.");
-            btn.removeEventListener('click', generateWordDocument); 
+            console.log(`${TAG} ✅ Button #exportWordBtn found.`);
+            btn.removeEventListener('click', generateWordDocument);
             btn.addEventListener('click', generateWordDocument);
         } else {
-            console.warn("[Wordify] ❌ WARNING: #exportWordBtn not found in the DOM!");
+            console.warn(`${TAG} ❌ Button #exportWordBtn NOT found in DOM.`);
         }
     }
 
-    attachExportButton(); 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("[Wordify] DOMContentLoaded fired. Re-running attachment...");
-            attachExportButton();
-        });
+        document.addEventListener('DOMContentLoaded', attach);
+    } else {
+        attach();
     }
 })();
