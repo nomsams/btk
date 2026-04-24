@@ -1,7 +1,7 @@
 /**
  * wordify.js - Production Ready Version
  * Includes: Black Headers, Translation Support, Smart Image Collage, 
- * Contextual Page Breaks, Bullet formatting, Spacing Fixes, and Zero-Hiding.
+ * Contextual Page Breaks, Flawless Bullet formatting, Address Spacing, and Zero-Hiding.
  */
 
 (function () {
@@ -22,18 +22,25 @@
     // --- Utility: Clean UI Artifacts & Fix Bullets ---
     function stripUiArtifacts(htmlStr) {
         if (!htmlStr) return "";
-        let s = String(htmlStr)
-            .replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '') // Remove UI
-            .replace(/✖|👨‍🍳|📝/g, '') // Remove emojis/icons
-            .replace(/\r?\n|\r/g, ' '); // Collapse hidden source-code newlines
+        let s = String(htmlStr);
         
-        // Force bullet points to start on a new line
-        s = s.replace(/(?:<br\s*\/?>\s*)?●\s*/g, '<br>● ');
-        s = s.replace(/^\s*<br>\s*/, ''); // Remove if it forced a break at the very beginning
+        // 1. Convert literal newlines to HTML breaks BEFORE parsing so address lines aren't lost
+        s = s.replace(/\r?\n|\r/g, '<br>');
+
+        // 2. Remove UI elements and emojis
+        s = s.replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '');
+        s = s.replace(/✖|👨‍🍳|📝/g, '');
+        
+        // 3. Smart Bullet Spacing: Ensure exactly ONE <br> before a bullet, preventing double spacing
+        s = s.replace(/(?:<br\s*\/?>\s*)*●\s*/gi, '<br>● ');
+        
+        // 4. Clean up any leftover breaks right at the very beginning of the string
+        s = s.replace(/^(?:<br\s*\/?>\s*)+/i, '');
+        
         return s.trim();
     }
 
-    // --- Utility: Parse HTML to Word Runs (Now handles paragraphs and breaks cleanly) ---
+    // --- Utility: Parse HTML to Word Runs ---
     function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
         let cleanHtml = stripUiArtifacts(htmlStr);
         if (!cleanHtml) return [new TextRun({ text: "" })];
@@ -44,7 +51,7 @@
 
         function traverse(node, isBold, isItalic) {
             if (node.nodeType === Node.TEXT_NODE) {
-                let text = node.textContent.replace(/\s+/g, ' '); // Collapse spaces
+                let text = node.textContent.replace(/\s+/g, ' '); // Collapse multiple spaces
                 if (text && text !== '') {
                     runs.push(new TextRun({ text: text, bold: isBold, italics: isItalic }));
                 }
@@ -143,7 +150,8 @@
     const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
     
     const COL_WIDTHS_DXA = [900, 4950, 1350, 1800]; // Total 9000
-    const ADDRESS_WIDTHS_DXA = [4050, 900, 4050]; // 45% (Till), 10% (Gap), 45% (Från)
+    // Increased the middle gap to 20% to push "Från" closer to the right edge
+    const ADDRESS_WIDTHS_DXA = [3600, 1800, 3600]; // 40% (Till), 20% (Gap), 40% (Från)
 
     const MAX_IMG_FULL = 550; // Max width for full span image
     const MAX_IMG_HALF = 260; // Max width for grid image
@@ -211,9 +219,9 @@
                 borders: INVISIBLE_BORDERS,
                 rows: [new TableRow({
                     children: [
-                        new TableCell({ width: { size: 45, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
-                        new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, children: [emptyParagraph()] }), // Invisible Spacer
-                        new TableCell({ width: { size: 45, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
+                        new TableCell({ width: { size: 40, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
+                        new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, children: [emptyParagraph()] }), // Invisible Spacer to push 'Från' to the right
+                        new TableCell({ width: { size: 40, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
                     ]
                 })]
             }));
@@ -243,7 +251,8 @@
 
                     rows.push(new TableRow({
                         children: [
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(item.itemNumber || "")}`, italics: true })] })] }),
+                            // Main items are NORMAL, no italics, no spacing
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(item.itemNumber || "") })] })] }),
                             new TableCell({ children: cellChildren }),
                             new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.quantity), alignment: AlignmentType.CENTER })] }),
                             new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.targetPrice, true, item.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
@@ -256,12 +265,12 @@
                             if (!sub.isPriceBakedIn) totalSum += sub.subItemTargetPrice || 0;
                             const subDescRuns = sub.subItemDescription ? parseHtmlToRuns(sub.subItemDescription) : [];
                             
-                            // Subitem name is now BOLD
                             const subCellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(sub.subItemName || ""), bold: true })] })];
                             if (subDescRuns.length > 0) subCellChildren.push(new Paragraph({ children: subDescRuns }));
 
                             rows.push(new TableRow({
                                 children: [
+                                    // Sub-items ONLY get the space and the italics
                                     new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(sub.subItemNumber || "")}`, italics: true })] })] }),
                                     new TableCell({ children: subCellChildren }),
                                     new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(sub.subItemQuantity), alignment: AlignmentType.CENTER })] }),
