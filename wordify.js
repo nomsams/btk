@@ -1,7 +1,7 @@
 /**
- * wordify.js - Production Ready Version (Strict Formatting Update)
- * Features: Extreme right Från-box alignment, Mid-sentence break removal, 
- * Strict Max-2-Newline rule, perfect bullet logic, and Zero-Hiding.
+ * wordify.js - Production Ready Version (Ultimate Formatting Fix)
+ * Features: Zero-margin Logo, Protected Address Box Formatting,
+ * Flawless Max-2-Newline filter, Mid-sentence break killer, Zero-Hiding.
  */
 
 (function () {
@@ -19,74 +19,58 @@
         HeadingLevel 
     } = docx;
 
-    // --- Utility: Clean UI Artifacts & STRICT Formatting Rules ---
-    function stripUiArtifacts(htmlStr) {
+    // --- Helper: Paragraph with ZERO hidden margins ---
+    const cellParagraph = (opts) => new Paragraph({ ...opts, spacing: { before: 0, after: 0 } });
+
+    // --- Utility: Clean UI Artifacts & HTML Pre-Processing ---
+    function stripUiArtifacts(htmlStr, type = 'general') {
         if (!htmlStr) return "";
         let s = String(htmlStr);
 
-        // 1. Remove UI elements and emojis
+        // 1. Strip UI elements
         s = s.replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '');
         s = s.replace(/✖|👨‍🍳|📝/g, '');
 
-        // 2. Normalize all literal newlines
-        s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-        // 3. MID-SENTENCE BREAK KILLER:
-        // Safely collapse single newlines into spaces unless they belong to a real paragraph/bullet.
-        s = s.split('\n').reduce((acc, line, i, arr) => {
-            if (i === 0) return line;
-            const prev = arr[i - 1];
-            const trimmedLine = line.trimStart();
-            
-            // Keep the newline ONLY if: prev line is blank, current line is blank, or it starts with a bullet/HTML tag
-            if (prev.trim() === '' || trimmedLine === '' || trimmedLine.startsWith('●') || trimmedLine.startsWith('<')) {
-                return acc + '\n' + line;
-            }
-            // Otherwise, it's a broken sentence. Stitch it together with a space.
-            return acc + ' ' + trimmedLine;
-        }, '');
-
-        // 4. Convert all preserved literal newlines to HTML breaks
-        s = s.replace(/\n/g, '<br>');
-
-        // 5. THE "MAX 2 NEWLINES" RULE: 
-        // If there are 3, 4, 5+ <br> tags in a row, squash them down to exactly 2.
-        s = s.replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>');
-
-        // 6. BULLET POINT RULE: Ensure exactly ONE break before a bullet.
-        s = s.replace(/(?:<br\s*\/?>\s*)*●\s*/gi, '<br>● ');
+        // 2. Convert structural HTML blocks into line breaks
+        s = s.replace(/<\/p>\s*<p[^>]*>/gi, '<br><br>');
+        s = s.replace(/<\/div>\s*<div[^>]*>/gi, '<br><br>');
+        s = s.replace(/<\/?(?:p|div)[^>]*>/gi, '<br>');
         
-        // 7. Strip leftover breaks at the very top of the string
-        s = s.replace(/^(?:<br\s*\/?>\s*)+/i, '');
+        // 3. Convert all literal source-code newlines
+        s = s.replace(/\r?\n/g, '<br>');
+
+        // 4. Perfect Bullet point break
+        s = s.replace(/(?:<br\s*\/?>\s*)*●\s*/gi, '<br>● ');
+
+        // 5. Intelligent Mid-Sentence Break Killer (Do NOT apply to Addresses)
+        if (type !== 'address') {
+            // Matches any non-punctuation character followed by exactly one <br>, 
+            // then ensures it's not followed by another <br> or bullet point.
+            s = s.replace(/([^.?!:>\s])\s*<br\s*\/?>\s*(?!<br|●|<\/?p|<\/?div)/gi, '$1 ');
+        }
 
         return s.trim();
     }
 
-    // --- Utility: Parse HTML to Word Runs ---
-    function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
-        let cleanHtml = stripUiArtifacts(htmlStr);
+    // --- Utility: Parse HTML to Word Runs (Enforces Strict Max-2 Breaks) ---
+    function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false, type = 'general') {
+        let cleanHtml = stripUiArtifacts(htmlStr, type);
         if (!cleanHtml) return [new TextRun({ text: "" })];
         
         const parser = new DOMParser();
         const docNode = parser.parseFromString(cleanHtml, 'text/html');
-        const runs = [];
+        const rawRuns = [];
 
         function traverse(node, isBold, isItalic) {
             if (node.nodeType === Node.TEXT_NODE) {
-                let text = node.textContent.replace(/\s+/g, ' '); // Collapse multiple spaces
+                let text = node.textContent.replace(/[\n\r]+/g, ' '); 
                 if (text && text !== '') {
-                    runs.push(new TextRun({ text: text, bold: isBold, italics: isItalic }));
+                    rawRuns.push({ text: text, bold: isBold, italics: isItalic });
                 }
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const tag = node.tagName.toLowerCase();
                 if (tag === 'br') {
-                    runs.push(new TextRun({ text: "", break: 1 }));
-                } else if (tag === 'p' || tag === 'div') {
-                    if (runs.length > 0 && !runs[runs.length - 1].break) runs.push(new TextRun({ text: "", break: 1 }));
-                    const nextBold = isBold || tag === 'b' || tag === 'strong';
-                    const nextItalic = isItalic || tag === 'i' || tag === 'em';
-                    Array.from(node.childNodes).forEach(child => traverse(child, nextBold, nextItalic));
-                    if (runs.length > 0 && !runs[runs.length - 1].break) runs.push(new TextRun({ text: "", break: 1 }));
+                    rawRuns.push({ isBreak: true });
                 } else {
                     const nextBold = isBold || tag === 'b' || tag === 'strong';
                     const nextItalic = isItalic || tag === 'i' || tag === 'em';
@@ -96,9 +80,27 @@
         }
         Array.from(docNode.body.childNodes).forEach(child => traverse(child, defaultBold, defaultItalics));
         
-        // Trim leading and trailing breaks
-        while (runs.length > 0 && runs[runs.length - 1].text === "" && runs[runs.length - 1].break) runs.pop();
-        while (runs.length > 0 && runs[0].text === "" && runs[0].break) runs.shift();
+        // STRICT BREAK FILTER: Impossible to output more than 2 consecutive blank lines
+        const runs = [];
+        let breakCount = 0;
+        
+        for (let r of rawRuns) {
+            if (r.isBreak) {
+                breakCount++;
+                if (breakCount <= 2) {
+                    runs.push(new TextRun({ text: "", break: 1 }));
+                }
+            } else {
+                if (r.text.trim() !== '') {
+                    breakCount = 0; // Reset counter when real text is found
+                }
+                runs.push(new TextRun({ text: r.text, bold: r.bold, italics: r.italics }));
+            }
+        }
+
+        // Trim hanging breaks at the start and end of the block
+        while (runs.length > 0 && runs[runs.length - 1].break) runs.pop();
+        while (runs.length > 0 && runs[0].break) runs.shift();
         
         return runs.length > 0 ? runs : [new TextRun({ text: "" })];
     }
@@ -172,13 +174,10 @@
     const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
     
     const COL_WIDTHS_DXA = [900, 4950, 1350, 1800]; // Total 9000
-    
-    // EXTREME RIGHT ALIGNMENT FOR "FRÅN"
-    // 50% for 'Till', 22% invisible gap, 28% for 'Från' to push it far to the right edge.
-    const ADDRESS_WIDTHS_DXA = [4500, 2000, 2500]; 
+    const ADDRESS_WIDTHS_DXA = [4500, 2000, 2500]; // 50% Till, 22% gap, 28% Från
 
-    const MAX_IMG_FULL = 550; // Max width for full span image
-    const MAX_IMG_HALF = 260; // Max width for grid image
+    const MAX_IMG_FULL = 550; 
+    const MAX_IMG_HALF = 260; 
 
     async function generateWordDocument() {
         try {
@@ -221,19 +220,20 @@
                 borders: INVISIBLE_BORDERS,
                 rows: [new TableRow({
                     children: [
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })], verticalAlign: VerticalAlign.CENTER }),
+                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [cellParagraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })], verticalAlign: VerticalAlign.CENTER }),
                         new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [
-                            new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.quoteTitle || t.quoteTitle || "Offert"), size: 32, bold: true, color: "000000" })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT }),
-                            new Paragraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.quoteNumberLabel || "Nr:")} ${stripUiArtifacts(data.quote.quoteNumber || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT }),
-                            new Paragraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.dateLabel || "Datum:")} ${stripUiArtifacts(data.quote.date || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT })
+                            // Spacing Before: 0 is CRITICAL here to prevent the invisible ghost row above the logo
+                            new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.quoteTitle || t.quoteTitle || "Offert"), size: 32, bold: true, color: "000000" })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 } }),
+                            cellParagraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.quoteNumberLabel || "Nr:")} ${stripUiArtifacts(data.quote.quoteNumber || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT }),
+                            cellParagraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.dateLabel || "Datum:")} ${stripUiArtifacts(data.quote.date || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT })
                         ], verticalAlign: VerticalAlign.CENTER })
                     ]
                 })]
             }));
             docChildren.push(emptyParagraph());
 
-            // 2. Addresses (Spaced out using 3 columns to push "Från" right)
-            const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
+            // 2. Addresses (Using 'address' flag to preserve formatting)
+            const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => cellParagraph({ children: parseHtmlToRuns(l, false, false, 'address') }));
             const compA = addressLines(data.companyA);
             const compB = addressLines(data.companyB);
 
@@ -243,24 +243,24 @@
                 borders: INVISIBLE_BORDERS,
                 rows: [new TableRow({
                     children: [
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
-                        new TableCell({ children: [emptyParagraph()] }), // Large invisible spacer column
-                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
+                        new TableCell({ children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
+                        new TableCell({ children: [emptyParagraph()] }), 
+                        new TableCell({ children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
                     ]
                 })]
             }));
             docChildren.push(emptyParagraph());
 
-            // 3. Build Tables Function
+            // 3. Build Tables Function (Applying 'terms' flag for descriptions to clean mid-sentence breaks)
             const buildTable = (items, hNr, hName, hQty, hPrice, includeTotal = false) => {
                 if (!items || items.length === 0) return null;
                 const rows = [new TableRow({
                     tableHeader: true,
                     children: [
-                        new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hNr), bold: true })] })] }),
-                        new TableCell({ width: { size: 55, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hName), bold: true })] })] }),
-                        new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hQty), bold: true })], alignment: AlignmentType.CENTER })] }),
-                        new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hPrice), bold: true })], alignment: AlignmentType.RIGHT })] })
+                        new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(hNr), bold: true })] })] }),
+                        new TableCell({ width: { size: 55, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(hName), bold: true })] })] }),
+                        new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(hQty), bold: true })], alignment: AlignmentType.CENTER })] }),
+                        new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(hPrice), bold: true })], alignment: AlignmentType.RIGHT })] })
                     ]
                 })];
 
@@ -269,17 +269,16 @@
                     if (item.type === 'separator' || item.isHiddenFromPrint) return;
                     totalSum += item.targetPrice || 0;
 
-                    const descRuns = item.itemDescription ? parseHtmlToRuns(item.itemDescription) : [];
-                    const cellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(item.name || ""), bold: true })] })];
-                    if (descRuns.length > 0) cellChildren.push(new Paragraph({ children: descRuns }));
+                    const descRuns = item.itemDescription ? parseHtmlToRuns(item.itemDescription, false, false, 'terms') : [];
+                    const cellChildren = [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(item.name || ""), bold: true })] })];
+                    if (descRuns.length > 0) cellChildren.push(cellParagraph({ children: descRuns }));
 
                     rows.push(new TableRow({
                         children: [
-                            // Main items are normal text, no space
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(item.itemNumber || "") })] })] }),
+                            new TableCell({ children: [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(item.itemNumber || "") })] })] }),
                             new TableCell({ children: cellChildren }),
-                            new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.quantity), alignment: AlignmentType.CENTER })] }),
-                            new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.targetPrice, true, item.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
+                            new TableCell({ children: [cellParagraph({ text: formatNumberHidingZero(item.quantity), alignment: AlignmentType.CENTER })] }),
+                            new TableCell({ children: [cellParagraph({ text: formatNumberHidingZero(item.targetPrice, true, item.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
                         ]
                     }));
 
@@ -287,18 +286,17 @@
                         item.subItems.forEach(sub => {
                             if (sub.isHiddenFromPrint) return;
                             if (!sub.isPriceBakedIn) totalSum += sub.subItemTargetPrice || 0;
-                            const subDescRuns = sub.subItemDescription ? parseHtmlToRuns(sub.subItemDescription) : [];
+                            const subDescRuns = sub.subItemDescription ? parseHtmlToRuns(sub.subItemDescription, false, false, 'terms') : [];
                             
-                            const subCellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(sub.subItemName || ""), bold: true })] })];
-                            if (subDescRuns.length > 0) subCellChildren.push(new Paragraph({ children: subDescRuns }));
+                            const subCellChildren = [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(sub.subItemName || ""), bold: true })] })];
+                            if (subDescRuns.length > 0) subCellChildren.push(cellParagraph({ children: subDescRuns }));
 
                             rows.push(new TableRow({
                                 children: [
-                                    // Sub-items get a space and italics
-                                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(sub.subItemNumber || "")}`, italics: true })] })] }),
+                                    new TableCell({ children: [cellParagraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(sub.subItemNumber || "")}`, italics: true })] })] }),
                                     new TableCell({ children: subCellChildren }),
-                                    new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(sub.subItemQuantity), alignment: AlignmentType.CENTER })] }),
-                                    new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(sub.subItemTargetPrice, true, sub.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
+                                    new TableCell({ children: [cellParagraph({ text: formatNumberHidingZero(sub.subItemQuantity), alignment: AlignmentType.CENTER })] }),
+                                    new TableCell({ children: [cellParagraph({ text: formatNumberHidingZero(sub.subItemTargetPrice, true, sub.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
                                 ]
                             }));
                         });
@@ -310,10 +308,10 @@
                     const totLabel = stripUiArtifacts(labels.totalLabel || t.totalLabel || "Total:");
                     rows.push(new TableRow({
                         children: [
-                            new TableCell({ children: [new Paragraph("")] }),
-                            new TableCell({ children: [new Paragraph("")] }),
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: totLabel, bold: true })], alignment: AlignmentType.RIGHT })] }),
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${formatNumberHidingZero(totalSum, true)} ${currencyLabel}`, bold: true })], alignment: AlignmentType.RIGHT })] })
+                            new TableCell({ children: [cellParagraph({text: ""})] }),
+                            new TableCell({ children: [cellParagraph({text: ""})] }),
+                            new TableCell({ children: [cellParagraph({ children: [new TextRun({ text: totLabel, bold: true })], alignment: AlignmentType.RIGHT })] }),
+                            new TableCell({ children: [cellParagraph({ children: [new TextRun({ text: `${formatNumberHidingZero(totalSum, true)} ${currencyLabel}`, bold: true })], alignment: AlignmentType.RIGHT })] })
                         ]
                     }));
                 }
@@ -426,7 +424,8 @@
                             infoImagesBlock.push(new Paragraph({ pageBreakBefore: true }));
                         } else if (infoItem.type === 'text') {
                             let alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
-                            infoImagesBlock.push(new Paragraph({ children: parseHtmlToRuns(infoItem.content), alignment: alignment }));
+                            // Using standard Paragraph so spacing is natural for text sections
+                            infoImagesBlock.push(new Paragraph({ children: parseHtmlToRuns(infoItem.content, false, false, 'general'), alignment: alignment }));
                             infoImagesBlock.push(emptyParagraph());
                         } else if (infoItem.type === 'table') {
                             const tRows = [];
@@ -434,7 +433,7 @@
                                 const cells = [];
                                 for (let c = 0; c < infoItem.cols; c++) {
                                     const cellData = (infoItem.data && infoItem.data[r]) ? infoItem.data[r][c] : "";
-                                    cells.push(new TableCell({ children: [new Paragraph({ children: parseHtmlToRuns(cellData) })] }));
+                                    cells.push(new TableCell({ children: [cellParagraph({ children: parseHtmlToRuns(cellData, false, false, 'general') })] }));
                                 }
                                 tRows.push(new TableRow({ children: cells }));
                             }
@@ -451,7 +450,8 @@
                 termsBlock.push(emptyParagraph());
                 termsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.termsHeading || t.termsHeading || "Villkor"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
                 data.terms.forEach(term => {
-                    termsBlock.push(new Paragraph({ children: parseHtmlToRuns(term) }));
+                    // Terms use natural paragraphs, but we pass 'terms' to strip mid-sentence breaks
+                    termsBlock.push(new Paragraph({ children: parseHtmlToRuns(term, false, false, 'terms') }));
                 });
             }
 
