@@ -13,7 +13,7 @@
     const { 
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
         ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
-        HeadingLevel, ShadingType 
+        HeadingLevel 
     } = docx;
 
     // --- 2. Robust Helpers ---
@@ -39,10 +39,9 @@
     function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
         if (!htmlStr) return [new TextRun({ text: "", italics: defaultItalics, bold: defaultBold })];
         
-        // Normalize line breaks for the DOM parser
         const cleanHtml = String(htmlStr).replace(/<br\s*\/?>/gi, '\n');
         const parser = new DOMParser();
-        const doc = parser.parseFromString(cleanHtml, 'text/html');
+        const docNode = parser.parseFromString(cleanHtml, 'text/html');
         const runs = [];
 
         function traverse(node, isBold, isItalic) {
@@ -52,32 +51,27 @@
                 
                 const lines = text.split('\n');
                 lines.forEach((line, index) => {
-                    if (line !== "" || index < lines.length - 1) {
-                        runs.push(new TextRun({
-                            text: line,
-                            bold: isBold,
-                            italics: isItalic,
-                            break: index > 0 ? 1 : 0
-                        }));
-                    }
+                    const runOpts = { text: line, bold: isBold, italics: isItalic };
+                    if (index > 0) runOpts.break = 1; // Strict docx v8 API
+                    runs.push(new TextRun(runOpts));
                 });
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const tag = node.tagName.toLowerCase();
                 const nextBold = isBold || tag === 'b' || tag === 'strong';
                 const nextItalic = isItalic || tag === 'i' || tag === 'em';
-                node.childNodes.forEach(child => traverse(child, nextBold, nextItalic));
+                Array.from(node.childNodes).forEach(child => traverse(child, nextBold, nextItalic));
             }
         }
 
-        doc.body.childNodes.forEach(child => traverse(child, defaultBold, defaultItalics));
+        Array.from(docNode.body.childNodes).forEach(child => traverse(child, defaultBold, defaultItalics));
         return runs.length > 0 ? runs : [new TextRun({ text: "", italics: defaultItalics, bold: defaultBold })];
     }
 
-    // Get image dimensions safely with a timeout to prevent infinite hangs
+    // Get image dimensions safely with a timeout
     async function getImageDimensions(dataUrl) {
         return new Promise(resolve => {
             const img = new Image();
-            const timeout = setTimeout(() => resolve({ width: 200, height: 200 }), 3000); // 3 sec timeout
+            const timeout = setTimeout(() => resolve({ width: 200, height: 200 }), 3000); 
             
             img.onload = () => {
                 clearTimeout(timeout);
@@ -85,55 +79,81 @@
             };
             img.onerror = () => {
                 clearTimeout(timeout);
-                resolve({ width: 200, height: 200 }); // Safe fallback
+                resolve({ width: 200, height: 200 }); 
             };
             img.src = dataUrl;
         });
     }
 
+    // Caesar Shift Decrypt for LocalStorage Rescue
+    function decryptCaesar(text, shift) {
+        const mangleMap = {
+            '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135,
+            'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145,
+            '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '˜': 152,
+            '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159
+        };
+        return text.split('').map(char => {
+            let code = char.charCodeAt(0);
+            if (mangleMap[char] !== undefined) code = mangleMap[char];
+            return String.fromCharCode(code - shift);
+        }).join('');
+    }
+
     // Formatting Constants
     const INVISIBLE_BORDERS = {
-        top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
+        top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
     };
 
     const LIGHT_BORDER = { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" };
     const TABLE_BORDERS = {
         top: LIGHT_BORDER, bottom: LIGHT_BORDER, 
         insideHorizontal: LIGHT_BORDER,
-        left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
+        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
     };
 
-    // Strict Column Proportions (Total 100%) - Uses strings in v8 docx!
     const COL_WIDTHS = [
-        { size: "10%", type: WidthType.PERCENTAGE }, // Number
-        { size: "55%", type: WidthType.PERCENTAGE }, // Name & Description
-        { size: "15%", type: WidthType.PERCENTAGE }, // Quantity
-        { size: "20%", type: WidthType.PERCENTAGE }  // Price
+        { size: "10%", type: WidthType.PERCENTAGE },
+        { size: "55%", type: WidthType.PERCENTAGE },
+        { size: "15%", type: WidthType.PERCENTAGE },
+        { size: "20%", type: WidthType.PERCENTAGE } 
     ];
 
     // --- 3. Main Document Generator ---
 
     async function generateWordDocument() {
-        // Safely pull from global scope regardless of 'let' vs 'var' or 'window' attachment
-        const data = typeof jsonData !== 'undefined' ? jsonData : null;
+        // Bulletproof scope retrieval 
+        let data = typeof window !== 'undefined' && window.jsonData ? window.jsonData : (typeof jsonData !== 'undefined' ? jsonData : null);
+        
+        // Failsafe: Rescue from LocalStorage if JS scope is detached
+        if (!data || !data.quote) {
+            try {
+                const localData = localStorage.getItem('quoteData');
+                if (localData) data = JSON.parse(decryptCaesar(localData, 17));
+            } catch (e) {
+                console.warn("Could not rescue data from localStorage.", e);
+            }
+        }
+
         if (!data || !data.quote) {
             alert("Export misslyckades: Offertdatan saknas eller är korrupt.");
             return;
         }
 
-        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : 'sv';
+        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (data.quote.language || 'sv');
         const t = (typeof translations !== 'undefined' && translations[lang]) || {};
         const labels = data.quote?.labels || {};
         const visibility = data.quote?.visibility || { optional: true, info: true, terms: true };
         
         const docChildren = [];
+        const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
 
         // --- Header Layout (Logo & Metadata) ---
         const logoData = localStorage.getItem('companyLogo');
@@ -143,13 +163,14 @@
             try {
                 const dims = await getImageDimensions(logoData);
                 const targetWidth = data.quote?.defaultLogoWidth || 200;
-                const targetHeight = (targetWidth / dims.width) * dims.height;
+                // Strictly round integers to prevent XML crash
+                const targetHeight = Math.round((targetWidth / (dims.width || 1)) * (dims.height || targetWidth));
                 const buffer = base64ToArrayBuffer(logoData);
                 
                 if (buffer.byteLength > 0) {
                     logoRuns.push(new ImageRun({
                         data: buffer,
-                        transformation: { width: targetWidth, height: targetHeight }
+                        transformation: { width: Math.round(targetWidth), height: targetHeight }
                     }));
                 }
             } catch (e) { console.warn("Could not embed logo.", e); }
@@ -163,14 +184,14 @@
                     children: [
                         new TableCell({
                             width: { size: "50%", type: WidthType.PERCENTAGE },
-                            children: [new Paragraph({ children: logoRuns })],
+                            children: [new Paragraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })],
                             verticalAlign: VerticalAlign.CENTER
                         }),
                         new TableCell({
                             width: { size: "50%", type: WidthType.PERCENTAGE },
                             children: [
                                 new Paragraph({
-                                    text: labels.quoteTitle || t.quoteTitle || "Quote",
+                                    children: [new TextRun({ text: labels.quoteTitle || t.quoteTitle || "Quote", size: 32, bold: true })],
                                     heading: HeadingLevel.HEADING_1,
                                     alignment: AlignmentType.RIGHT
                                 }),
@@ -196,13 +217,13 @@
             ]
         });
         docChildren.push(headerTable);
-        docChildren.push(new Paragraph({ text: "" })); // Spacing
+        docChildren.push(emptyParagraph()); // Spacing
 
         // --- Addresses Layout (To & From) ---
         const formatAddressLines = (companyData) => {
-            if (!companyData || typeof companyData !== 'object') return [new Paragraph({ text: "" })];
+            if (!companyData || typeof companyData !== 'object') return [emptyParagraph()];
             const lines = Object.values(companyData).filter(val => val && String(val).trim() !== "");
-            if (lines.length === 0) return [new Paragraph({ text: "" })];
+            if (lines.length === 0) return [emptyParagraph()];
             return lines.map(line => new Paragraph({ children: parseHtmlToRuns(line) }));
         };
 
@@ -225,7 +246,7 @@
             ]
         });
         docChildren.push(addressTable);
-        docChildren.push(new Paragraph({ text: "" })); 
+        docChildren.push(emptyParagraph()); 
 
         // Reference Line
         if (data.quote?.reference) {
@@ -248,24 +269,32 @@
             if (!Array.isArray(itemsArray) || itemsArray.length === 0) return null;
             const rows = [];
             
-            // Header configuration correctly utilizing TextRuns for boldness and specific Alignments
             rows.push(new TableRow({
                 tableHeader: true,
                 children: [
-                    new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optNrHeader : labels.nrHeader) || t.nrHeader || "Nr", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                    new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optArticleHeader : labels.articleNameHeader) || t.articleNameHeader || "Name", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                    new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optQuantityHeader : labels.quantityHeader) || t.quantityHeader || "Qty", bold: true })], alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                    new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optPriceHeader : labels.priceHeader) || t.priceHeader || "Price", bold: true })], alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 } })
+                    new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optNrHeader : labels.nrHeader) || t.nrHeader || "Nr", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
+                    new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optArticleHeader : labels.articleNameHeader) || t.articleNameHeader || "Name", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
+                    new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optQuantityHeader : labels.quantityHeader) || t.quantityHeader || "Qty", bold: true })], alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
+                    new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optPriceHeader : labels.priceHeader) || t.priceHeader || "Price", bold: true })], alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 } })
                 ]
             }));
 
             let addedVisibleItem = false;
 
             itemsArray.forEach(item => {
-                if (!item || item.isHiddenFromPrint || item.type === 'separator') return;
+                if (!item || item.isHiddenFromPrint) return;
+
+                if (item.type === 'separator') {
+                    rows.push(new TableRow({
+                        children: [
+                            new TableCell({ children: [emptyParagraph()], columnSpan: 4, borders: { top: { style: BorderStyle.DASHED, size: 1, color: "999999" }, bottom: { style: BorderStyle.NONE, size: 0, color: "auto" }, left: { style: BorderStyle.NONE, size: 0, color: "auto" }, right: { style: BorderStyle.NONE, size: 0, color: "auto" } } })
+                        ]
+                    }));
+                    return;
+                }
+
                 addedVisibleItem = true;
 
-                // Main Item Paragraphs
                 const itemCellChildren = [new Paragraph({ children: [new TextRun({ text: item.name || "", bold: true })] })];
                 if (item.itemDescription) {
                     itemCellChildren.push(new Paragraph({ children: parseHtmlToRuns(item.itemDescription) }));
@@ -275,14 +304,13 @@
 
                 rows.push(new TableRow({
                     children: [
-                        new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ text: String(item.itemNumber || "") })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
+                        new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ children: [new TextRun({ text: String(item.itemNumber || "") })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                         new TableCell({ width: COL_WIDTHS[1], children: itemCellChildren, margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                        new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ text: String(item.quantity || 0), alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                        new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ text: priceStr, alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
+                        new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ children: [new TextRun({ text: String(item.quantity || 0) })], alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
+                        new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ children: [new TextRun({ text: priceStr })], alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
                     ]
                 }));
 
-                // SubItems
                 (item.subItems || []).forEach(subItem => {
                     if (!subItem || subItem.isHiddenFromPrint) return;
 
@@ -295,17 +323,22 @@
 
                     rows.push(new TableRow({
                         children: [
-                            new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ text: String(subItem.subItemNumber || "") })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
+                            new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ children: [new TextRun({ text: String(subItem.subItemNumber || "") })] })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                             new TableCell({ width: COL_WIDTHS[1], children: subCellChildren, margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                            new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ text: String(subItem.subItemQuantity || 0), alignment: AlignmentType.CENTER })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
-                            new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ text: subPriceStr, alignment: AlignmentType.RIGHT })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
+                            new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ children: [new TextRun({ text: String(subItem.subItemQuantity || 0) })], alignment: AlignmentType.CENTER })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
+                            new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ children: [new TextRun({ text: subPriceStr })], alignment: AlignmentType.RIGHT })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
                         ]
                     }));
                 });
             });
 
             if (!addedVisibleItem) return null;
-            return new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows: rows });
+            return new Table({ 
+                width: { size: "100%", type: WidthType.PERCENTAGE }, 
+                columnWidths: [1000, 5500, 1500, 2000], // Hardware DXA proportional backups
+                borders: TABLE_BORDERS, 
+                rows: rows 
+            });
         };
 
         // --- Main Items & Totals ---
@@ -327,14 +360,14 @@
             const currency = data.quote?.useCustomCurrency ? (data.quote?.customCurrency || "SEK") : "SEK";
             docChildren.push(new Paragraph({
                 children: [
-                    new TextRun({ text: `${labels.totalLabel || t.totalLabel || "Total:"} `, bold: true, size: 28 }), // Size 28 = 14pt
+                    new TextRun({ text: `${labels.totalLabel || t.totalLabel || "Total:"} `, bold: true, size: 28 }),
                     new TextRun({ text: `${safeFormatPrice(total)} ${currency}`, bold: true, size: 28 })
                 ],
                 alignment: AlignmentType.RIGHT,
                 spacing: { before: 200, after: 400 }
             }));
         } else {
-            docChildren.push(new Paragraph({ text: "", spacing: { after: 200 } })); 
+            docChildren.push(new Paragraph({ children: [new TextRun("")] , spacing: { after: 200 } })); 
         }
 
         // --- Optional Items ---
@@ -342,19 +375,19 @@
             const optTable = buildItemTable(data.optionalItems, true);
             if (optTable) {
                 docChildren.push(new Paragraph({
-                    text: labels.optionalItemsHeading || t.optionalItemsHeading || "Optional",
+                    children: [new TextRun({ text: labels.optionalItemsHeading || t.optionalItemsHeading || "Optional", size: 28, bold: true })],
                     heading: HeadingLevel.HEADING_2,
                     spacing: { before: 400, after: 100 }
                 }));
                 docChildren.push(optTable);
-                docChildren.push(new Paragraph({ text: "" }));
+                docChildren.push(emptyParagraph());
             }
         }
 
         // --- Info & Images ---
         if (visibility.info && Array.isArray(data.infoImages) && data.infoImages.length > 0) {
             docChildren.push(new Paragraph({
-                text: labels.infoImagesHeading || t.infoImagesHeading || "Info/Images",
+                children: [new TextRun({ text: labels.infoImagesHeading || t.infoImagesHeading || "Info/Images", size: 28, bold: true })],
                 heading: HeadingLevel.HEADING_2,
                 spacing: { before: 400, after: 100 }
             }));
@@ -369,6 +402,23 @@
                         alignment: align,
                         spacing: { after: 200 }
                     }));
+                } else if (info.type === 'table') {
+                    const tableRows = [];
+                    for (let r = 0; r < info.rows; r++) {
+                        const cells = [];
+                        for (let c = 0; c < info.cols; c++) {
+                            const cellText = info.data && info.data[r] ? info.data[r][c] || "" : "";
+                            cells.push(new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: cellText })] })],
+                                margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                            }));
+                        }
+                        tableRows.push(new TableRow({ children: cells }));
+                    }
+                    docChildren.push(new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows: tableRows }));
+                    docChildren.push(emptyParagraph());
+                } else if (info.type === 'page-break') {
+                    docChildren.push(new Paragraph({ children: [new TextRun("")], pageBreakBefore: true }));
                 } else if (info.type === 'image' && info.src) {
                     try {
                         const dims = await getImageDimensions(info.src);
@@ -378,10 +428,10 @@
                             let w = info.width || dims.width;
                             const maxA4Width = 600; 
                             if (w > maxA4Width) w = maxA4Width;
-                            const h = (w / dims.width) * dims.height;
+                            const h = Math.round((w / (dims.width || 1)) * (dims.height || w));
 
                             docChildren.push(new Paragraph({
-                                children: [new ImageRun({ data: buffer, transformation: { width: w, height: h } })],
+                                children: [new ImageRun({ data: buffer, transformation: { width: Math.round(w), height: h } })],
                                 alignment: align,
                                 spacing: { after: 200 }
                             }));
@@ -394,7 +444,7 @@
         // --- Terms & Conditions ---
         if (visibility.terms && Array.isArray(data.terms) && data.terms.length > 0) {
             docChildren.push(new Paragraph({
-                text: labels.termsHeading || t.termsHeading || "Terms",
+                children: [new TextRun({ text: labels.termsHeading || t.termsHeading || "Terms", size: 28, bold: true })],
                 heading: HeadingLevel.HEADING_2,
                 spacing: { before: 400, after: 100 }
             }));
@@ -409,6 +459,43 @@
             });
         }
 
+        // --- Signatures ---
+        if (data.quote?.showSignature && data.signature) {
+            docChildren.push(emptyParagraph());
+            docChildren.push(emptyParagraph());
+            
+            const sig = data.signature;
+            const dateStr = `${t.signatureDateLabel || "Datum"}: ${sig.date || ""}`;
+
+            docChildren.push(new Paragraph({ children: [new TextRun({ text: dateStr })], spacing: { after: 400 } }));
+
+            docChildren.push(new Table({
+                width: { size: "100%", type: WidthType.PERCENTAGE },
+                borders: INVISIBLE_BORDERS,
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({
+                                width: { size: "45%", type: WidthType.PERCENTAGE },
+                                children: [
+                                    new Paragraph({ children: [new TextRun({ text: sig.lessorLine || "______________________" })] }),
+                                    new Paragraph({ children: [new TextRun({ text: sig.lessorText || "Uthyrare" })] })
+                                ]
+                            }),
+                            new TableCell({ width: { size: "10%", type: WidthType.PERCENTAGE }, children: [emptyParagraph()] }),
+                            new TableCell({
+                                width: { size: "45%", type: WidthType.PERCENTAGE },
+                                children: [
+                                    new Paragraph({ children: [new TextRun({ text: sig.lesseeLine || "______________________" })] }),
+                                    new Paragraph({ children: [new TextRun({ text: sig.lesseeText || "Hyrestagare" })] })
+                                ]
+                            })
+                        ]
+                    })
+                ]
+            }));
+        }
+
         // --- Packaging and Download ---
         try {
             const doc = new Document({
@@ -416,7 +503,7 @@
                 sections: [{
                     properties: {
                         page: {
-                            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } // 1 inch margins
+                            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } 
                         }
                     },
                     children: docChildren
@@ -436,7 +523,6 @@
             if (typeof saveAs === 'function') {
                 saveAs(blob, exportName);
             } else {
-                // Fallback if FileSaver.js failed to load
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -448,21 +534,20 @@
             }
         } catch (err) {
             console.error("Critical error during document packaging:", err);
-            alert("Ett fel inträffade vid skapandet av Word-filen. Kolla konsolen för detaljer.");
+            alert("Ett fel inträffade vid skapandet av Word-filen. Detaljer: " + err.message);
         }
     }
 
     // --- 4. Event Binding ---
-    // Make absolutely sure it binds correctly regardless of JS loading sequence
     function attachExportButton() {
         const btn = document.getElementById('exportWordBtn');
         if (btn) {
-            btn.removeEventListener('click', generateWordDocument); // Prevent duplicates
+            btn.removeEventListener('click', generateWordDocument); 
             btn.addEventListener('click', generateWordDocument);
         }
     }
 
-    attachExportButton(); // Run immediately for deferred scripts
+    attachExportButton(); 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', attachExportButton);
     }
