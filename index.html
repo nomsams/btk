@@ -712,6 +712,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <button class="footer-button" onclick="document.getElementById('fileInput').click()">Ladda JSON</button>
     <button id="loadFromClipboardBtn" class="footer-button">Klistra in JSON (Urklipp)</button>
     <button id="saveJson" class="footer-button">Spara JSON</button>
+    <button id="exportWordBtn" class="footer-button" style="background-color: #2b579a; color: white;">Spara som Word (.docx)</button>
     <button id="copyJsonBtn" class="footer-button">Kopiera JSON (text)</button>
     <button class="footer-button" id="uploadPdfBtn">Ladda PDF-offert</button>
     <input type="file" id="pdfUploadInput" accept=".pdf" style="display:none;" />
@@ -740,7 +741,11 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <!-- Pako for Decompression -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-
+<!-- For generating DOCX document from the HTML witht the exportWordBtn button -->
+<script src="https://unpkg.com/docx@8.2.3/build/index.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="wordify.js" defer></script>
+    
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 </script>
