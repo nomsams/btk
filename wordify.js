@@ -110,25 +110,26 @@
         insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
     };
 
-    // Strict Column Proportions for the main items table (Total 100%)
+    // Strict Column Proportions (Total 100%) - Uses strings in v8 docx!
     const COL_WIDTHS = [
-        { size: 10, type: WidthType.PERCENTAGE }, // Number
-        { size: 55, type: WidthType.PERCENTAGE }, // Name & Description
-        { size: 15, type: WidthType.PERCENTAGE }, // Quantity
-        { size: 20, type: WidthType.PERCENTAGE }  // Price
+        { size: "10%", type: WidthType.PERCENTAGE }, // Number
+        { size: "55%", type: WidthType.PERCENTAGE }, // Name & Description
+        { size: "15%", type: WidthType.PERCENTAGE }, // Quantity
+        { size: "20%", type: WidthType.PERCENTAGE }  // Price
     ];
 
     // --- 3. Main Document Generator ---
 
     async function generateWordDocument() {
-        if (!window.jsonData || !window.jsonData.quote) {
-            alert("Export failed: Quote data is missing or corrupted.");
+        // Safely pull from global scope regardless of 'let' vs 'var' or 'window' attachment
+        const data = typeof jsonData !== 'undefined' ? jsonData : null;
+        if (!data || !data.quote) {
+            alert("Export misslyckades: Offertdatan saknas eller är korrupt.");
             return;
         }
 
-        const data = window.jsonData;
-        const lang = window.currentLanguage || 'en';
-        const t = (window.translations && window.translations[lang]) || {};
+        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : 'sv';
+        const t = (typeof translations !== 'undefined' && translations[lang]) || {};
         const labels = data.quote?.labels || {};
         const visibility = data.quote?.visibility || { optional: true, info: true, terms: true };
         
@@ -155,18 +156,18 @@
         }
 
         const headerTable = new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: "100%", type: WidthType.PERCENTAGE },
             borders: INVISIBLE_BORDERS,
             rows: [
                 new TableRow({
                     children: [
                         new TableCell({
-                            width: { size: 50, type: WidthType.PERCENTAGE },
+                            width: { size: "50%", type: WidthType.PERCENTAGE },
                             children: [new Paragraph({ children: logoRuns })],
                             verticalAlign: VerticalAlign.CENTER
                         }),
                         new TableCell({
-                            width: { size: 50, type: WidthType.PERCENTAGE },
+                            width: { size: "50%", type: WidthType.PERCENTAGE },
                             children: [
                                 new Paragraph({
                                     text: labels.quoteTitle || t.quoteTitle || "Quote",
@@ -212,13 +213,13 @@
         fromChildren.push(...formatAddressLines(data.companyB));
 
         const addressTable = new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: "100%", type: WidthType.PERCENTAGE },
             borders: INVISIBLE_BORDERS,
             rows: [
                 new TableRow({
                     children: [
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: toChildren }),
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: fromChildren })
+                        new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: toChildren }),
+                        new TableCell({ width: { size: "50%", type: WidthType.PERCENTAGE }, children: fromChildren })
                     ]
                 })
             ]
@@ -240,24 +241,23 @@
         // --- Unified Table Builder Logic ---
         const safeFormatPrice = (val) => {
             if (val === undefined || val === null) return "0";
-            return typeof window.formatPrice === 'function' ? window.formatPrice(val) : String(val);
+            return typeof formatPrice === 'function' ? formatPrice(val) : String(val);
         };
 
-        const buildItemTable = (itemsArray, showHeader = true) => {
+        const buildItemTable = (itemsArray, isOptional = false) => {
             if (!Array.isArray(itemsArray) || itemsArray.length === 0) return null;
             const rows = [];
             
-            if (showHeader) {
-                rows.push(new TableRow({
-                    tableHeader: true,
-                    children: [
-                        new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ text: labels.nrHeader || t.nrHeader || "Nr", bold: true })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                        new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ text: labels.articleNameHeader || t.articleNameHeader || "Name", bold: true })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                        new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ text: labels.quantityHeader || t.quantityHeader || "Qty", bold: true, alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
-                        new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ text: labels.priceHeader || t.priceHeader || "Price", bold: true, alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 } })
-                    ]
-                }));
-            }
+            // Header configuration correctly utilizing TextRuns for boldness and specific Alignments
+            rows.push(new TableRow({
+                tableHeader: true,
+                children: [
+                    new TableCell({ width: COL_WIDTHS[0], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optNrHeader : labels.nrHeader) || t.nrHeader || "Nr", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
+                    new TableCell({ width: COL_WIDTHS[1], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optArticleHeader : labels.articleNameHeader) || t.articleNameHeader || "Name", bold: true })] })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
+                    new TableCell({ width: COL_WIDTHS[2], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optQuantityHeader : labels.quantityHeader) || t.quantityHeader || "Qty", bold: true })], alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 } }),
+                    new TableCell({ width: COL_WIDTHS[3], shading: { fill: "F5F5F5", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: (isOptional ? labels.optPriceHeader : labels.priceHeader) || t.priceHeader || "Price", bold: true })], alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 } })
+                ]
+            }));
 
             let addedVisibleItem = false;
 
@@ -275,7 +275,7 @@
 
                 rows.push(new TableRow({
                     children: [
-                        new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph(item.itemNumber || "")], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
+                        new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ text: String(item.itemNumber || "") })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                         new TableCell({ width: COL_WIDTHS[1], children: itemCellChildren, margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                         new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ text: String(item.quantity || 0), alignment: AlignmentType.CENTER })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                         new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ text: priceStr, alignment: AlignmentType.RIGHT })], margins: { top: 100, bottom: 100, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
@@ -286,7 +286,6 @@
                 (item.subItems || []).forEach(subItem => {
                     if (!subItem || subItem.isHiddenFromPrint) return;
 
-                    // Indent Sub-items for visual hierarchy
                     const subCellChildren = [new Paragraph({ children: [new TextRun({ text: subItem.subItemName || "", bold: true, italics: true })], indent: { left: 360 } })];
                     if (subItem.subItemDescription) {
                         subCellChildren.push(new Paragraph({ children: parseHtmlToRuns(subItem.subItemDescription, true), indent: { left: 360 } }));
@@ -296,7 +295,7 @@
 
                     rows.push(new TableRow({
                         children: [
-                            new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph(subItem.subItemNumber || "")], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
+                            new TableCell({ width: COL_WIDTHS[0], children: [new Paragraph({ text: String(subItem.subItemNumber || "") })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                             new TableCell({ width: COL_WIDTHS[1], children: subCellChildren, margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                             new TableCell({ width: COL_WIDTHS[2], children: [new Paragraph({ text: String(subItem.subItemQuantity || 0), alignment: AlignmentType.CENTER })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP }),
                             new TableCell({ width: COL_WIDTHS[3], children: [new Paragraph({ text: subPriceStr, alignment: AlignmentType.RIGHT })], margins: { top: 60, bottom: 60, left: 100, right: 100 }, verticalAlign: VerticalAlign.TOP })
@@ -306,12 +305,11 @@
             });
 
             if (!addedVisibleItem) return null;
-
-            return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows: rows });
+            return new Table({ width: { size: "100%", type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS, rows: rows });
         };
 
         // --- Main Items & Totals ---
-        const mainTable = buildItemTable(data.items, true);
+        const mainTable = buildItemTable(data.items, false);
         if (mainTable) docChildren.push(mainTable);
 
         if (data.quote?.removeTotal !== true) {
@@ -450,17 +448,23 @@
             }
         } catch (err) {
             console.error("Critical error during document packaging:", err);
-            alert("Failed to package Word document. See console for details.");
+            alert("Ett fel inträffade vid skapandet av Word-filen. Kolla konsolen för detaljer.");
         }
     }
 
-    // Attach to button
-    document.addEventListener('DOMContentLoaded', () => {
+    // --- 4. Event Binding ---
+    // Make absolutely sure it binds correctly regardless of JS loading sequence
+    function attachExportButton() {
         const btn = document.getElementById('exportWordBtn');
-        if (btn) btn.addEventListener('click', generateWordDocument);
-    });
+        if (btn) {
+            btn.removeEventListener('click', generateWordDocument); // Prevent duplicates
+            btn.addEventListener('click', generateWordDocument);
+        }
+    }
 
-    // Expose globally just in case manual trigger is needed
-    window.generateWordDocument = generateWordDocument;
-
+    attachExportButton(); // Run immediately for deferred scripts
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachExportButton);
+    }
+    
 })();
