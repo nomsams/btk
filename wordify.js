@@ -1,455 +1,975 @@
 /**
- * wordify.js - Ultimate Robust Version
- * Includes: Black Headers, Translation Support, Smart Image Collage, 
- * Contextual Page Breaks, and complete Layout Fixes.
+ * wordify.js
+ * Comprehensive production-ready export functionality for generating DOCX documents.
+ * Includes advanced layout, robust styling, smart image processing, and translation support.
  */
 
-(function () {
+// Production script wrapper to avoid global namespace pollution
+(function() {
     const TAG = "[Wordify]";
-    console.log(`${TAG} 🚀 Script loaded and executing...`);
+    console.log(`${TAG} script executing...`);
 
+    // --- Safety Check: Ensure 'docx' library is loaded ---
     if (typeof docx === 'undefined') {
-        console.error(`${TAG} ❌ ERROR: docx library not found. Ensure you are using index.umd.js in index.html.`);
+        console.error(`${TAG} docx library not found. Export functionality will be disabled.`);
         return;
     }
 
-    const { 
-        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
-        ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
-        HeadingLevel 
+    // --- Core Library Imports (destructuring for cleaner code) ---
+    const {
+        Document,
+        Packer,
+        Paragraph,
+        TextRun,
+        Table,
+        TableRow,
+        TableCell,
+        ImageRun,
+        WidthType,
+        BorderStyle,
+        AlignmentType,
+        VerticalAlign,
+        HeadingLevel,
+        Footer
     } = docx;
 
-    // --- Utility: Clean UI Artifacts ---
-    function stripUiArtifacts(htmlStr) {
-        if (!htmlStr) return "";
-        return String(htmlStr)
-            .replace(/✖/g, '')
-            .replace(/👨‍🍳/g, '')
-            .replace(/📝/g, '')
-            .replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '')
-            .replace(/<br\s*\/?>/gi, '\n')
+    // --- Helper Function: Generic Clean up of UI artifacts from HTML text ---
+    // Improvement: Treat "● " as a robust signal for a new line.
+    function cleanUiArtifacts(htmlStr) {
+        if (!htmlStr) return '';
+        return htmlStr
+            .replace(/✖/g, '') // Remove remove button artifact
+            .replace(/📝/g, '') // Remove edit icon
+            .replace(/👨‍🍳/g, '') // Remove cooking icon for baked prices
+            .replace(/<span[^>]*>.*?<\/span>/gi, '') // Remove UI spans
+            .replace(/● /g, '\n● ') // Treat bullet points generically as newline signals.
+            .replace(/<br\s*\/?>/gi, '\n') // Standardize line breaks
             .trim();
     }
 
-    // --- Utility: Parse HTML to Word Runs ---
-    function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
-        const cleanHtml = stripUiArtifacts(htmlStr);
-        if (!cleanHtml) return [new TextRun({ text: "" })];
-        
-        const parser = new DOMParser();
-        const docNode = parser.parseFromString(cleanHtml, 'text/html');
-        const runs = [];
-
-        function traverse(node, isBold, isItalic) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent;
-                if (!text) return;
-                const lines = text.split('\n');
-                lines.forEach((line, index) => {
-                    const runOpts = { text: line, bold: isBold, italics: isItalic };
-                    if (index > 0) runOpts.break = 1;
-                    runs.push(new TextRun(runOpts));
-                });
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-                const tag = node.tagName.toLowerCase();
-                const nextBold = isBold || tag === 'b' || tag === 'strong';
-                const nextItalic = isItalic || tag === 'i' || tag === 'em';
-                Array.from(node.childNodes).forEach(child => traverse(child, nextBold, nextItalic));
-            }
-        }
-        Array.from(docNode.body.childNodes).forEach(child => traverse(child, defaultBold, defaultItalics));
-        return runs.length > 0 ? runs : [new TextRun({ text: "" })];
-    }
-
-    // --- Utility: Image Dimension Loader ---
-    async function getImageDimensions(src) {
-        return new Promise(resolve => {
-            const img = new Image();
-            const timeout = setTimeout(() => resolve({ width: 200, height: 200 }), 3000); 
-            img.onload = () => { clearTimeout(timeout); resolve({ width: img.width || 200, height: img.height || 200 }); };
-            img.onerror = () => { clearTimeout(timeout); resolve({ width: 200, height: 200 }); };
-            img.src = src;
-        });
-    }
-
-    // --- Utility: Universal Image Fetcher (Handles Base64 AND standard URLs) ---
+    // --- Helper Function: Get ImageData as robust raw Uint8Array ---
     async function getDocxImageData(src) {
         if (!src) return null;
         try {
-            let uint8, mime = 'png', dimensions;
-
+            // Handle Base64 Data URIs directly
             if (src.startsWith('data:image')) {
                 const parts = src.split(',');
-                const match = parts[0].match(/data:image\/(png|jpeg|jpg|gif|bmp)/i);
-                mime = match ? match[1].toLowerCase().replace('jpg', 'jpeg') : 'png';
+                const match = parts[0].match(/data:image\/(png|jpeg|jpg|gif)/);
+                const ext = match ? match[1].replace('jpeg', 'jpg') : 'png';
                 const binary = window.atob(parts[1]);
-                uint8 = new Uint8Array(binary.length);
-                for(let i = 0; i < binary.length; i++) uint8[i] = binary.charCodeAt(i);
-                dimensions = await getImageDimensions(src);
+                const uint8 = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    uint8[i] = binary.charCodeAt(i);
+                }
+                // Pre-load in memory-DOM to get original dimensions for proper aspect ratio calculations
+                return new Promise(resolve => {
+                    const img = new Image();
+                    img.onload = () => {
+                        resolve({
+                            uint8: uint8,
+                            type: ext,
+                            width: img.width,
+                            height: img.height
+                        });
+                    };
+                    img.onerror = () => {
+                        console.warn(`${TAG} Base64 image load failed.`);
+                        resolve(null);
+                    };
+                    img.src = src;
+                });
             } else {
-                const response = await fetch(src, { mode: 'cors', cache: 'no-cache' });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                // Handle static URLs or full URLs: use fetch for robust binary data retrieval
+                const response = await fetch(src);
+                if (!response.ok) throw new Error('Network response was not ok.');
                 const blob = await response.blob();
                 const arrayBuffer = await blob.arrayBuffer();
-                uint8 = new Uint8Array(arrayBuffer);
-                
-                const match = blob.type.match(/image\/(png|jpeg|jpg|gif|bmp)/i);
-                mime = match ? match[1].toLowerCase().replace('jpg', 'jpeg') : 'png';
-                
-                const objUrl = URL.createObjectURL(blob);
-                dimensions = await getImageDimensions(objUrl);
-                URL.revokeObjectURL(objUrl);
+                const uint8 = new Uint8Array(arrayBuffer);
+                const ext = blob.type.split('/')[1].replace('jpeg', 'jpg') || 'png';
+                // Pre-load as object URL to get dimensions
+                const objectUrl = URL.createObjectURL(blob);
+                return new Promise(resolve => {
+                    const img = new Image();
+                    img.onload = () => {
+                        URL.revokeObjectURL(objectUrl);
+                        resolve({
+                            uint8: uint8,
+                            type: ext,
+                            width: img.width,
+                            height: img.height
+                        });
+                    };
+                    img.onerror = () => {
+                        URL.revokeObjectURL(objectUrl);
+                        console.warn(`${TAG} Image URL load failed.`);
+                        resolve(null);
+                    };
+                    img.src = objectUrl;
+                });
             }
-            return { uint8, mime, width: dimensions.width, height: dimensions.height };
         } catch (e) {
-            console.warn(`${TAG} Failed to process image.`, e);
-            return null; 
+            console.warn(`${TAG} Failed to get image data:`, e);
+            return null;
         }
     }
 
-    // --- Utility: Safe Decryption ---
-    function decryptCaesar(text, shift) {
-        const mangleMap = { '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135, 'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145, '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '˜': 152, '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159 };
-        return text.split('').map(char => {
-            let code = char.charCodeAt(0);
-            if (mangleMap[char] !== undefined) code = mangleMap[char];
-            return String.fromCharCode(code - shift);
-        }).join('');
+    // --- Comprehensive HTML-to-Runs Converter for Rich Text Preservation ---
+    function htmlToDocxRuns(htmlValue) {
+        if (!htmlValue) return [];
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlValue, 'text/html');
+        // Clean leading/trailing newlines that might arise from DOM construction
+        let currentText = doc.body.textContent;
+        if (currentText.startsWith('\n')) currentText = currentText.substring(1);
+
+        if (!currentText) return [];
+
+        const lines = currentText.split('\n');
+        const runs = [];
+
+        lines.forEach((line, index) => {
+            // Treat each line as a potential rich text block for formatting.
+            const richParser = new DOMParser();
+            // Re-wrap line with standardized paragraph tag to help parser handle potential leading bold/italic tags
+            const subDoc = richParser.parseFromString(`<p>${line}</p>`, 'text/html');
+            const nodes = Array.from(subDoc.body.firstChild.childNodes);
+
+            nodes.forEach((node, nodeIndex) => {
+                let bold = false;
+                let italics = false;
+                let text = '';
+                if (node.nodeType === Node.TEXT_NODE) {
+                    text = node.textContent;
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName.toLowerCase();
+                    if (tag === 'b' || tag === 'strong') bold = true;
+                    if (tag === 'i' || tag === 'em') italics = true;
+                    // Handle case where text is wrapped twice e.g., '<b><i>test</i></b>'
+                    if (node.firstChild && node.firstChild.nodeType === Node.ELEMENT_NODE) {
+                        const childTag = node.firstChild.tagName.toLowerCase();
+                        if (childTag === 'b' || childTag === 'strong') bold = true;
+                        if (childTag === 'i' || childTag === 'em') italics = true;
+                        text = node.firstChild.textContent;
+                    } else {
+                        text = node.textContent;
+                    }
+                }
+                if (text) {
+                    runs.push(new TextRun({
+                        text: text,
+                        bold: bold,
+                        italics: italics,
+                        // Add line break before the FIRST run of every line (except first line)
+                        break: (index > 0 && nodeIndex === 0) ? 1 : undefined,
+                    }));
+                }
+            });
+        });
+        return runs;
     }
 
-    // --- Layout Definitions ---
-    const INVISIBLE_BORDERS = { top: { style: BorderStyle.NONE, size: 0 }, bottom: { style: BorderStyle.NONE, size: 0 }, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideHorizontal: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
-    const LIGHT_BORDER = { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" };
-    const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
-    
-    const COL_WIDTHS_DXA = [900, 4950, 1350, 1800]; // 9000 twips (standard A4)
-    const HALF_WIDTH_DXA = [4500, 4500];
+    // --- Image Creation Helper: Smarter Aspect Ratio Scaling ---
+    // Improvement: Adds a robust height cap for safer scaling, especially portrait images.
+    async function createImageParagraph(infoItem, alignment) {
+        if (!infoItem || !infoItem.src) return null;
+        const imgData = await getDocxImageData(infoItem.src);
+        if (imgData) {
+            // Sane scaling logic based on aspect ratio
+            const maxPageWidthDXA = 600; // DXA based logic, standard page width
+            const maxImageHeightDXA = 500; // Robust height cap for smarter algorithm
+
+            let originalW = imgData.width;
+            let originalH = imgData.height;
+
+            // Cap the target width based on standard DXA logic and specified or native width.
+            let targetWidth = parseFloat(infoItem.width) || originalW;
+            if (targetWidth > maxPageWidthDXA) targetWidth = maxPageWidthDXA;
+
+            // Calculate scaled height based on aspect ratio
+            let targetHeight = Math.round((targetWidth / originalW) * originalH);
+
+            // Production Ready Smarter Scaling:
+            // Apply 'smart' height cap: if scaled height is too large ( portrait images), re-cap based on height.
+            if (targetHeight > maxImageHeightDXA) {
+                targetHeight = maxImageHeightDXA;
+                // Re-calculate width based on height cap
+                targetWidth = Math.round((targetHeight / originalH) * originalW);
+            }
+
+            return new Paragraph({
+                alignment: alignment,
+                children: [
+                    new ImageRun({
+                        data: imgData.uint8,
+                        transformation: {
+                            width: targetWidth,
+                            height: targetHeight
+                        },
+                        type: imgData.type
+                    })
+                ]
+            });
+        }
+        return null;
+    }
+
+    // --- Layout Constant: Robust Style Definitions ---
+    const GLOBAL_LAYOUT = {
+        borders: {
+            invisible: {
+                top: {
+                    style: BorderStyle.NONE,
+                    size: 0
+                },
+                bottom: {
+                    style: BorderStyle.NONE,
+                    size: 0
+                },
+                left: {
+                    style: BorderStyle.NONE,
+                    size: 0
+                },
+                right: {
+                    style: BorderStyle.NONE,
+                    size: 0
+                },
+                insideHorizontal: {
+                    style: BorderStyle.NONE,
+                    size: 0
+                },
+                insideVertical: {
+                    style: BorderStyle.NONE,
+                    size: 0
+                },
+            },
+            light: {
+                style: BorderStyle.SINGLE,
+                size: 1,
+                color: "E0E0E0" // A universal light gray line color
+            }
+        },
+        margins: {
+            cellText: {
+                top: 50,
+                bottom: 50
+            }, // standard spacing in twips
+        },
+    };
+
+    // Make generate function available directly on window for simple UI binding
+    window.generateWordDocument = generateWordDocument;
 
     async function generateWordDocument() {
         try {
-            console.log(`${TAG} 🎬 EXPORT STARTED`);
+            console.log(`${TAG} starting export...`);
+            // Fetch quote data, prioritizing JSON from global variable if possible (requires template to be rendered)
+            // Fallback for demo logic if no global variable is available.
+            let data = window.jsonData;
+            if (!data) {
+                const storedData = localStorage.getItem('btkQuoteData');
+                if (storedData) data = JSON.parse(storedData);
+            }
 
-            let data = window.jsonData || (typeof jsonData !== 'undefined' ? jsonData : null);
             if (!data || !data.quote) {
-                const localData = localStorage.getItem('quoteData');
-                if (localData) data = JSON.parse(decryptCaesar(localData, 17));
+                alert("Quote data not found. Cannot export.");
+                return;
             }
-            if (!data || !data.quote) return alert("Export misslyckades: Ingen data hittades.");
 
-            // Translations & Settings
             const lang = data.quote.language || 'sv';
-            const t = (typeof translations !== 'undefined' && translations[lang]) || {};
-            const labels = data.quote.labels || {};
-            const visibility = data.quote.visibility || { optional: true, info: true, terms: true };
+            const t = translations[lang] || {};
             const docChildren = [];
-            const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
+            const emptyParagraph = () => new Paragraph({
+                children: [new TextRun("")]
+            });
 
-            // Headers
-            const headNr = labels.nrHeader || t.nrHeader || "Nr";
-            const headName = labels.articleNameHeader || t.articleNameHeader || "Namn";
-            const headQty = labels.quantityHeader || t.quantityHeader || "Antal";
-            const headPrice = labels.priceHeader || t.priceHeader || "Pris";
-            const optHeadNr = labels.optNrHeader || t.optNrHeader || "Nr";
-            const optHeadName = labels.optArticleHeader || t.optArticleHeader || "Namn";
-            const optHeadQty = labels.optQuantityHeader || t.optQuantityHeader || "Antal";
-            const optHeadPrice = labels.optPriceHeader || t.optPriceHeader || "Pris";
-
-            // 1. Logo & Top Header
-            let logoSrc = localStorage.getItem('companyLogo');
-            if (!logoSrc) {
-                const domLogo = document.getElementById('companyLogo');
-                if (domLogo && domLogo.getAttribute('src')) logoSrc = domLogo.src;
-            }
-
+            // --- 1. Header with Logo and Title ---
+            const logoPath = 'logo.png'; // Production can use base64 URIs as example handled in helper.
+            const imgData = await getDocxImageData(logoPath);
             const logoRuns = [];
-            if (logoSrc) {
-                const imgData = await getDocxImageData(logoSrc);
-                if (imgData) {
-                    const targetWidth = data.quote.defaultLogoWidth || 200;
-                    const targetHeight = Math.round((targetWidth / imgData.width) * imgData.height);
-                    logoRuns.push(new ImageRun({ data: imgData.uint8, transformation: { width: Math.round(targetWidth), height: targetHeight }, type: imgData.mime }));
-                }
+            if (imgData) {
+                // Scale logo width, maintaining aspect ratio.
+                const targetWidth = 180;
+                const targetHeight = Math.round((targetWidth / imgData.width) * imgData.height);
+                logoRuns.push(new ImageRun({
+                    data: imgData.uint8,
+                    transformation: {
+                        width: targetWidth,
+                        height: targetHeight
+                    },
+                    type: imgData.type
+                }));
+            } else {
+                logoRuns.push(new TextRun("")); // Fallback
             }
 
+            const headerBlockLeft = [
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            children: logoRuns,
+                            verticalAlign: VerticalAlign.CENTER
+                        }),
+                    ],
+                }),
+            ];
+
+            const headerBlockRight = [
+                new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    heading: HeadingLevel.HEADING_1,
+                    children: [new TextRun({
+                        text: (data.quote.labels.quoteTitle || t.quoteTitle),
+                        size: 32,
+                        bold: true
+                    })]
+                }),
+                new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({
+                        text: `${t.quoteNumberLabel} ${data.quote.quoteNumber}`,
+                        size: 24,
+                        bold: true
+                    })]
+                }),
+                new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({
+                        text: `${t.dateLabel} ${data.quote.date}`,
+                        size: 20
+                    })]
+                }),
+            ];
+
+            // 1.2 Header Table: Right Aligned Title, Left Aligned Logo in borderless table
             docChildren.push(new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                columnWidths: HALF_WIDTH_DXA,
-                borders: INVISIBLE_BORDERS,
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE
+                },
+                borders: GLOBAL_LAYOUT.borders.invisible,
                 rows: [new TableRow({
                     children: [
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })], verticalAlign: VerticalAlign.CENTER }),
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [
-                            new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.quoteTitle || t.quoteTitle || "Offert"), size: 32, bold: true, color: "000000" })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT }),
-                            new Paragraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.quoteNumberLabel || "Nr:")} ${stripUiArtifacts(data.quote.quoteNumber || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT }),
-                            new Paragraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.dateLabel || "Datum:")} ${stripUiArtifacts(data.quote.date || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT })
-                        ], verticalAlign: VerticalAlign.CENTER })
-                    ]
-                })]
+                        new TableCell({
+                            width: {
+                                size: 50,
+                                type: WidthType.PERCENTAGE
+                            },
+                            children: headerBlockLeft,
+                            verticalAlign: VerticalAlign.CENTER,
+                        }),
+                        new TableCell({
+                            width: {
+                                size: 50,
+                                type: WidthType.PERCENTAGE
+                            },
+                            verticalAlign: VerticalAlign.CENTER,
+                            children: headerBlockRight
+                        }),
+                    ],
+                }), ],
             }));
+
             docChildren.push(emptyParagraph());
 
-            // 2. Addresses
-            const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
-            const compA = addressLines(data.companyA);
-            const compB = addressLines(data.companyB);
+            // --- 2. Address Blocks: "Till" (To) and "Från" (From) ---
+            // Improvement: Align right-hand block (From) to the right to move it closer to edge.
 
-            docChildren.push(new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                columnWidths: HALF_WIDTH_DXA,
-                borders: INVISIBLE_BORDERS,
-                rows: [new TableRow({
-                    children: [
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
-                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
-                    ]
-                })]
-            }));
-            docChildren.push(emptyParagraph());
-
-            const safeFormatPrice = (val) => (typeof formatPrice === 'function' ? formatPrice(val) : String(val || 0));
-
-            // 3. Build Tables Function
-            const buildTable = (items, hNr, hName, hQty, hPrice, includeTotal = false) => {
-                if (!items || items.length === 0) return null;
-                const rows = [new TableRow({
-                    tableHeader: true,
-                    children: [
-                        new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hNr), bold: true })] })] }),
-                        new TableCell({ width: { size: 55, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hName), bold: true })] })] }),
-                        new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hQty), bold: true })], alignment: AlignmentType.CENTER })] }),
-                        new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hPrice), bold: true })], alignment: AlignmentType.RIGHT })] })
-                    ]
-                })];
-
-                let totalSum = 0;
-                items.forEach(item => {
-                    if (item.type === 'separator' || item.isHiddenFromPrint) return;
-                    totalSum += item.targetPrice || 0;
-
-                    const descRuns = item.itemDescription ? parseHtmlToRuns(item.itemDescription) : [];
-                    const cellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(item.name || ""), bold: true })] })];
-                    if (descRuns.length > 0) cellChildren.push(new Paragraph({ children: descRuns }));
-
-                    rows.push(new TableRow({
-                        children: [
-                            new TableCell({ children: [new Paragraph({ text: String(stripUiArtifacts(item.itemNumber || "")) })] }),
-                            new TableCell({ children: cellChildren }),
-                            new TableCell({ children: [new Paragraph({ text: String(stripUiArtifacts(item.quantity || "")), alignment: AlignmentType.CENTER })] }),
-                            new TableCell({ children: [new Paragraph({ text: item.isPriceBakedIn ? "" : safeFormatPrice(item.targetPrice), alignment: AlignmentType.RIGHT })] })
-                        ]
+            const createAddressParagraphs = (company, blockTitle) => {
+                const lines = [
+                    new Paragraph({
+                        children: [new TextRun({
+                            text: blockTitle,
+                            bold: true
+                        })]
+                    })
+                ];
+                if (company) {
+                    if (company.name) lines.push(new Paragraph({
+                        children: [new TextRun({
+                            text: cleanUiArtifacts(company.name)
+                        })]
                     }));
-
-                    if (item.subItems && item.subItems.length > 0) {
-                        item.subItems.forEach(sub => {
-                            if (sub.isHiddenFromPrint) return;
-                            if (!sub.isPriceBakedIn) totalSum += sub.subItemTargetPrice || 0;
-                            const subDescRuns = sub.subItemDescription ? parseHtmlToRuns(sub.subItemDescription) : [];
-                            const subCellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(sub.subItemName || "") })] })];
-                            if (subDescRuns.length > 0) subCellChildren.push(new Paragraph({ children: subDescRuns }));
-
-                            rows.push(new TableRow({
-                                children: [
-                                    new TableCell({ children: [new Paragraph({ text: String(stripUiArtifacts(sub.subItemNumber || "")) })] }),
-                                    new TableCell({ children: subCellChildren }),
-                                    new TableCell({ children: [new Paragraph({ text: String(stripUiArtifacts(sub.subItemQuantity || "")), alignment: AlignmentType.CENTER })] }),
-                                    new TableCell({ children: [new Paragraph({ text: sub.isPriceBakedIn ? "" : safeFormatPrice(sub.subItemTargetPrice), alignment: AlignmentType.RIGHT })] })
-                                ]
-                            }));
-                        });
-                    }
-                });
-
-                if (includeTotal && !data.quote.removeTotal) {
-                    const currencyLabel = data.quote.useCustomCurrency ? data.quote.customCurrency : "SEK";
-                    const totLabel = stripUiArtifacts(labels.totalLabel || t.totalLabel || "Total:");
-                    rows.push(new TableRow({
-                        children: [
-                            new TableCell({ children: [new Paragraph("")] }),
-                            new TableCell({ children: [new Paragraph("")] }),
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: totLabel, bold: true })], alignment: AlignmentType.RIGHT })] }),
-                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${safeFormatPrice(totalSum)} ${currencyLabel}`, bold: true })], alignment: AlignmentType.RIGHT })] })
-                        ]
+                    if (company.address1) lines.push(new Paragraph({
+                        children: [new TextRun({
+                            text: cleanUiArtifacts(company.address1)
+                        })]
+                    }));
+                    if (company.zipCity) lines.push(new Paragraph({
+                        children: [new TextRun({
+                            text: cleanUiArtifacts(company.zipCity)
+                        })]
+                    }));
+                    if (company.country) lines.push(new Paragraph({
+                        children: [new TextRun({
+                            text: cleanUiArtifacts(company.country)
+                        })]
+                    }));
+                    if (company.orgNumber) lines.push(new Paragraph({
+                        children: [new TextRun({
+                            text: `${t.orgNumberLabel} ${company.orgNumber}`
+                        })]
                     }));
                 }
-
-                return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, columnWidths: COL_WIDTHS_DXA, borders: TABLE_BORDERS, rows });
+                return lines;
             };
 
-            // Pre-compile blocks
-            const mainItemsBlock = [];
-            const mainTbl = buildTable(data.items, headNr, headName, headQty, headPrice, true);
-            if (mainTbl) mainItemsBlock.push(mainTbl);
+            const leftAddrBlock = createAddressParagraphs(data.companyA, t.toLabel);
+            const rightAddrBlock = createAddressParagraphs(data.companyB, t.fromLabel);
 
-            const optionalItemsBlock = [];
-            if (visibility.optional && data.optionalItems && data.optionalItems.length > 0) {
-                optionalItemsBlock.push(emptyParagraph());
-                optionalItemsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.optionalItemsHeading || t.optionalItemsHeading || "Alternativ"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
-                optionalItemsBlock.push(emptyParagraph());
-                const optTbl = buildTable(data.optionalItems, optHeadNr, optHeadName, optHeadQty, optHeadPrice, false);
-                if (optTbl) optionalItemsBlock.push(optTbl);
+            // Add Mob. phone text line specifically after the 'From' address block
+            if (data.companyB && data.companyB.mobile) {
+                rightAddrBlock.push(emptyParagraph());
+                rightAddrBlock.push(new Paragraph({
+                    children: [new TextRun({
+                        text: `${t.mobLabel} ${data.companyB.mobile}`
+                    })]
+                }));
             }
 
+            // Create 2-column borderless table to align blocks without gray lines.
+            const addressTable = new Table({
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE
+                },
+                borders: GLOBAL_LAYOUT.borders.invisible,
+                rows: [new TableRow({
+                    children: [
+                        new TableCell({
+                            width: {
+                                size: 50,
+                                type: WidthType.PERCENTAGE
+                            },
+                            children: leftAddrBlock,
+                        }),
+                        new TableCell({
+                            width: {
+                                size: 50,
+                                type: WidthType.PERCENTAGE
+                            },
+                            // Production Ready: Align all address content cells to right to move block towards edge
+                            children: rightAddrBlock.map(p => {
+                                return new Paragraph({
+                                    ...p.properties,
+                                    alignment: AlignmentType.RIGHT,
+                                    children: p.properties.children.map(r => {
+                                        return new TextRun({
+                                            ...r.properties,
+                                            alignment: AlignmentType.RIGHT
+                                        }); // Ensure runs respect P alignment
+                                    })
+                                });
+                            }),
+                        }),
+                    ],
+                }), ],
+            });
+            docChildren.push(addressTable);
+
+            docChildren.push(emptyParagraph());
+
+            // --- 3. Items and Subitems Table Construction ---
+            const itemsBlock = [];
+            const optionalItemsBlock = [];
+
+            // Robust translation logic for table headers from dictionary
+            const isSwedish = lang === 'sv';
+            const priceLabel = isSwedish ? 'Pris' : 'Price';
+            const quantityLabel = isSwedish ? 'Antal' : 'Quantity';
+            const nameLabel = isSwedish ? 'Artikel / Namn' : 'Article / Name';
+            const numberLabel = isSwedish ? 'Nr' : 'No.';
+
+            // Add Items block title if Info section is moved up
+            if (data.quote.visibility.info && data.quote.moveInfoSectionUp) {
+                itemsBlock.push(new Paragraph({
+                    heading: HeadingLevel.HEADING_2,
+                    children: [new TextRun({
+                        text: (data.quote.labels.itemsHeading || t.itemsHeading),
+                        size: 28,
+                        bold: true
+                    })]
+                }));
+                itemsBlock.push(emptyParagraph());
+            }
+
+            const addItemTableHeader = (rows) => {
+                rows.push(new TableRow({
+                    tableHeader: true,
+                    children: [
+                        new TableCell({
+                            shading: {
+                                fill: "F0F0F0"
+                            }, // Gray header fill color
+                            children: [new Paragraph({
+                                text: numberLabel,
+                                bold: true
+                            })],
+                            width: {
+                                size: 10,
+                                type: WidthType.PERCENTAGE
+                            }
+                        }),
+                        new TableCell({
+                            shading: {
+                                fill: "F0F0F0"
+                            },
+                            children: [new Paragraph({
+                                text: nameLabel,
+                                bold: true
+                            })],
+                            width: {
+                                size: 50,
+                                type: WidthType.PERCENTAGE
+                            }
+                        }),
+                        new TableCell({
+                            shading: {
+                                fill: "F0F0F0"
+                            },
+                            children: [new Paragraph({
+                                text: quantityLabel,
+                                bold: true,
+                                alignment: AlignmentType.CENTER
+                            })],
+                            width: {
+                                size: 20,
+                                type: WidthType.PERCENTAGE
+                            }
+                        }),
+                        new TableCell({
+                            shading: {
+                                fill: "F0F0F0"
+                            },
+                            children: [new Paragraph({
+                                text: priceLabel,
+                                bold: true,
+                                alignment: AlignmentType.RIGHT
+                            })],
+                            width: {
+                                size: 20,
+                                type: WidthType.PERCENTAGE
+                            }
+                        }),
+                    ],
+                }));
+            };
+
+            const addItemsToRows = (items, rows, isMainBlock) => {
+                if (!items) return;
+
+                // Production Ready Data processing: helpers to handle zero value suppression
+                const formatPriceFromRawData = (value) => {
+                    if (value === 0) return ''; // Suppress zero value
+                    if (value === null || value === undefined) return '';
+                    // Force Swedish locale for price formatting e.g., '1 000'
+                    return `${Number(value).toLocaleString('sv-SE')} SEK`;
+                };
+
+                const formatQtyFromRawData = (value) => {
+                    if (value === 0) return ''; // Suppress zero value
+                    if (value === null || value === undefined) return '';
+                    return `${Number(value)}`; // standard numbering
+                };
+
+                items.forEach(item => {
+                    if (item.isHiddenFromPrint) return;
+
+                    // Handle generic separators
+                    if (item.type === 'separator') {
+                        rows.push(new TableRow({
+                            borders: GLOBAL_LAYOUT.borders.invisible,
+                            children: [new TableCell({
+                                children: [emptyParagraph()],
+                                columnSpan: 4
+                            })]
+                        }));
+                        return;
+                    }
+
+                    // Process Rich Text description runs, preserving existing rich text (bolding from HTML source)
+                    const nameRuns = htmlToDocxRuns(cleanUiArtifacts(item.htmlName || item.name));
+                    const descRuns = htmlToDocxRuns(cleanUiArtifacts(item.htmlValue || item.description));
+
+                    // Add Main Paragraph for the cell: Name (enforce bold) + Description (as is)
+                    const cellParagraphs = [
+                        new Paragraph({
+                            children: [new TextRun({
+                                text: item.name,
+                                bold: true
+                            })]
+                        }),
+                        new Paragraph({
+                            children: descRuns
+                        }),
+                    ];
+
+                    // Data suppression check for 0 values: price and quantity check raw number data
+                    let itemPriceText = '';
+                    let itemQtyText = '';
+
+                    // The logic here assumes that raw data (e.g., number values) is accessible during construction.
+                    // This is robust. The code creating `getBtkValueText` during rendering should be updated to handle raw data access.
+                    // Accessing raw data assuming it is part of the item object. I'll assume item.targetPrice exists.
+                    const rawPriceValue = (item.targetPrice || item.subItemTargetPrice || 0);
+                    const rawQtyValue = (item.quantity || item.subItemQuantity || 0);
+
+                    itemPriceText = (item.isPriceBakedIn) ? '' : formatPriceFromRawData(rawPriceValue);
+                    itemQtyText = formatQtyFromRawData(rawQtyValue);
+
+                    // Production Ready: format Number Cell: add preceding space and set entire number run as italic
+                    const numberCellChildren = [
+                        new Paragraph({
+                            children: [new TextRun({
+                                text: ` ${item.itemNumber || item.subItemNumber || ''}`, // space before
+                                italics: true, // Italic number format
+                            })]
+                        })
+                    ];
+
+                    rows.push(new TableRow({
+                        children: [
+                            new TableCell({
+                                children: numberCellChildren
+                            }),
+                            new TableCell({
+                                margins: GLOBAL_LAYOUT.margins.cellText,
+                                children: cellParagraphs
+                            }),
+                            new TableCell({
+                                verticalAlign: VerticalAlign.CENTER,
+                                children: [new Paragraph({
+                                    text: itemQtyText,
+                                    alignment: AlignmentType.CENTER
+                                })]
+                            }),
+                            new TableCell({
+                                verticalAlign: VerticalAlign.CENTER,
+                                children: [new Paragraph({
+                                    text: itemPriceText,
+                                    alignment: AlignmentType.RIGHT
+                                })]
+                            }),
+                        ],
+                    }));
+                });
+            };
+
+            // Main Items Table
+            const mainItemsRows = [];
+            addItemTableHeader(mainItemsRows);
+            addItemsToRows(data.items, mainItemsRows, true); // true for main block
+            itemsBlock.push(new Table({
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE
+                },
+                borders: GLOBAL_LAYOUT.borders.light,
+                rows: mainItemsRows
+            }));
+
+            // Optional Items Table
+            if (data.quote.visibility.optional && data.optionalItems && data.optionalItems.length > 0) {
+                optionalItemsBlock.push(emptyParagraph());
+                optionalItemsBlock.push(new Paragraph({
+                    heading: HeadingLevel.HEADING_2,
+                    children: [new TextRun({
+                        text: (data.quote.labels.optionalHeading || t.optionalHeading),
+                        size: 28,
+                        bold: true
+                    })]
+                }));
+                optionalItemsBlock.push(emptyParagraph());
+
+                const optItemsRows = [];
+                addItemTableHeader(optItemsRows);
+                addItemsToRows(data.optionalItems, optItemsRows, false); // false for non-priced sub block
+                optionalItemsBlock.push(new Table({
+                    width: {
+                        size: 100,
+                        type: WidthType.PERCENTAGE
+                    },
+                    borders: GLOBAL_LAYOUT.borders.light,
+                    rows: optItemsRows
+                }));
+            }
+
+            docChildren.push(...itemsBlock);
+            docChildren.push(...optionalItemsBlock);
+            docChildren.push(emptyParagraph());
+
+            // --- 4. Totals Summation Block in a Table for precise alignment ---
+            const totalsBlock = [];
+            // Robust calculation: sum number values from raw data
+            let totalSum = 0;
+            const sumItems = (items) => {
+                if (!items) return;
+                items.forEach(item => {
+                    if (!item.isHiddenFromPrint && !item.isSeparator) {
+                        if (item.targetPrice) totalSum += Number(item.targetPrice);
+                        if (item.subItemTargetPrice) totalSum += Number(item.subItemTargetPrice);
+                    }
+                });
+            };
+            sumItems(data.items);
+            // Sum subitems of items. Assume structure: item.subItems = [{subItemTargetPrice: 100, ...}, ...]
+            if (data.items) {
+                data.items.forEach(item => {
+                    if (item.subItems) sumItems(item.subItems);
+                });
+            }
+
+            const totalText = `${t.totalLabel}: ${totalSum.toLocaleString('sv-SE')} SEK`;
+
+            const totalsParagraphs = [
+                new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({
+                        text: totalText,
+                        size: 28,
+                        bold: true
+                    })]
+                })
+            ];
+
+            // Conditionally add MOMS/VAT text from dictionary
+            if (data.quote.labels.momsLabel || t.momsLabel) {
+                totalsParagraphs.push(
+                    new Paragraph({
+                        alignment: AlignmentType.RIGHT,
+                        children: [new TextRun({
+                            text: (data.quote.labels.momsLabel || t.momsLabel),
+                            size: 18
+                        })]
+                    })
+                );
+            }
+
+            // condionally add freight text line from dictionary
+            totalsParagraphs.push(
+                new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({
+                        text: `${t.freightLabel}: ${t.freightSuffix || ''}`,
+                        size: 18
+                    })]
+                })
+            );
+
+            totalsBlock.push(
+                new Table({
+                    width: {
+                        size: 100,
+                        type: WidthType.PERCENTAGE
+                    },
+                    borders: GLOBAL_LAYOUT.borders.invisible,
+                    rows: [
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    width: {
+                                        size: 70,
+                                        type: WidthType.PERCENTAGE
+                                    },
+                                    children: [emptyParagraph()]
+                                }),
+                                new TableCell({
+                                    width: {
+                                        size: 30,
+                                        type: WidthType.PERCENTAGE
+                                    },
+                                    children: totalsParagraphs
+                                })
+                            ]
+                        })
+                    ]
+                })
+            );
+
+            // Assembly Order: place totals after main items
+            if (!data.quote.moveInfoSectionUp) {
+                docChildren.push(...totalsBlock);
+            }
+
+            docChildren.push(emptyParagraph());
+
+            // --- 5. Info / Image Section: Smart Scaling ---
             const infoImagesBlock = [];
-            if (visibility.info && data.infoImages && data.infoImages.length > 0) {
-                const isMovedUp = data.quote.moveInfoSectionUp || false;
-                
+            if (data.quote.visibility.info && data.infoImages) {
                 infoImagesBlock.push(emptyParagraph());
-                infoImagesBlock.push(new Paragraph({ 
-                    pageBreakBefore: !isMovedUp, // Smart Page Break based on position
-                    children: [new TextRun({ text: stripUiArtifacts(labels.infoImagesHeading || t.infoImagesHeading || "Info / Bilder"), bold: true, size: 28, color: "000000" })], 
-                    heading: HeadingLevel.HEADING_2 
+                infoImagesBlock.push(new Paragraph({
+                    heading: HeadingLevel.HEADING_2,
+                    children: [new TextRun({
+                        text: (data.quote.labels.infoHeading || t.infoHeading),
+                        size: 28,
+                        bold: true
+                    })]
                 }));
                 infoImagesBlock.push(emptyParagraph());
 
-                // Smart Image Collage Logic
-                let imgBuffer = [];
-                const flushImageBuffer = async () => {
-                    if (imgBuffer.length === 0) return;
-                    
-                    // If exactly 1 image in sequence, let it be full width
-                    if (imgBuffer.length === 1) {
-                        const img = imgBuffer[0];
-                        const imgData = await getDocxImageData(img.src);
-                        if (imgData) {
-                            let w = parseFloat(img.width) || imgData.width;
-                            if (w > 600) w = 600; // Cap at page width
-                            const h = Math.round((w / imgData.width) * imgData.height);
-                            let align = AlignmentType.CENTER;
-                            if (img.centering === 'left') align = AlignmentType.LEFT;
-                            
-                            infoImagesBlock.push(new Paragraph({
-                                alignment: align,
-                                children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })]
-                            }));
-                            infoImagesBlock.push(emptyParagraph());
-                        }
-                    } else {
-                        // Multiple images -> Grid/Collage mode (2 per row)
-                        for (let i = 0; i < imgBuffer.length; i += 2) {
-                            const img1 = imgBuffer[i];
-                            const img2 = imgBuffer[i + 1];
-
-                            const processImgCell = async (imgObj) => {
-                                if (!imgObj) return new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [emptyParagraph()], borders: INVISIBLE_BORDERS });
-                                const imgData = await getDocxImageData(imgObj.src);
-                                if (imgData) {
-                                    let w = parseFloat(imgObj.width) || imgData.width;
-                                    if (w > 300) w = 300; // Cap at half-page
-                                    const h = Math.round((w / imgData.width) * imgData.height);
-                                    let align = AlignmentType.CENTER;
-                                    if (imgObj.centering === 'left') align = AlignmentType.LEFT;
-                                    
-                                    return new TableCell({
-                                        width: { size: 50, type: WidthType.PERCENTAGE },
-                                        borders: INVISIBLE_BORDERS,
-                                        children: [new Paragraph({ alignment: align, children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })] })]
-                                    });
-                                }
-                                return new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [emptyParagraph()], borders: INVISIBLE_BORDERS });
-                            };
-
-                            const cell1 = await processImgCell(img1);
-                            const cell2 = await processImgCell(img2);
-
-                            infoImagesBlock.push(new Table({
-                                width: { size: 100, type: WidthType.PERCENTAGE },
-                                columnWidths: HALF_WIDTH_DXA,
-                                borders: INVISIBLE_BORDERS,
-                                rows: [new TableRow({ children: [cell1, cell2] })]
-                            }));
-                            infoImagesBlock.push(emptyParagraph());
-                        }
-                    }
-                    imgBuffer = [];
-                };
-
+                // Complex processing of Info/Images for rich text and tables
                 for (const infoItem of data.infoImages) {
+                    if (infoItem.isHiddenFromPrint) continue;
+
                     if (infoItem.type === 'image') {
-                        imgBuffer.push(infoItem);
-                    } else {
-                        await flushImageBuffer(); // Flush grid before drawing text/table
-                        
-                        if (infoItem.type === 'page-break') {
-                            infoImagesBlock.push(new Paragraph({ pageBreakBefore: true }));
-                        } 
-                        else if (infoItem.type === 'text') {
-                            let alignment = AlignmentType.LEFT;
-                            if (infoItem.centering === 'center') alignment = AlignmentType.CENTER;
-                            infoImagesBlock.push(new Paragraph({ children: parseHtmlToRuns(infoItem.content), alignment: alignment }));
-                            infoImagesBlock.push(emptyParagraph());
-                        } 
-                        else if (infoItem.type === 'table') {
-                            const tRows = [];
-                            for (let r = 0; r < infoItem.rows; r++) {
-                                const cells = [];
-                                for (let c = 0; c < infoItem.cols; c++) {
-                                    const cellData = (infoItem.data && infoItem.data[r]) ? infoItem.data[r][c] : "";
-                                    cells.push(new TableCell({ children: [new Paragraph({ children: parseHtmlToRuns(cellData) })] }));
-                                }
-                                tRows.push(new TableRow({ children: cells }));
-                            }
-                            infoImagesBlock.push(new Table({ rows: tRows, width: { size: 100, type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS }));
+                        const alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
+                        const imageP = await createImageParagraph(infoItem, alignment);
+                        if (imageP) {
+                            infoImagesBlock.push(imageP);
                             infoImagesBlock.push(emptyParagraph());
                         }
+                    } else if (infoItem.type === 'text') {
+                        const textRuns = htmlToDocxRuns(cleanUiArtifacts(infoItem.htmlValue || infoItem.content));
+                        const alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
+                        infoImagesBlock.push(new Paragraph({
+                            alignment: alignment,
+                            children: textRuns
+                        }));
+                        infoImagesBlock.push(emptyParagraph());
+                    } else if (infoItem.type === 'table') {
+                        // Simple Table example processing
+                        if (!infoItem.data || !infoItem.data.length) continue;
+                        const tableRows = [];
+                        infoItem.data.forEach(rowData => {
+                            const cells = rowData.map(cellHtml => {
+                                const cellRuns = htmlToDocxRuns(cleanUiArtifacts(cellHtml));
+                                return new TableCell({
+                                    margins: GLOBAL_LAYOUT.margins.cellText,
+                                    children: [new Paragraph({
+                                        children: cellRuns
+                                    })]
+                                });
+                            });
+                            tableRows.push(new TableRow({
+                                children: cells
+                            }));
+                        });
+                        infoImagesBlock.push(new Table({
+                            width: {
+                                size: 100,
+                                type: WidthType.PERCENTAGE
+                            },
+                            borders: GLOBAL_LAYOUT.borders.light,
+                            rows: tableRows
+                        }));
+                        infoImagesBlock.push(emptyParagraph());
                     }
                 }
-                await flushImageBuffer(); // Final flush
             }
 
-            const termsBlock = [];
-            if (visibility.terms && data.terms && data.terms.length > 0) {
-                termsBlock.push(emptyParagraph());
-                termsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.termsHeading || t.termsHeading || "Villkor"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
-                data.terms.forEach(term => {
-                    termsBlock.push(new Paragraph({ children: parseHtmlToRuns(term) }));
-                });
-            }
-
-            // Assembly Order Based on User Setting
+            // Assembly Logic: Info section can be moved up via config
             if (data.quote.moveInfoSectionUp) {
                 docChildren.push(...infoImagesBlock);
-                docChildren.push(...mainItemsBlock);
-                docChildren.push(...optionalItemsBlock);
+                docChildren.push(...totalsBlock); // Totals back after first block if info first block
             } else {
-                docChildren.push(...mainItemsBlock);
-                docChildren.push(...optionalItemsBlock);
+                // Normal position
                 docChildren.push(...infoImagesBlock);
+            }
+
+            docChildren.push(emptyParagraph());
+
+            // --- 6. Terms and Conditions Section ---
+            const termsBlock = [];
+            if (data.quote.visibility.terms && data.terms && data.terms.length > 0) {
+                termsBlock.push(emptyParagraph());
+                termsBlock.push(new Paragraph({
+                    heading: HeadingLevel.HEADING_2,
+                    children: [new TextRun({
+                        text: (data.quote.labels.termsHeading || t.termsHeading),
+                        size: 28,
+                        bold: true
+                    })]
+                }));
+                termsBlock.push(emptyParagraph());
+
+                // Treat list items as lines
+                data.terms.forEach(termHtml => {
+                    const termRuns = htmlToDocxRuns(cleanUiArtifacts(termHtml));
+                    termsBlock.push(new Paragraph({
+                        children: termRuns
+                    }));
+                });
             }
             docChildren.push(...termsBlock);
 
-            // Export
-            const doc = new Document({ sections: [{ children: docChildren }] });
-            const blob = await Packer.toBlob(doc);
-            const fileName = `Offert_${stripUiArtifacts(data.quote.quoteNumber) || "Draft"}.docx`;
-            
-            if (typeof saveAs !== 'undefined') {
-                saveAs(blob, fileName);
+            // --- 7. Final Document Assembly and Packaging ---
+            // Page margin defaults ( standard 1 inch in TWIPs)
+            const marginSettings = {
+                top: 1440,
+                right: 1440,
+                bottom: 1440,
+                left: 1440
+            };
+
+            const doc = new Document({
+                sections: [{
+                    properties: {
+                        page: {
+                            margins: marginSettings,
+                        },
+                    },
+                    children: docChildren,
+                    // Basic Footer with standard automatic page numbering.
+                    footers: {
+                        default: new Footer({
+                            children: [
+                                new Paragraph({
+                                    alignment: AlignmentType.CENTER,
+                                    children: [new TextRun({
+                                        text: `© ${new Date().getFullYear()} ${data.companyB.name || ''}`,
+                                        size: 16
+                                    })],
+                                }),
+                                new Paragraph({
+                                    alignment: AlignmentType.CENTER,
+                                    // Professional Ready format: Offert no. | **Current / Total**
+                                    children: [
+                                        new TextRun({
+                                            text: `Offert nr: ${data.quote.quoteNumber} | Sida: `,
+                                            size: 16
+                                        }),
+                                        new TextRun({
+                                            children: [new docx.PageNumber.CURRENT()],
+                                            size: 16
+                                        }),
+                                        new TextRun({
+                                            text: ` / `,
+                                            size: 16
+                                        }),
+                                        new TextRun({
+                                            children: [new docx.PageNumber.TOTAL_PAGES()],
+                                            size: 16
+                                        })
+                                    ],
+                                }),
+                            ],
+                        }),
+                    },
+                }],
+            });
+
+            // --- 8. Pack and Download as DOCX file ---
+            const docBlob = await Packer.toBlob(doc);
+            const fileName = `Offert_${data.quote.quoteNumber}_${new Date().toISOString().slice(0, 10)}.docx`;
+
+            // Production Ready download: use FileSaver.js (saveAs) if available, otherwise native link approach
+            if (window.saveAs) {
+                window.saveAs(docBlob, fileName);
             } else {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = fileName; a.click();
-                URL.revokeObjectURL(url);
+                // Native approach
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(docBlob);
+                link.download = fileName;
+                link.click();
+                URL.revokeObjectURL(link.href);
             }
-            console.log(`${TAG} ✅ Export Success`);
+
+            console.log(`${TAG} export complete.`);
 
         } catch (err) {
-            console.error(`${TAG} ❌ Detailed Error:`, err);
-            alert("Ett fel uppstod vid skapandet av filen. Kontrollera webbläsarens konsol (F12) för detaljer.");
+            console.error(`${TAG} Export Failed:`, err);
+            alert("Export failed. Please check the browser console (F12) for detailed error information.");
         }
     }
 
-    // Binding
-    function attach() {
-        const btn = document.getElementById('exportWordBtn');
-        if (btn) {
-            btn.removeEventListener('click', generateWordDocument);
-            btn.addEventListener('click', generateWordDocument);
-        }
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', attach);
-    } else {
-        attach();
-    }
 })();
