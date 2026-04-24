@@ -2,7 +2,7 @@
  * dewordify.js - Production Ready Reverse-Parser for Wordify.js
  * Features: Zero-dependency setup (Auto-injects JSZip), Smart Table Recognition,
  * Dynamic Grid Mapping, Image Base64 Extraction, Hierarchy Reconstruction.
- * V3: Bottom-up Rewrite, Fault-tolerant Parsing, Dynamic Number Validation.
+ * V4: Robust Image loading, Dual-image Rows, Bold Terms Formatting, Subitem Space/Italic Support.
  */
 
 (function () {
@@ -75,17 +75,15 @@
     // --- XML Parsing Helpers (Robust & Strict) ---
     function getDirect(parent, nodeName) {
         if (!parent) return [];
-        return Array.from(parent.childNodes).filter(n => 
-            n.localName === nodeName
-        );
+        return Array.from(parent.childNodes).filter(n => n.localName === nodeName);
     }
 
-    // Extracts text preserving paragraphs and line breaks perfectly
+    // Standard text extractor
     function extractTextRobust(node) {
         if (!node) return "";
         let text = "";
-        
         const paragraphs = node.getElementsByTagName("w:p");
+        
         if (paragraphs.length === 0) {
             const runs = node.getElementsByTagName("w:t");
             for (let i = 0; i < runs.length; i++) text += runs[i].textContent;
@@ -109,23 +107,71 @@
         return text.trim();
     }
 
+    // Specialized text extractor that converts <w:b> into HTML <b> tags
+    function extractTextWithFormatting(node) {
+        if (!node) return "";
+        let text = "";
+        const paragraphs = node.getElementsByTagName("w:p");
+        
+        const parseRuns = (parent) => {
+            let pText = "";
+            const runs = parent.getElementsByTagName("w:r");
+            for (let j = 0; j < runs.length; j++) {
+                const r = runs[j];
+                
+                let isBold = false;
+                const rPrs = r.getElementsByTagName("w:rPr");
+                if (rPrs.length > 0) {
+                    // w:b presence indicates bold unless explicitly w:val="0"
+                    const bolds = rPrs[0].getElementsByTagName("w:b");
+                    if (bolds.length > 0) {
+                        const val = bolds[0].getAttribute("w:val");
+                        if (val !== "0" && val !== "false") isBold = true;
+                    }
+                }
+
+                let runText = "";
+                const children = r.childNodes;
+                for (let k = 0; k < children.length; k++) {
+                    const child = children[k];
+                    if (child.localName === "t") runText += child.textContent;
+                    else if (child.localName === "br" || child.localName === "cr") runText += "\n";
+                }
+                
+                if (runText) {
+                    pText += isBold ? `<b>${runText}</b>` : runText;
+                }
+            }
+            // Clean up back-to-back bold tags
+            return pText.replace(/<\/b>\s*<b>/g, ' ');
+        };
+
+        if (paragraphs.length === 0) return parseRuns(node);
+
+        for (let i = 0; i < paragraphs.length; i++) {
+            let pText = parseRuns(paragraphs[i]);
+            if (pText.trim() !== "") text += pText.trim() + "\n";
+        }
+        return text.trim();
+    }
+
     // Parses diverse numbers: '218 288', '1,000.50', '1.000,50' -> 218288
     function parseRobustNumber(str) {
         if (!str) return 0;
-        if (/ingår|included/i.test(str)) return 0; // Wordify specific baked items
+        if (/ingår|included/i.test(str)) return 0; 
 
-        let s = str.replace(/[\s\xA0]/g, ''); // strip all variants of spaces
-        s = s.replace(/[^\d,\.-]/g, ''); // keep only digits, comma, dot, minus
+        let s = str.replace(/[\s\xA0]/g, ''); 
+        s = s.replace(/[^\d,\.-]/g, ''); 
         if (!s) return 0;
 
         const lastComma = s.lastIndexOf(',');
         const lastDot = s.lastIndexOf('.');
         
         if (lastComma > -1 && lastDot > -1) {
-            if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.'); // comma is decimal
-            else s = s.replace(/,/g, ''); // dot is decimal
+            if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
+            else s = s.replace(/,/g, ''); 
         } else if (lastComma > -1) {
-            s = s.replace(',', '.'); // assume single comma is a decimal for Swedish format
+            s = s.replace(',', '.'); 
         }
         
         return parseFloat(s) || 0;
@@ -134,16 +180,22 @@
     // --- Extractor Logic ---
     async function extractImageBase64(rId) {
         try {
-            const targetPath = relsMap[rId];
-            if (!targetPath || !mediaFiles[targetPath]) return null;
+            let targetPath = relsMap[rId];
+            if (!targetPath) return null;
             
-            const fileData = mediaFiles[targetPath];
+            // Normalize path to match JSZip mapping (handle Word structural quirks)
+            let matchedKey = Object.keys(mediaFiles).find(k => k.endsWith(targetPath) || targetPath.endsWith(k) || k.includes(targetPath.split('/').pop()));
+            
+            if (!matchedKey) return null;
+            
+            const fileData = mediaFiles[matchedKey];
             const base64 = await fileData.async("base64");
             
             const ext = targetPath.split('.').pop().toLowerCase();
             let mime = "image/png";
             if (ext === "jpg" || ext === "jpeg") mime = "image/jpeg";
             if (ext === "gif") mime = "image/gif";
+            if (ext === "svg") mime = "image/svg+xml";
 
             return `data:${mime};base64,${base64}`;
         } catch (e) {
@@ -153,10 +205,11 @@
     }
 
     async function extractImagesFromNode(node) {
-        const blips = node.getElementsByTagName("a:blip");
+        // Robust namespace handling, avoiding strict a:blip which fails on some parsers
+        const blips = Array.from(node.getElementsByTagName("*")).filter(el => el.localName === "blip");
         const results = [];
         for (let i = 0; i < blips.length; i++) {
-            const rId = blips[i].getAttribute("r:embed");
+            const rId = blips[i].getAttribute("r:embed") || blips[i].getAttribute("embed");
             if (rId) {
                 const b64 = await extractImageBase64(rId);
                 if (b64) results.push(b64);
@@ -165,12 +218,15 @@
         return results;
     }
 
-    // Analyzes a table dynamically without assuming strict columns
+    // Analyzes a table dynamically returning node references to preserve metadata
     function analyzeTable(tblNode) {
         const rows = getDirect(tblNode, "tr");
-        const grid = rows.map(tr => getDirect(tr, "tc").map(tc => extractTextRobust(tc)));
+        const grid = rows.map(tr => getDirect(tr, "tc").map(tc => ({
+            text: extractTextRobust(tc),
+            node: tc
+        })));
         
-        const flatTop = grid.slice(0, 2).map(r => r.join(" ").toLowerCase()).join(" ");
+        const flatTop = grid.slice(0, 2).map(r => r.map(c => c.text).join(" ").toLowerCase()).join(" ");
         
         let type = 'unknown';
         if (flatTop.includes("datum") || flatTop.includes("date") || flatTop.includes("offert nr")) type = 'header';
@@ -180,17 +236,17 @@
         return { type, grid, tblNode };
     }
 
-    // Processes item grids and maps columns via dynamic header discovery
+    // Processes item grids mapping standard & subitems dynamically
     function processItemsGrid(grid, targetArray, extractedData) {
         let colMap = { nr: 0, name: 1, qty: 2, price: 3 };
         let headerRowIdx = -1;
 
-        // 1. Map columns dynamically to avoid hidden/missing column bugs
+        // 1. Map columns
         for (let i = 0; i < grid.length; i++) {
-            const rowText = grid[i].join(" ").toLowerCase();
+            const rowText = grid[i].map(c => c.text).join(" ").toLowerCase();
             if (rowText.includes("antal") || rowText.includes("quantity")) {
                 headerRowIdx = i;
-                const headerCells = grid[i].map(c => c.toLowerCase());
+                const headerCells = grid[i].map(c => c.text.toLowerCase());
                 headerCells.forEach((cText, idx) => {
                     if (cText.includes("nr") || cText.includes("no")) colMap.nr = idx;
                     if (cText.includes("artikel") || cText.includes("name")) colMap.name = idx;
@@ -203,15 +259,14 @@
 
         let lastMainItem = null;
 
-        // 2. Scan rows
+        // 2. Scan Rows
         for (let i = headerRowIdx + 1; i < grid.length; i++) {
-            const rowTexts = grid[i];
-            if (!rowTexts || rowTexts.length === 0) continue;
+            const rowCells = grid[i];
+            if (!rowCells || rowCells.length === 0) continue;
 
-            const fullRowText = rowTexts.join(" ").toLowerCase();
+            const fullRowText = rowCells.map(c => c.text).join(" ").toLowerCase();
             
-            // Reached Total Footer? Break loop, extract custom currency if applicable
-            if (fullRowText.includes("total:") || (fullRowText.includes("total") && rowTexts.length <= 2)) {
+            if (fullRowText.includes("total:") || (fullRowText.includes("total") && rowCells.length <= 2)) {
                 const match = fullRowText.match(/([a-z]{3})$/i);
                 if (match && match[1].toLowerCase() !== 'sek') {
                     extractedData.quote.useCustomCurrency = true;
@@ -220,12 +275,13 @@
                 break; 
             }
 
-            const nrText = rowTexts[colMap.nr] || "";
-            const nameDescRaw = rowTexts[colMap.name] || "";
-            const qtyText = rowTexts[colMap.qty] || "";
-            const priceText = rowTexts[colMap.price] || "";
+            const nrCell = rowCells[colMap.nr];
+            const nameDescRaw = rowCells[colMap.name] ? rowCells[colMap.name].text : "";
+            const qtyText = rowCells[colMap.qty] ? rowCells[colMap.qty].text : "";
+            const priceText = rowCells[colMap.price] ? rowCells[colMap.price].text : "";
 
-            // Split Name and Desc perfectly by the first line break
+            const nrText = nrCell ? nrCell.text.trim() : "";
+            
             const lines = nameDescRaw.split('\n');
             const name = lines[0] ? lines[0].trim() : "";
             const desc = lines.length > 1 ? lines.slice(1).join('\n').trim() : "";
@@ -233,14 +289,34 @@
             const qty = parseRobustNumber(qtyText);
             const price = parseRobustNumber(priceText);
 
-            if (!name && !desc && !nrText && price === 0) continue; // Skip genuinely empty rows
+            if (!name && !desc && !nrText && price === 0) continue; 
 
             const isPriceBakedIn = (price === 0 && (priceText.trim() === "" || priceText.trim() === "-" || priceText.toLowerCase().includes("ingår") || priceText.toLowerCase().includes("included")));
 
-            // Smart SubItem Heuristic
-            // Only considered a subitem if it has no number BUT a previous item exists, or starts with Parent Number (e.g., Parent 1, SubItem 1.1)
-            const isSubItem = (lastMainItem && nrText && nrText.includes('.') && nrText.startsWith(lastMainItem.itemNumber.split('.')[0] + '.')) 
-                           || (!nrText && lastMainItem && qty === 0 && price === 0);
+            // Detect True SubItems using Spaces, Italics, and Fallbacks
+            let isSubItem = false;
+            if (nrCell && nrCell.node) {
+                // 1. Check if italics tag is active
+                const italics = nrCell.node.getElementsByTagName("w:i");
+                for (let x = 0; x < italics.length; x++) {
+                    const val = italics[x].getAttribute("w:val");
+                    if (val !== "0" && val !== "false") {
+                        isSubItem = true;
+                        break;
+                    }
+                }
+                // 2. Check for leading spaces directly in the XML string run
+                if (!isSubItem) {
+                    const ts = nrCell.node.getElementsByTagName("w:t");
+                    if (ts.length > 0 && (ts[0].textContent.startsWith(" ") || ts[0].textContent.startsWith("\xA0"))) {
+                        isSubItem = true;
+                    }
+                }
+            }
+            
+            // 3. Fallbacks
+            if (!isSubItem && lastMainItem && nrText && nrText.includes('.') && nrText.startsWith(lastMainItem.itemNumber.split('.')[0] + '.')) isSubItem = true;
+            if (!isSubItem && !nrText && lastMainItem && qty === 0 && price === 0) isSubItem = true;
 
             const itemObj = {
                 type: 'item',
@@ -290,20 +366,25 @@
             await ensureJSZip();
             zipObj = await window.JSZip.loadAsync(file);
             
-            // 1. Build Relationships Map for Media Extraction
+            // 1. Build Relationships & Media Maps properly
             relsMap = {};
             mediaFiles = {};
+            
             const relsFile = zipObj.file("word/_rels/document.xml.rels");
             if (relsFile) {
                 const relsXml = await relsFile.async("text");
                 const relsDoc = new DOMParser().parseFromString(relsXml, "application/xml");
-                Array.from(relsDoc.getElementsByTagName("Relationship")).forEach(rel => {
+                // Namespace agnostic relationship mapping
+                Array.from(relsDoc.getElementsByTagName("*")).filter(el => el.localName === "Relationship").forEach(rel => {
                     relsMap[rel.getAttribute("Id")] = rel.getAttribute("Target");
                 });
             }
 
-            zipObj.folder("word/media").forEach((relativePath, fileObj) => {
-                mediaFiles[`media/${relativePath}`] = fileObj;
+            // Capture all media contents into dict
+            zipObj.forEach((relativePath, fileObj) => {
+                if (!fileObj.dir && relativePath.includes("media/")) {
+                    mediaFiles[relativePath] = fileObj;
+                }
             });
 
             // 2. Read Document Body
@@ -324,9 +405,9 @@
                 terms: []
             };
 
-            let currentMode = 'pre-items'; // State flow: pre-items -> items -> optional -> info -> terms
+            let currentMode = 'pre-items';
 
-            // 4. Sequential Iteration (Bottom-Up execution ensuring logical document flow)
+            // 4. Sequential Execution Flow
             const nodes = Array.from(body.childNodes);
             for (let i = 0; i < nodes.length; i++) {
                 const node = nodes[i];
@@ -336,15 +417,13 @@
                     const tblData = analyzeTable(node);
                     
                     if (tblData.type === 'header') {
-                        // Attempt to grab Logo
-                        const firstCell = getDirect(getDirect(node, "tr")[0], "tc")[0];
-                        if (firstCell) {
-                            const imgs = await extractImagesFromNode(firstCell);
+                        const firstCellNode = getDirect(getDirect(node, "tr")[0], "tc")[0];
+                        if (firstCellNode) {
+                            const imgs = await extractImagesFromNode(firstCellNode);
                             if (imgs.length > 0) localStorage.setItem('companyLogo', imgs[0]);
                         }
                         
-                        // Parse Quote No and Date
-                        const text = tblData.grid.flat().join(" ");
+                        const text = tblData.grid.flat().map(c => c.text).join(" ");
                         const nrMatch = text.match(/(?:Nr|No):\s*(\S+)/i);
                         const dateMatch = text.match(/(?:Datum|Date):\s*([\d-]+)/i);
                         if (nrMatch) extractedData.quote.quoteNumber = nrMatch[1];
@@ -352,12 +431,12 @@
 
                     } else if (tblData.type === 'address') {
                         const row0 = tblData.grid[0] || [];
-                        extractedData.quote.language = row0.join(" ").toLowerCase().includes("to:") ? 'en' : 'sv';
+                        extractedData.quote.language = row0.map(c => c.text).join(" ").toLowerCase().includes("to:") ? 'en' : 'sv';
                         
                         let colA = 0, colB = 1;
-                        row0.forEach((cText, cIdx) => {
-                            if (/till:|to:/i.test(cText)) colA = cIdx;
-                            if (/från:|from:/i.test(cText)) colB = cIdx;
+                        row0.forEach((cell, cIdx) => {
+                            if (/till:|to:/i.test(cell.text)) colA = cIdx;
+                            if (/från:|from:/i.test(cell.text)) colB = cIdx;
                         });
 
                         const parseAddress = (textBlock, targetObj) => {
@@ -365,26 +444,27 @@
                                      .forEach((l, idx) => targetObj[`line${idx + 1}`] = l);
                         };
 
-                        if (row0[colA]) parseAddress(row0[colA], extractedData.companyA);
-                        if (row0[colB]) parseAddress(row0[colB], extractedData.companyB);
+                        if (row0[colA]) parseAddress(row0[colA].text, extractedData.companyA);
+                        if (row0[colB]) parseAddress(row0[colB].text, extractedData.companyB);
 
                     } else if (tblData.type === 'items') {
-                        if (currentMode === 'items' || currentMode === 'post-items') {
+                        // Crucial fix: Properly map to Optional if state indicates it
+                        if (currentMode === 'optional') {
                             processItemsGrid(tblData.grid, extractedData.optionalItems, extractedData);
                             extractedData.quote.visibility.optional = true;
-                            currentMode = 'info'; 
+                            currentMode = 'post-optional';
                         } else {
                             processItemsGrid(tblData.grid, extractedData.items, extractedData);
                             currentMode = 'post-items';
                         }
                     } else {
                         // Unrecognized tables go to Info section
-                        if (currentMode === 'info' || currentMode === 'post-items') {
+                        if (currentMode === 'info' || currentMode === 'post-items' || currentMode === 'post-optional') {
                             extractedData.infoImages.push({
                                 type: 'table',
                                 rows: tblData.grid.length,
                                 cols: tblData.grid[0].length,
-                                data: tblData.grid,
+                                data: tblData.grid.map(row => row.map(cell => cell.text)),
                                 centering: 'center'
                             });
                             extractedData.quote.visibility.info = true;
@@ -392,11 +472,11 @@
                     }
 
                 } else if (nodeName === "p") {
-                    const text = extractTextRobust(node);
-                    const lowerText = text.toLowerCase();
+                    const plainText = extractTextRobust(node);
+                    const lowerText = plainText.toLowerCase();
                     
-                    // State Transitions based on Section Headers
-                    if (/(alternativ|alternative)/i.test(lowerText) && (currentMode === 'items' || currentMode === 'post-items')) {
+                    // State Transitions 
+                    if (/(alternativ|alternative)/i.test(lowerText) && (currentMode === 'items' || currentMode === 'post-items' || currentMode === 'pre-items')) {
                         currentMode = 'optional';
                         extractedData.quote.visibility.optional = true;
                         continue;
@@ -410,28 +490,32 @@
                         continue;
                     }
                     
-                    // Always extract images inline
+                    // Dynamic Image Formatting (Single vs Row Array)
                     const images = await extractImagesFromNode(node);
-                    images.forEach(b64 => {
-                        extractedData.infoImages.push({ type: 'image', src: b64, width: 400, centering: 'center', compressionImmune: false });
+                    if (images.length === 1) {
+                        extractedData.infoImages.push({ type: 'image', src: images[0], width: 400, centering: 'center', compressionImmune: false });
                         extractedData.quote.visibility.info = true;
-                        if (currentMode === 'pre-items' || currentMode === 'items' || currentMode === 'post-items') {
-                            currentMode = 'info'; // Fallback jump if isolated images are found
-                        }
-                    });
+                        if (['pre-items', 'items', 'post-items', 'optional'].includes(currentMode)) currentMode = 'info';
+                    } else if (images.length > 1) {
+                        // Two or more images on the same row!
+                        extractedData.infoImages.push({ type: 'image_row', images: images, centering: 'center' });
+                        extractedData.quote.visibility.info = true;
+                        if (['pre-items', 'items', 'post-items', 'optional'].includes(currentMode)) currentMode = 'info';
+                    }
 
-                    // Consume free-floating text into appropriate bins
-                    if (text && images.length === 0) {
+                    // Extract Text preserving bold logic
+                    const formattedText = extractTextWithFormatting(node);
+                    if (formattedText && images.length === 0) {
                         if (currentMode === 'terms') {
-                            extractedData.terms.push(text);
+                            extractedData.terms.push(formattedText); // Now pushes HTML string with <b> tags
                         } else if (currentMode === 'info') {
-                            extractedData.infoImages.push({ type: 'text', content: text.replace(/\n/g, '<br>'), centering: 'center' });
+                            extractedData.infoImages.push({ type: 'text', content: formattedText.replace(/\n/g, '<br>'), centering: 'center' });
                         }
                     }
                 }
             }
 
-            // 5. Inject Data Back to App Ecosystem
+            // 5. App Data Integration
             if (typeof window.processIncomingJson === 'function') {
                 window.processIncomingJson(JSON.stringify(extractedData), file.name);
             } else {
@@ -455,7 +539,7 @@
             }
             alert("Ett fel uppstod vid inläsning av Word-filen.");
         } finally {
-            event.target.value = ''; // Reset input to allow re-upload
+            event.target.value = '';
             zipObj = null;
             relsMap = {};
             mediaFiles = {};
