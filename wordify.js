@@ -1,486 +1,474 @@
 /**
- * wordify.js - Complete Production-Ready DOCX Generator
- * Depends on: docx (library must be loaded via script tag beforehand)
+ * wordify.js - Production Ready Version
+ * Includes: Black Headers, Translation Support, Smart Image Collage, 
+ * Contextual Page Breaks, Bullet formatting, Spacing Fixes, and Zero-Hiding.
  */
 
 (function () {
-    // Standard page content width safe zones in dxa (Twips)
-    // Assumes A4 or US Letter with standard ~1 inch margins
-    const PAGE_CONTENT_WIDTH = 9360; 
-    
-    // !!! CHANGE THIS TO YOUR ACTUAL LOGO PATH (can be relative or base64) !!!
-    const logoUrl = 'path/to/your/logo.png'; 
+    const TAG = "[Wordify]";
+    console.log(`${TAG} 🚀 Script loaded and executing...`);
 
-    /**
-     * Helper to get image dimensions async before adding to doc.
-     * Prevents distortion by maintaining aspect ratio.
-     */
-    async function getImageDimensions(url) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-                resolve({ width: img.naturalWidth, height: img.naturalHeight });
-            };
-            img.onerror = () => {
-                console.error(`Failed to load image: ${url}`);
-                resolve(null); // Return null so script doesn't crash, just skips image
-            };
-            img.src = url;
-        });
+    if (typeof docx === 'undefined') {
+        console.error(`${TAG} ❌ ERROR: docx library not found. Ensure you are using index.umd.js in index.html.`);
+        return;
     }
 
-    /**
-     * Goal 3 & Smart Scaling Helper:
-     * Returns ImageRun options with calculated dimensions based on target width.
-     */
-    async function createScaledImage(url, targetWidthDxa) {
-        const dims = await getImageDimensions(url);
-        if (!dims) return null;
+    const { 
+        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
+        ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
+        HeadingLevel 
+    } = docx;
 
-        // DOCX handles images in pts internally (1pt = 20 dxa)
-        const targetWidthPt = targetWidthDxa / 20; 
+    // --- Utility: Clean UI Artifacts & Fix Bullets ---
+    function stripUiArtifacts(htmlStr) {
+        if (!htmlStr) return "";
+        let s = String(htmlStr)
+            .replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '') // Remove UI
+            .replace(/✖|👨‍🍳|📝/g, '') // Remove emojis/icons
+            .replace(/\r?\n|\r/g, ' '); // Collapse hidden source-code newlines
         
-        // Calculate aspect ratio
-        const aspectRatio = dims.width / dims.height;
-        
-        // Final pixel dimensions based on target width
-        const finalWidth = targetWidthPt;
-        const finalHeight = targetWidthPt / aspectRatio;
-
-        // Fetch the raw data
-        const response = await fetch(url);
-        const data = await response.arrayBuffer();
-
-        return new docx.ImageRun({
-            data: data,
-            transformation: {
-                width: finalWidth,
-                height: finalHeight,
-            },
-        });
+        // Force bullet points to start on a new line
+        s = s.replace(/(?:<br\s*\/?>\s*)?●\s*/g, '<br>● ');
+        s = s.replace(/^\s*<br>\s*/, ''); // Remove if it forced a break at the very beginning
+        return s.trim();
     }
 
-    /**
-     * Goal 2: String parsing helper.
-     * Converts raw text descriptions into docx Paragraphs/Runs, 
-     * forcing new lines before "● " or standard newlines.
-     */
-    function parseDescriptionToRuns(text) {
-        if (!text) return [new docx.TextRun("")];
+    // --- Utility: Parse HTML to Word Runs (Now handles paragraphs and breaks cleanly) ---
+    function parseHtmlToRuns(htmlStr, defaultItalics = false, defaultBold = false) {
+        let cleanHtml = stripUiArtifacts(htmlStr);
+        if (!cleanHtml) return [new TextRun({ text: "" })];
         
-        // 1. Force new lines before bullet points that might be squished
-        // 2. Normalize existing standard newlines
-        // 3. Handle HTML-like line breaks if they exist
-        let normalizedText = text
-            .replace(/<br\s*\/?>/gi, '\n') // Handle <br> just in case
-            .replace(/●\s+/g, '\n● ')     // Force newline before bullet+space
-            .trim();
-
-        // Split by existing or generated newlines
-        const lines = normalizedText.split('\n');
+        const parser = new DOMParser();
+        const docNode = parser.parseFromString(cleanHtml, 'text/html');
         const runs = [];
 
-        lines.forEach((line, index) => {
-            // Trim leading spaces from the start of a line (except maybe the bullet itself)
-            let trimmedLine = line.trim();
-            if (trimmedLine.startsWith('●')) {
-                 trimmedLine = trimmedLine.replace('●', '●\u00A0'); // Ensure non-breaking space after bullet
+        function traverse(node, isBold, isItalic) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                let text = node.textContent.replace(/\s+/g, ' '); // Collapse spaces
+                if (text && text !== '') {
+                    runs.push(new TextRun({ text: text, bold: isBold, italics: isItalic }));
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const tag = node.tagName.toLowerCase();
+                if (tag === 'br') {
+                    runs.push(new TextRun({ text: "", break: 1 }));
+                } else if (tag === 'p' || tag === 'div') {
+                    if (runs.length > 0 && !runs[runs.length - 1].break) runs.push(new TextRun({ text: "", break: 1 }));
+                    const nextBold = isBold || tag === 'b' || tag === 'strong';
+                    const nextItalic = isItalic || tag === 'i' || tag === 'em';
+                    Array.from(node.childNodes).forEach(child => traverse(child, nextBold, nextItalic));
+                    if (runs.length > 0 && !runs[runs.length - 1].break) runs.push(new TextRun({ text: "", break: 1 }));
+                } else {
+                    const nextBold = isBold || tag === 'b' || tag === 'strong';
+                    const nextItalic = isItalic || tag === 'i' || tag === 'em';
+                    Array.from(node.childNodes).forEach(child => traverse(child, nextBold, nextItalic));
+                }
+            }
+        }
+        Array.from(docNode.body.childNodes).forEach(child => traverse(child, defaultBold, defaultItalics));
+        
+        // Trim leading and trailing breaks
+        while (runs.length > 0 && runs[runs.length - 1].text === "" && runs[runs.length - 1].break) runs.pop();
+        while (runs.length > 0 && runs[0].text === "" && runs[0].break) runs.shift();
+        
+        return runs.length > 0 ? runs : [new TextRun({ text: "" })];
+    }
+
+    // --- Utility: Format Numbers & Hide Zeros ---
+    function formatNumberHidingZero(val, isPrice = false, isBakedIn = false) {
+        if (isPrice && isBakedIn) return "";
+        if (val === undefined || val === null || val === "") return "";
+        
+        const numCheck = String(val).replace(/\s/g, '').replace(',', '.');
+        if (!isNaN(numCheck) && Number(numCheck) === 0) return " "; // Print blank space for 0
+        
+        if (isPrice && typeof formatPrice === 'function') return formatPrice(val);
+        return String(val);
+    }
+
+    // --- Utility: Image Loaders ---
+    async function getImageDimensions(src) {
+        return new Promise(resolve => {
+            const img = new Image();
+            const timeout = setTimeout(() => resolve({ width: 200, height: 200 }), 3000); 
+            img.onload = () => { clearTimeout(timeout); resolve({ width: img.width || 200, height: img.height || 200 }); };
+            img.onerror = () => { clearTimeout(timeout); resolve({ width: 200, height: 200 }); };
+            img.src = src;
+        });
+    }
+
+    async function getDocxImageData(src) {
+        if (!src) return null;
+        try {
+            let uint8, mime = 'png', dimensions;
+            if (src.startsWith('data:image')) {
+                const parts = src.split(',');
+                const match = parts[0].match(/data:image\/(png|jpeg|jpg|gif|bmp)/i);
+                mime = match ? match[1].toLowerCase().replace('jpg', 'jpeg') : 'png';
+                const binary = window.atob(parts[1]);
+                uint8 = new Uint8Array(binary.length);
+                for(let i = 0; i < binary.length; i++) uint8[i] = binary.charCodeAt(i);
+                dimensions = await getImageDimensions(src);
+            } else {
+                const response = await fetch(src, { mode: 'cors', cache: 'no-cache' });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                uint8 = new Uint8Array(arrayBuffer);
+                const match = blob.type.match(/image\/(png|jpeg|jpg|gif|bmp)/i);
+                mime = match ? match[1].toLowerCase().replace('jpg', 'jpeg') : 'png';
+                const objUrl = URL.createObjectURL(blob);
+                dimensions = await getImageDimensions(objUrl);
+                URL.revokeObjectURL(objUrl);
+            }
+            return { uint8, mime, width: dimensions.width, height: dimensions.height };
+        } catch (e) {
+            console.warn(`${TAG} Failed to process image.`, e);
+            return null; 
+        }
+    }
+
+    function decryptCaesar(text, shift) {
+        const mangleMap = { '€': 128, '‚': 130, 'ƒ': 131, '„': 132, '…': 133, '†': 134, '‡': 135, 'ˆ': 136, '‰': 137, 'Š': 138, '‹': 139, 'Œ': 140, 'Ž': 142, '‘': 145, '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '˜': 152, '™': 153, 'š': 154, '›': 155, 'œ': 156, 'ž': 158, 'Ÿ': 159 };
+        return text.split('').map(char => {
+            let code = char.charCodeAt(0);
+            if (mangleMap[char] !== undefined) code = mangleMap[char];
+            return String.fromCharCode(code - shift);
+        }).join('');
+    }
+
+    // --- Layout Definitions ---
+    const INVISIBLE_BORDERS = { top: { style: BorderStyle.NONE, size: 0 }, bottom: { style: BorderStyle.NONE, size: 0 }, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideHorizontal: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
+    const LIGHT_BORDER = { style: BorderStyle.SINGLE, size: 1, color: "E0E0E0" };
+    const TABLE_BORDERS = { top: LIGHT_BORDER, bottom: LIGHT_BORDER, insideHorizontal: LIGHT_BORDER, left: { style: BorderStyle.NONE, size: 0 }, right: { style: BorderStyle.NONE, size: 0 }, insideVertical: { style: BorderStyle.NONE, size: 0 } };
+    
+    const COL_WIDTHS_DXA = [900, 4950, 1350, 1800]; // Total 9000
+    const ADDRESS_WIDTHS_DXA = [4050, 900, 4050]; // 45% (Till), 10% (Gap), 45% (Från)
+
+    const MAX_IMG_FULL = 550; // Max width for full span image
+    const MAX_IMG_HALF = 260; // Max width for grid image
+
+    async function generateWordDocument() {
+        try {
+            console.log(`${TAG} 🎬 EXPORT STARTED`);
+
+            let data = window.jsonData || (typeof jsonData !== 'undefined' ? jsonData : null);
+            if (!data || !data.quote) {
+                const localData = localStorage.getItem('quoteData');
+                if (localData) data = JSON.parse(decryptCaesar(localData, 17));
+            }
+            if (!data || !data.quote) return alert("Export misslyckades: Ingen data hittades.");
+
+            const lang = data.quote.language || 'sv';
+            const t = (typeof translations !== 'undefined' && translations[lang]) || {};
+            const labels = data.quote.labels || {};
+            const visibility = data.quote.visibility || { optional: true, info: true, terms: true };
+            const docChildren = [];
+            const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
+
+            // 1. Logo & Top Header
+            let logoSrc = localStorage.getItem('companyLogo');
+            if (!logoSrc) {
+                const domLogo = document.getElementById('companyLogo');
+                if (domLogo && domLogo.getAttribute('src')) logoSrc = domLogo.src;
             }
 
-            runs.push(new docx.TextRun({
-                text: trimmedLine,
-                // Add a line break property to every line except the very last one
-                break: index < lines.length - 1 ? 1 : 0 
-            }));
-        });
+            const logoRuns = [];
+            if (logoSrc) {
+                const imgData = await getDocxImageData(logoSrc);
+                if (imgData) {
+                    const targetWidth = data.quote.defaultLogoWidth || 200;
+                    const targetHeight = Math.round((targetWidth / imgData.width) * imgData.height);
+                    logoRuns.push(new ImageRun({ data: imgData.uint8, transformation: { width: Math.round(targetWidth), height: targetHeight }, type: imgData.mime }));
+                }
+            }
 
-        return runs;
-    }
-
-    /**
-     * Goal 5 Helper: Formatter for Price/Quantity cells.
-     * If 0, returns space. Otherwise, normal formatted value.
-     */
-    function formatVal(val, formatterFn) {
-        const numVal = parseFloat(val);
-        if (isNaN(numVal) || numVal === 0) {
-            return " "; // Empty cell if zero or nan
-        }
-        return formatterFn ? formatterFn(numVal) : String(numVal);
-    }
-
-    // Main currency formatter for consistent looks
-    const currencyFormatter = new Intl.NumberFormat('sv-SE', {
-        style: 'currency',
-        currency: 'SEK',
-        minimumFractionDigits: 0, 
-    });
-
-    /**
-     * Main wordify function. Needs to be async to handle image dimension pre-loading.
-     */
-    async function wordify(jsonData) {
-        console.log("Generating DOCX with improved layout rules...");
-
-        if (!jsonData || !jsonData.quote) {
-            alert("Feil: Ingen offert-data funnet.");
-            return;
-        }
-
-        const quote = jsonData.quote;
-        const children = []; // The list of elements for the final section
-
-        // --- Styles Definition (for later reuse) ---
-        const styles = {
-            tableBorders: {
-                top: { style: docx.BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
-                bottom: { style: docx.BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
-                insideHorizontal: { style: docx.BorderStyle.SINGLE, size: 1, color: "E0E0E0" },
-                // Remove vertical borders for cleaner look like image_2.png
-                left: { style: docx.BorderStyle.NONE }, 
-                right: { style: docx.BorderStyle.NONE },
-                insideVertical: { style: docx.BorderStyle.NONE },
-            },
-            noBorders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE },
-                insideVertical: { style: docx.BorderStyle.NONE },
-                insideHorizontal: { style: docx.BorderStyle.NONE },
-            },
-        };
-
-
-        // --- Header Section ---
-        // Top right details block (Title, Nr, Datum)
-        children.push(
-            new docx.Paragraph({
-                children: [
-                    new docx.TextRun({ text: "Offert", bold: true, size: 32 }), // larger, bold
-                ],
-                alignment: docx.AlignmentType.RIGHT,
-            })
-        );
-        children.push(
-            new docx.Paragraph({
-                children: [
-                    new docx.TextRun({ text: "Offert nr: ", bold: true }),
-                    new docx.TextRun(quote.quoteNumber || "-"),
-                ],
-                alignment: docx.AlignmentType.RIGHT,
-                spacing: { before: 120 } // slight gap below title
-            })
-        );
-        children.push(
-            new docx.Paragraph({
-                children: [
-                    new docx.TextRun({ text: "Datum: ", bold: true }),
-                    new docx.TextRun(quote.date || new Date().toISOString().split('T')[0]),
-                ],
-                alignment: docx.AlignmentType.RIGHT,
-                spacing: { after: 400 } // gap below details block
-            })
-        );
-
-
-        // --- Logo and Top Addresses Table (Goal 1 Fix) ---
-        // Fetch and scale logo (target width: roughly 1/3 of page)
-        const scaledLogoRun = await createScaledImage(logoUrl, 3200);
-
-        // Define specific widths to ensure standard DOCX layout
-        // Col 1 is Logo (roughly 40%)
-        // Col 2 is From address (roughly 35%) -> pushed right
-        // Col 3 is spacer / edge of "Till" block (roughly 25%)
-        const topTableWidths = [
-            (PAGE_CONTENT_WIDTH * 0.40),
-            (PAGE_CONTENT_WIDTH * 0.35),
-            (PAGE_CONTENT_WIDTH * 0.25),
-        ];
-
-        children.push(
-            new docx.Table({
-                width: { size: PAGE_CONTENT_WIDTH, type: docx.WidthType.DXA },
-                borders: styles.noBorders,
-                rows: [
-                    new docx.TableRow({
-                        children: [
-                            // Column 1: Logo
-                            new docx.TableCell({
-                                width: { size: topTableWidths[0], type: docx.WidthType.DXA },
-                                children: scaledLogoRun ? [new docx.Paragraph({ children: [scaledLogoRun] })] : [],
-                            }),
-                            // Column 2: empty spacer cell
-                            new docx.TableCell({ width: { size: topTableWidths[1], type: docx.WidthType.DXA }, children: [] }),
-                            // Column 3: "Från" block (pushed to right edge like image_2)
-                            new docx.TableCell({
-                                width: { size: topTableWidths[2], type: docx.WidthType.DXA },
-                                children: [
-                                    new docx.Paragraph({
-                                        children: [new docx.TextRun({ text: "Från:", bold: true })],
-                                        spacing: { after: 100 }
-                                    }),
-                                    // Map list items to paragraphs
-                                    ...(quote.fromAddress || []).map(line => 
-                                        new docx.Paragraph({ children: [new docx.TextRun(line)] })
-                                    ),
-                                    // Contact details
-                                    new docx.Paragraph({ children: [new docx.TextRun({text: `Mob: ${quote.fromPhone || ""}`, break: 1})] }),
-                                ],
-                            }),
-                        ],
-                    }),
-                ],
-                spacing: { after: 300 } // gap below logo row
-            })
-        );
-
-
-        // --- "Till" Address Block (Below logo row) ---
-        children.push(
-            new docx.Paragraph({
-                children: [
-                    new docx.TextRun({ text: "Till:", bold: true }),
-                    new docx.TextRun({ text: quote.toCompany || "", break: 1 }),
-                    new docx.TextRun({ text: quote.toContactPerson || "", break: 1 }),
-                    new docx.TextRun({ text: quote.toAddressLine1 || "", break: 1 }),
-                    new docx.TextRun({ text: quote.toAddressLine2 || "", break: 1 }),
-                    new docx.TextRun({ text: quote.toPostalCodeCity || "", break: 1 }),
-                    quote.toOrgNumber ? new docx.TextRun({ text: `Org. nr: ${quote.toOrgNumber}`, break: 1 }) : null,
-                ],
-                spacing: { after: 600 } // large gap before item table
-            })
-        );
-
-
-        // --- Main Items Table ---
-        // CRITICAL: Define explicit column widths in DXA to prevent compressed columns (fixes image_0.png fail)
-        // Values are examples based on standard layout ratios
-        const colWidthsItems = {
-            nr: 720,        // small width for item number
-            name: 5800,     // wide for descriptions
-            qty: 900,       // centered qty
-            price: 1940,    // right aligned price
-        };
-        const tableHeaderShading = { fill: "F5F5F5", type: docx.ShadingType.CLEAR, color: "000000" };
-
-        const itemTableRows = [
-            // Table Header Row
-            new docx.TableRow({
-                tableHeader: true,
-                children: [
-                    new docx.TableCell({
-                        width: { size: colWidthsItems.nr, type: docx.WidthType.DXA },
-                        shading: tableHeaderShading,
-                        children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Nr", bold: true })] })],
-                    }),
-                    new docx.TableCell({
-                        width: { size: colWidthsItems.name, type: docx.WidthType.DXA },
-                        shading: tableHeaderShading,
-                        children: [new docx.Paragraph({ children: [new TextRun({ text: "Artikel / Namn", bold: true })] })],
-                    }),
-                    new docx.TableCell({
-                        width: { size: colWidthsItems.qty, type: docx.WidthType.DXA },
-                        shading: tableHeaderShading,
-                        children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Antal", bold: true })], alignment: docx.AlignmentType.CENTER })],
-                    }),
-                    new docx.TableCell({
-                        width: { size: colWidthsItems.price, type: docx.WidthType.DXA },
-                        shading: tableHeaderShading,
-                        children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Pris", bold: true })], alignment: docx.AlignmentType.RIGHT })],
-                    }),
-                ],
-            }),
-        ];
-
-        let totalPrice = 0;
-
-        // Loop Main Items
-        (jsonData.items || []).forEach(item => {
-            if (item.isHidden) return; // Skip hidden items
-
-            totalPrice += parseFloat(item.totalPrice || 0);
-
-            // Goal 2 implemented here via parseDescriptionToRuns helper
-            const descriptionRuns = parseDescriptionToRuns(item.description);
-
-            // Create Main Item Row
-            itemTableRows.push(
-                new docx.TableRow({
+            docChildren.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                columnWidths: [4500, 4500],
+                borders: INVISIBLE_BORDERS,
+                rows: [new TableRow({
                     children: [
-                        // Nr
-                        new docx.TableCell({ children: [new docx.Paragraph({ text: item.itemNumber || " " })] }),
-                        // Name & Details (Goal 2 text representation)
-                        new docx.TableCell({
-                            children: [
-                                new docx.Paragraph({ children: [new docx.TextRun({ text: item.name || " ", bold: true })] }), // Title Bold
-                                new docx.Paragraph({ children: descriptionRuns, spacing: { before: 100 } }), // Details standard spacing
-                            ],
-                            verticalAlign: docx.VerticalAlign.TOP,
-                            margins: { top: 120, bottom: 120 },
-                        }),
-                        // Antal (Goal 5: blank if 0)
-                        new docx.TableCell({
-                            children: [new docx.Paragraph({ 
-                                children: [new docx.TextRun(formatVal(item.quantity, null))], 
-                                alignment: docx.AlignmentType.CENTER 
-                            })],
-                            verticalAlign: docx.VerticalAlign.TOP,
-                            margins: { top: 120, bottom: 120 },
-                        }),
-                        // Pris (Goal 5: blank if 0)
-                        new docx.TableCell({
-                            children: [new docx.Paragraph({ 
-                                children: [new docx.TextRun(formatVal(item.totalPrice, val => currencyFormatter.format(val)))], 
-                                alignment: docx.AlignmentType.RIGHT 
-                            })],
-                            verticalAlign: docx.VerticalAlign.TOP,
-                            margins: { top: 120, bottom: 120 },
-                        }),
-                    ],
-                })
-            );
+                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: logoRuns.length > 0 ? logoRuns : [new TextRun("")] })], verticalAlign: VerticalAlign.CENTER }),
+                        new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [
+                            new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.quoteTitle || t.quoteTitle || "Offert"), size: 32, bold: true, color: "000000" })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT }),
+                            new Paragraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.quoteNumberLabel || "Nr:")} ${stripUiArtifacts(data.quote.quoteNumber || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT }),
+                            new Paragraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.dateLabel || "Datum:")} ${stripUiArtifacts(data.quote.date || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT })
+                        ], verticalAlign: VerticalAlign.CENTER })
+                    ]
+                })]
+            }));
+            docChildren.push(emptyParagraph());
 
-            // Loop Sub-items (Goal 4 Implemented Here)
-            (item.subItems || []).forEach(subItem => {
-                if (subItem.isHidden) return; // Skip hidden
+            // 2. Addresses (Spaced out using 3 columns)
+            const addressLines = (comp) => Object.values(comp || {}).filter(v => !!v).map(l => new Paragraph({ children: parseHtmlToRuns(l) }));
+            const compA = addressLines(data.companyA);
+            const compB = addressLines(data.companyB);
 
-                const subDescriptionRuns = parseDescriptionToRuns(subItem.description);
-                const subItemNrFormatted = " " + (subItem.subNumber || ""); // leading space prefix
+            docChildren.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                columnWidths: ADDRESS_WIDTHS_DXA,
+                borders: INVISIBLE_BORDERS,
+                rows: [new TableRow({
+                    children: [
+                        new TableCell({ width: { size: 45, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.toLabel || "Till:"), bold: true, color: "000000" })] }), ...(compA.length ? compA : [emptyParagraph()])] }),
+                        new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, children: [emptyParagraph()] }), // Invisible Spacer
+                        new TableCell({ width: { size: 45, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(t.fromLabel || "Från:"), bold: true, color: "000000" })] }), ...(compB.length ? compB : [emptyParagraph()])] })
+                    ]
+                })]
+            }));
+            docChildren.push(emptyParagraph());
 
-                itemTableRows.push(
-                    new docx.TableRow({
+            // 3. Build Tables Function
+            const buildTable = (items, hNr, hName, hQty, hPrice, includeTotal = false) => {
+                if (!items || items.length === 0) return null;
+                const rows = [new TableRow({
+                    tableHeader: true,
+                    children: [
+                        new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hNr), bold: true })] })] }),
+                        new TableCell({ width: { size: 55, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hName), bold: true })] })] }),
+                        new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hQty), bold: true })], alignment: AlignmentType.CENTER })] }),
+                        new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, shading: { fill: "F5F5F5" }, children: [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(hPrice), bold: true })], alignment: AlignmentType.RIGHT })] })
+                    ]
+                })];
+
+                let totalSum = 0;
+                items.forEach(item => {
+                    if (item.type === 'separator' || item.isHiddenFromPrint) return;
+                    totalSum += item.targetPrice || 0;
+
+                    const descRuns = item.itemDescription ? parseHtmlToRuns(item.itemDescription) : [];
+                    const cellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(item.name || ""), bold: true })] })];
+                    if (descRuns.length > 0) cellChildren.push(new Paragraph({ children: descRuns }));
+
+                    rows.push(new TableRow({
                         children: [
-                            // Nr Cell (Goal 4: Italic and with space prefix)
-                            new docx.TableCell({
-                                children: [new docx.Paragraph({
-                                    children: [new docx.TextRun({ text: subItemNrFormatted, italics: true })] 
-                                })],
-                            }),
-                            // Name & Details Cell (Goal 4: bold title, normal description)
-                            new docx.TableCell({
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(item.itemNumber || "")}`, italics: true })] })] }),
+                            new TableCell({ children: cellChildren }),
+                            new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.quantity), alignment: AlignmentType.CENTER })] }),
+                            new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(item.targetPrice, true, item.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
+                        ]
+                    }));
+
+                    if (item.subItems && item.subItems.length > 0) {
+                        item.subItems.forEach(sub => {
+                            if (sub.isHiddenFromPrint) return;
+                            if (!sub.isPriceBakedIn) totalSum += sub.subItemTargetPrice || 0;
+                            const subDescRuns = sub.subItemDescription ? parseHtmlToRuns(sub.subItemDescription) : [];
+                            
+                            // Subitem name is now BOLD
+                            const subCellChildren = [new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(sub.subItemName || ""), bold: true })] })];
+                            if (subDescRuns.length > 0) subCellChildren.push(new Paragraph({ children: subDescRuns }));
+
+                            rows.push(new TableRow({
                                 children: [
-                                    new docx.Paragraph({ children: [new docx.TextRun({ text: subItem.name || " ", bold: true })] }), // bold title
-                                    subDescriptionRuns.length > 0 && subItem.description // only add desc if exists
-                                      ? new docx.Paragraph({ children: subDescriptionRuns, spacing: { before: 80 } }) // keep description normal
-                                      : null,
-                                ],
-                                verticalAlign: docx.VerticalAlign.TOP,
-                                margins: { top: 100, bottom: 100 },
-                            }),
-                            // Antal Cell (blank if 0)
-                            new docx.TableCell({
-                                children: [new docx.Paragraph({ 
-                                    children: [new docx.TextRun(formatVal(subItem.quantity, null))], 
-                                    alignment: docx.AlignmentType.CENTER 
-                                })],
-                                verticalAlign: docx.VerticalAlign.TOP,
-                                margins: { top: 100, bottom: 100 },
-                            }),
-                            // Price Cell (Sub-items often don't have separate price visible, or it's 0 if bundled)
-                            new docx.TableCell({
-                                children: [new docx.Paragraph({ 
-                                    // Using common bundled price scenario: show price if > 0, else blank if 0
-                                    children: [new docx.TextRun(formatVal(subItem.totalPrice, val => currencyFormatter.format(val)))], 
-                                    alignment: docx.AlignmentType.RIGHT 
-                                })],
-                                verticalAlign: docx.VerticalAlign.TOP,
-                                margins: { top: 100, bottom: 100 },
-                            }),
-                        ],
-                    })
-                );
-            });
-        });
+                                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ` ${stripUiArtifacts(sub.subItemNumber || "")}`, italics: true })] })] }),
+                                    new TableCell({ children: subCellChildren }),
+                                    new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(sub.subItemQuantity), alignment: AlignmentType.CENTER })] }),
+                                    new TableCell({ children: [new Paragraph({ text: formatNumberHidingZero(sub.subItemTargetPrice, true, sub.isPriceBakedIn), alignment: AlignmentType.RIGHT })] })
+                                ]
+                            }));
+                        });
+                    }
+                });
 
-        // Add Total Row
-        itemTableRows.push(
-            new docx.TableRow({
-                children: [
-                    new TableCell({ children: [] }), // spacer nr
-                    new TableCell({ // Total Label block
-                        children: [new Paragraph({
-                            children: [new TextRun({ text: "TOTALT ATT BETALA (exkl moms)", bold: true })],
-                            alignment: AlignmentType.RIGHT,
-                        })],
-                        shading: { fill: "fcfcfc" } // light accent
-                    }),
-                    new TableCell({ children: [] }), // spacer qty
-                    new docx.TableCell({ // Total Price Cell
-                        children: [new docx.Paragraph({
-                            children: [new docx.TextRun({ text: currencyFormatter.format(totalPrice), bold: true })],
-                            alignment: docx.AlignmentType.RIGHT,
-                        })],
-                        verticalAlign: docx.VerticalAlign.CENTER,
-                        margins: { top: 120, bottom: 120 },
-                        shading: { fill: "fcfcfc" }
-                    }),
-                ],
-            })
-        );
-
-        // Add Table to document
-        children.push(
-            new docx.Table({
-                width: { size: PAGE_CONTENT_WIDTH, type: docx.WidthType.DXA },
-                borders: styles.tableBorders, // borders horizontal only
-                rows: itemTableRows,
-                spacing: { after: 800 } // gap after table before terms
-            })
-        );
-
-
-        // --- Villkor (Terms) Section (similar to image_1.png) ---
-        if (quote.terms && quote.terms.length > 0) {
-            children.push(
-                new docx.Paragraph({
-                    children: [new docx.TextRun({ text: "Villkor", bold: true, size: 28 })], // Larger section header
-                    spacing: { after: 200 }
-                })
-            );
-
-            quote.terms.forEach(term => {
-                children.push(
-                    new docx.Paragraph({
+                if (includeTotal && !data.quote.removeTotal) {
+                    const currencyLabel = data.quote.useCustomCurrency ? data.quote.customCurrency : "SEK";
+                    const totLabel = stripUiArtifacts(labels.totalLabel || t.totalLabel || "Total:");
+                    rows.push(new TableRow({
                         children: [
-                            new docx.TextRun({ text: term.label || "", bold: true }), // bold label e.g., "Giltighet:"
-                            new docx.TextRun({ text: ` ${term.text || ""}` }), // normal text
-                        ],
-                        indent: { left: 400, hanging: 400 }, // clean hanging indent formatting
-                        spacing: { after: 120 } // gap between terms
-                    })
+                            new TableCell({ children: [new Paragraph("")] }),
+                            new TableCell({ children: [new Paragraph("")] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: totLabel, bold: true })], alignment: AlignmentType.RIGHT })] }),
+                            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${formatNumberHidingZero(totalSum, true)} ${currencyLabel}`, bold: true })], alignment: AlignmentType.RIGHT })] })
+                        ]
+                    }));
+                }
+
+                return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, columnWidths: COL_WIDTHS_DXA, borders: TABLE_BORDERS, rows });
+            };
+
+            const mainItemsBlock = [];
+            const mainTbl = buildTable(
+                data.items, 
+                labels.nrHeader || t.nrHeader || "Nr", 
+                labels.articleNameHeader || t.articleNameHeader || "Namn", 
+                labels.quantityHeader || t.quantityHeader || "Antal", 
+                labels.priceHeader || t.priceHeader || "Pris", 
+                true
+            );
+            if (mainTbl) mainItemsBlock.push(mainTbl);
+
+            const optionalItemsBlock = [];
+            if (visibility.optional && data.optionalItems && data.optionalItems.length > 0) {
+                optionalItemsBlock.push(emptyParagraph());
+                optionalItemsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.optionalItemsHeading || t.optionalItemsHeading || "Alternativ"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
+                optionalItemsBlock.push(emptyParagraph());
+                const optTbl = buildTable(
+                    data.optionalItems, 
+                    labels.optNrHeader || t.optNrHeader || "Nr", 
+                    labels.optArticleHeader || t.optArticleHeader || "Namn", 
+                    labels.optQuantityHeader || t.optQuantityHeader || "Antal", 
+                    labels.optPriceHeader || t.optPriceHeader || "Pris", 
+                    false
                 );
-            });
-        }
+                if (optTbl) optionalItemsBlock.push(optTbl);
+            }
 
+            const infoImagesBlock = [];
+            if (visibility.info && data.infoImages && data.infoImages.length > 0) {
+                const isMovedUp = data.quote.moveInfoSectionUp || false;
+                
+                infoImagesBlock.push(emptyParagraph());
+                infoImagesBlock.push(new Paragraph({ 
+                    pageBreakBefore: !isMovedUp, 
+                    children: [new TextRun({ text: stripUiArtifacts(labels.infoImagesHeading || t.infoImagesHeading || "Info / Bilder"), bold: true, size: 28, color: "000000" })], 
+                    heading: HeadingLevel.HEADING_2 
+                }));
+                infoImagesBlock.push(emptyParagraph());
 
-        // --- Packaging and Returning Document Object ---
-        return new docx.Document({
-            sections: [{
-                properties: {},
-                children: children,
-            }],
-        });
-    }
+                // Smart Image Collage Logic
+                let imgBuffer = [];
+                const flushImageBuffer = async () => {
+                    if (imgBuffer.length === 0) return;
+                    
+                    if (imgBuffer.length === 1) {
+                        const img = imgBuffer[0];
+                        const imgData = await getDocxImageData(img.src);
+                        if (imgData) {
+                            let w = parseFloat(img.width) || imgData.width;
+                            if (w > MAX_IMG_FULL) w = MAX_IMG_FULL; // Safely cap full width
+                            const h = Math.round((w / imgData.width) * imgData.height);
+                            let align = img.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
+                            
+                            infoImagesBlock.push(new Paragraph({
+                                alignment: align,
+                                children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })]
+                            }));
+                            infoImagesBlock.push(emptyParagraph());
+                        }
+                    } else {
+                        // Grid Mode
+                        for (let i = 0; i < imgBuffer.length; i += 2) {
+                            const img1 = imgBuffer[i];
+                            const img2 = imgBuffer[i + 1];
 
-    // --- Integration with standard UI download pattern ---
-    async function handleDocxDownload(jsonData) {
-        try {
-            const doc = await wordify(jsonData);
-            const quoteNumber = jsonData.quote.quoteNumber || "draft";
-            const fileName = `Offert_${quoteNumber}.docx`;
+                            const processImgCell = async (imgObj) => {
+                                if (!imgObj) return new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [emptyParagraph()], borders: INVISIBLE_BORDERS });
+                                const imgData = await getDocxImageData(imgObj.src);
+                                if (imgData) {
+                                    let w = parseFloat(imgObj.width) || imgData.width;
+                                    if (w > MAX_IMG_HALF) w = MAX_IMG_HALF; // Safely cap grid width
+                                    const h = Math.round((w / imgData.width) * imgData.height);
+                                    let align = imgObj.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
+                                    
+                                    return new TableCell({
+                                        width: { size: 50, type: WidthType.PERCENTAGE },
+                                        borders: INVISIBLE_BORDERS,
+                                        children: [new Paragraph({ alignment: align, children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })] })]
+                                    });
+                                }
+                                return new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [emptyParagraph()], borders: INVISIBLE_BORDERS });
+                            };
 
-            docx.Packer.toBlob(doc).then(blob => {
+                            const cell1 = await processImgCell(img1);
+                            const cell2 = await processImgCell(img2);
+
+                            infoImagesBlock.push(new Table({
+                                width: { size: 100, type: WidthType.PERCENTAGE },
+                                columnWidths: [4500, 4500],
+                                borders: INVISIBLE_BORDERS,
+                                rows: [new TableRow({ children: [cell1, cell2] })]
+                            }));
+                            infoImagesBlock.push(emptyParagraph());
+                        }
+                    }
+                    imgBuffer = [];
+                };
+
+                for (const infoItem of data.infoImages) {
+                    if (infoItem.type === 'image') {
+                        imgBuffer.push(infoItem);
+                    } else {
+                        await flushImageBuffer();
+                        if (infoItem.type === 'page-break') {
+                            infoImagesBlock.push(new Paragraph({ pageBreakBefore: true }));
+                        } else if (infoItem.type === 'text') {
+                            let alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
+                            infoImagesBlock.push(new Paragraph({ children: parseHtmlToRuns(infoItem.content), alignment: alignment }));
+                            infoImagesBlock.push(emptyParagraph());
+                        } else if (infoItem.type === 'table') {
+                            const tRows = [];
+                            for (let r = 0; r < infoItem.rows; r++) {
+                                const cells = [];
+                                for (let c = 0; c < infoItem.cols; c++) {
+                                    const cellData = (infoItem.data && infoItem.data[r]) ? infoItem.data[r][c] : "";
+                                    cells.push(new TableCell({ children: [new Paragraph({ children: parseHtmlToRuns(cellData) })] }));
+                                }
+                                tRows.push(new TableRow({ children: cells }));
+                            }
+                            infoImagesBlock.push(new Table({ rows: tRows, width: { size: 100, type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS }));
+                            infoImagesBlock.push(emptyParagraph());
+                        }
+                    }
+                }
+                await flushImageBuffer();
+            }
+
+            const termsBlock = [];
+            if (visibility.terms && data.terms && data.terms.length > 0) {
+                termsBlock.push(emptyParagraph());
+                termsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.termsHeading || t.termsHeading || "Villkor"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
+                data.terms.forEach(term => {
+                    termsBlock.push(new Paragraph({ children: parseHtmlToRuns(term) }));
+                });
+            }
+
+            // Assembly Order
+            if (data.quote.moveInfoSectionUp) {
+                docChildren.push(...infoImagesBlock);
+                docChildren.push(...mainItemsBlock);
+                docChildren.push(...optionalItemsBlock);
+            } else {
+                docChildren.push(...mainItemsBlock);
+                docChildren.push(...optionalItemsBlock);
+                docChildren.push(...infoImagesBlock);
+            }
+            docChildren.push(...termsBlock);
+
+            // Export
+            const doc = new Document({ sections: [{ children: docChildren }] });
+            const blob = await Packer.toBlob(doc);
+            const fileName = `Offert_${stripUiArtifacts(data.quote.quoteNumber) || "Draft"}.docx`;
+            
+            if (typeof saveAs !== 'undefined') {
                 saveAs(blob, fileName);
-                console.log("DOCX generated successfully!");
-            });
-        } catch (error) {
-            console.error("Error generating DOCX:", error);
-            alert("Ett fel uppstod vid generering av DOCX-filen. Kontrollera webbläsarens konsol för detaljer.");
+            } else {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = fileName; a.click();
+                URL.revokeObjectURL(url);
+            }
+            console.log(`${TAG} ✅ Export Success`);
+
+        } catch (err) {
+            console.error(`${TAG} ❌ Detailed Error:`, err);
+            alert("Ett fel uppstod vid skapandet av filen. Kontrollera webbläsarens konsol (F12) för detaljer.");
         }
     }
 
-    // Bind function to window for UI usage
-    window.wordifyData = handleDocxDownload;
+    // Binding
+    function attach() {
+        const btn = document.getElementById('exportWordBtn');
+        if (btn) {
+            btn.removeEventListener('click', generateWordDocument);
+            btn.addEventListener('click', generateWordDocument);
+        }
+    }
 
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attach);
+    } else {
+        attach();
+    }
 })();
