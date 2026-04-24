@@ -720,6 +720,8 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
         <label for="pdfFileNameInput" id="pdfFileNameLabel">PDF Filnamn:</label>
         <input type="text" id="pdfFileNameInput" size="60" style="padding: 5px;"/>
     </div>
+    <input type="file" id="docxUploadInput" accept=".docx" style="display:none;" />
+    <button class="footer-button" id="uploadDocxBtn" style="background-color: #2b579a; color: white;">Ladda Word-offert (.docx)</button>
     <button class="footer-button" id="savePdfBtn">Spara som PDF</button>
     <button id="printBtn" class="footer-button">Print</button>
     <br>
@@ -743,13 +745,16 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <!-- For generating DOCX document from the HTML witht the exportWordBtn button -->
 <script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.umd.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
 <script src="wordify.js" defer></script>
-    
+<script src="dewordify.js" defer></script>
+
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 </script>
-
+    
 <script>
 const translations = {
   sv: {
