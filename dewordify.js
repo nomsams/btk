@@ -2,7 +2,8 @@
  * dewordify.js - Production Ready Reverse-Parser for Wordify.js
  * Features: Zero-dependency setup (Auto-injects JSZip), Smart Table Recognition,
  * Dynamic Grid Mapping, Image Base64 Extraction, Hierarchy Reconstruction.
- * V5: Restored Reliable Image Loading, Dual-image Rows, Bold Terms Formatting, Subitem Space/Italic Support.
+ * V6: Fixed "Images as Tables" bug. Word uses invisible tables for image grids; 
+ * now correctly intercepts these and extracts them as image_rows!
  */
 
 (function () {
@@ -174,7 +175,7 @@
         return parseFloat(s) || 0;
     }
 
-    // --- Extractor Logic (Restored from Old Working Version) ---
+    // --- Extractor Logic ---
     async function extractImageBase64(rId) {
         try {
             const targetPath = relsMap[rId];
@@ -365,7 +366,6 @@
                 });
             }
 
-            // Restored: Reliable path mapping from the old version
             zipObj.folder("word/media").forEach((relativePath, fileObj) => {
                 mediaFiles[`media/${relativePath}`] = fileObj;
             });
@@ -442,14 +442,49 @@
                     } else {
                         // Unrecognized tables go to Info section
                         if (currentMode === 'info' || currentMode === 'post-items' || currentMode === 'post-optional') {
-                            extractedData.infoImages.push({
-                                type: 'table',
-                                rows: tblData.grid.length,
-                                cols: tblData.grid[0].length,
-                                data: tblData.grid.map(row => row.map(cell => cell.text)),
-                                centering: 'center'
-                            });
+                            // NEW FIX: Is this table actually a hidden image layout?
+                            const imagesInTable = await extractImagesFromNode(node);
+                            
+                            if (imagesInTable.length > 0) {
+                                // Extract images row by row for side-by-side support!
+                                const rows = getDirect(node, "tr");
+                                for (let r = 0; r < rows.length; r++) {
+                                    const rowImages = await extractImagesFromNode(rows[r]);
+                                    if (rowImages.length === 1) {
+                                        extractedData.infoImages.push({ type: 'image', src: rowImages[0], width: 400, centering: 'center', compressionImmune: false });
+                                    } else if (rowImages.length > 1) {
+                                        extractedData.infoImages.push({ type: 'image_row', images: rowImages, centering: 'center' });
+                                    }
+                                }
+                                
+                                // Optional: if the image grid also contains text captions, extract the text too
+                                const textData = tblData.grid.map(row => row.map(cell => cell.text));
+                                if (textData.flat().some(text => text.trim() !== "")) {
+                                    extractedData.infoImages.push({
+                                        type: 'table',
+                                        rows: tblData.grid.length,
+                                        cols: tblData.grid[0].length,
+                                        data: textData,
+                                        centering: 'center'
+                                    });
+                                }
+                                
+                            } else {
+                                // Normal Text Table
+                                const textData = tblData.grid.map(row => row.map(cell => cell.text));
+                                if (textData.flat().some(text => text.trim() !== "")) {
+                                    extractedData.infoImages.push({
+                                        type: 'table',
+                                        rows: tblData.grid.length,
+                                        cols: tblData.grid[0].length,
+                                        data: textData,
+                                        centering: 'center'
+                                    });
+                                }
+                            }
+                            
                             extractedData.quote.visibility.info = true;
+                            currentMode = 'info';
                         }
                     }
 
@@ -471,7 +506,7 @@
                         continue;
                     }
                     
-                    // Extracts arrays of images per paragraph naturally
+                    // Extracts arrays of images per paragraph naturally (if they are outside of a table)
                     const images = await extractImagesFromNode(node);
                     
                     if (images.length === 1) {
