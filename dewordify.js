@@ -2,7 +2,7 @@
  * dewordify.js - Production Ready Reverse-Parser for Wordify.js
  * Features: Zero-dependency setup (Auto-injects JSZip), Smart Table Recognition,
  * Dynamic Grid Mapping, Image Base64 Extraction, Hierarchy Reconstruction.
- * V4: Robust Image loading, Dual-image Rows, Bold Terms Formatting, Subitem Space/Italic Support.
+ * V5: Restored Reliable Image Loading, Dual-image Rows, Bold Terms Formatting, Subitem Space/Italic Support.
  */
 
 (function () {
@@ -122,7 +122,6 @@
                 let isBold = false;
                 const rPrs = r.getElementsByTagName("w:rPr");
                 if (rPrs.length > 0) {
-                    // w:b presence indicates bold unless explicitly w:val="0"
                     const bolds = rPrs[0].getElementsByTagName("w:b");
                     if (bolds.length > 0) {
                         const val = bolds[0].getAttribute("w:val");
@@ -142,7 +141,6 @@
                     pText += isBold ? `<b>${runText}</b>` : runText;
                 }
             }
-            // Clean up back-to-back bold tags
             return pText.replace(/<\/b>\s*<b>/g, ' ');
         };
 
@@ -155,7 +153,6 @@
         return text.trim();
     }
 
-    // Parses diverse numbers: '218 288', '1,000.50', '1.000,50' -> 218288
     function parseRobustNumber(str) {
         if (!str) return 0;
         if (/ingår|included/i.test(str)) return 0; 
@@ -177,18 +174,13 @@
         return parseFloat(s) || 0;
     }
 
-    // --- Extractor Logic ---
+    // --- Extractor Logic (Restored from Old Working Version) ---
     async function extractImageBase64(rId) {
         try {
-            let targetPath = relsMap[rId];
-            if (!targetPath) return null;
+            const targetPath = relsMap[rId];
+            if (!targetPath || !mediaFiles[targetPath]) return null;
             
-            // Normalize path to match JSZip mapping (handle Word structural quirks)
-            let matchedKey = Object.keys(mediaFiles).find(k => k.endsWith(targetPath) || targetPath.endsWith(k) || k.includes(targetPath.split('/').pop()));
-            
-            if (!matchedKey) return null;
-            
-            const fileData = mediaFiles[matchedKey];
+            const fileData = mediaFiles[targetPath];
             const base64 = await fileData.async("base64");
             
             const ext = targetPath.split('.').pop().toLowerCase();
@@ -199,17 +191,17 @@
 
             return `data:${mime};base64,${base64}`;
         } catch (e) {
-            console.warn(`${TAG} Image extraction failed for ID: ${rId}`, e);
+            console.warn(`${TAG} Bildextraktion misslyckades för ID: ${rId}`, e);
             return null;
         }
     }
 
     async function extractImagesFromNode(node) {
-        // Robust namespace handling, avoiding strict a:blip which fails on some parsers
-        const blips = Array.from(node.getElementsByTagName("*")).filter(el => el.localName === "blip");
+        if (!node) return [];
+        const blips = node.getElementsByTagName("a:blip");
         const results = [];
         for (let i = 0; i < blips.length; i++) {
-            const rId = blips[i].getAttribute("r:embed") || blips[i].getAttribute("embed");
+            const rId = blips[i].getAttribute("r:embed");
             if (rId) {
                 const b64 = await extractImageBase64(rId);
                 if (b64) results.push(b64);
@@ -241,7 +233,6 @@
         let colMap = { nr: 0, name: 1, qty: 2, price: 3 };
         let headerRowIdx = -1;
 
-        // 1. Map columns
         for (let i = 0; i < grid.length; i++) {
             const rowText = grid[i].map(c => c.text).join(" ").toLowerCase();
             if (rowText.includes("antal") || rowText.includes("quantity")) {
@@ -259,7 +250,6 @@
 
         let lastMainItem = null;
 
-        // 2. Scan Rows
         for (let i = headerRowIdx + 1; i < grid.length; i++) {
             const rowCells = grid[i];
             if (!rowCells || rowCells.length === 0) continue;
@@ -296,7 +286,6 @@
             // Detect True SubItems using Spaces, Italics, and Fallbacks
             let isSubItem = false;
             if (nrCell && nrCell.node) {
-                // 1. Check if italics tag is active
                 const italics = nrCell.node.getElementsByTagName("w:i");
                 for (let x = 0; x < italics.length; x++) {
                     const val = italics[x].getAttribute("w:val");
@@ -305,7 +294,6 @@
                         break;
                     }
                 }
-                // 2. Check for leading spaces directly in the XML string run
                 if (!isSubItem) {
                     const ts = nrCell.node.getElementsByTagName("w:t");
                     if (ts.length > 0 && (ts[0].textContent.startsWith(" ") || ts[0].textContent.startsWith("\xA0"))) {
@@ -314,7 +302,6 @@
                 }
             }
             
-            // 3. Fallbacks
             if (!isSubItem && lastMainItem && nrText && nrText.includes('.') && nrText.startsWith(lastMainItem.itemNumber.split('.')[0] + '.')) isSubItem = true;
             if (!isSubItem && !nrText && lastMainItem && qty === 0 && price === 0) isSubItem = true;
 
@@ -366,7 +353,6 @@
             await ensureJSZip();
             zipObj = await window.JSZip.loadAsync(file);
             
-            // 1. Build Relationships & Media Maps properly
             relsMap = {};
             mediaFiles = {};
             
@@ -374,27 +360,24 @@
             if (relsFile) {
                 const relsXml = await relsFile.async("text");
                 const relsDoc = new DOMParser().parseFromString(relsXml, "application/xml");
-                // Namespace agnostic relationship mapping
-                Array.from(relsDoc.getElementsByTagName("*")).filter(el => el.localName === "Relationship").forEach(rel => {
+                Array.from(relsDoc.getElementsByTagName("Relationship")).forEach(rel => {
                     relsMap[rel.getAttribute("Id")] = rel.getAttribute("Target");
                 });
             }
 
-            // Capture all media contents into dict
-            zipObj.forEach((relativePath, fileObj) => {
-                if (!fileObj.dir && relativePath.includes("media/")) {
-                    mediaFiles[relativePath] = fileObj;
-                }
+            // Restored: Reliable path mapping from the old version
+            zipObj.folder("word/media").forEach((relativePath, fileObj) => {
+                mediaFiles[`media/${relativePath}`] = fileObj;
             });
 
-            // 2. Read Document Body
+            // Read Document Body
             const docFile = zipObj.file("word/document.xml");
             if (!docFile) throw new Error("Ogiltig Word-fil: word/document.xml saknas.");
             const docXml = await docFile.async("text");
             const doc = new DOMParser().parseFromString(docXml, "application/xml");
             const body = doc.getElementsByTagName("w:body")[0];
 
-            // 3. Extracted Data Template
+            // Extracted Data Template
             const extractedData = {
                 quote: { language: 'sv', visibility: { optional: false, info: false, terms: false } },
                 companyA: {},
@@ -407,7 +390,7 @@
 
             let currentMode = 'pre-items';
 
-            // 4. Sequential Execution Flow
+            // Sequential Execution Flow
             const nodes = Array.from(body.childNodes);
             for (let i = 0; i < nodes.length; i++) {
                 const node = nodes[i];
@@ -448,7 +431,6 @@
                         if (row0[colB]) parseAddress(row0[colB].text, extractedData.companyB);
 
                     } else if (tblData.type === 'items') {
-                        // Crucial fix: Properly map to Optional if state indicates it
                         if (currentMode === 'optional') {
                             processItemsGrid(tblData.grid, extractedData.optionalItems, extractedData);
                             extractedData.quote.visibility.optional = true;
@@ -475,7 +457,6 @@
                     const plainText = extractTextRobust(node);
                     const lowerText = plainText.toLowerCase();
                     
-                    // State Transitions 
                     if (/(alternativ|alternative)/i.test(lowerText) && (currentMode === 'items' || currentMode === 'post-items' || currentMode === 'pre-items')) {
                         currentMode = 'optional';
                         extractedData.quote.visibility.optional = true;
@@ -490,24 +471,24 @@
                         continue;
                     }
                     
-                    // Dynamic Image Formatting (Single vs Row Array)
+                    // Extracts arrays of images per paragraph naturally
                     const images = await extractImagesFromNode(node);
+                    
                     if (images.length === 1) {
                         extractedData.infoImages.push({ type: 'image', src: images[0], width: 400, centering: 'center', compressionImmune: false });
                         extractedData.quote.visibility.info = true;
                         if (['pre-items', 'items', 'post-items', 'optional'].includes(currentMode)) currentMode = 'info';
                     } else if (images.length > 1) {
-                        // Two or more images on the same row!
                         extractedData.infoImages.push({ type: 'image_row', images: images, centering: 'center' });
                         extractedData.quote.visibility.info = true;
                         if (['pre-items', 'items', 'post-items', 'optional'].includes(currentMode)) currentMode = 'info';
                     }
 
-                    // Extract Text preserving bold logic
+                    // Handles text ensuring inline <b> formatting stays
                     const formattedText = extractTextWithFormatting(node);
                     if (formattedText && images.length === 0) {
                         if (currentMode === 'terms') {
-                            extractedData.terms.push(formattedText); // Now pushes HTML string with <b> tags
+                            extractedData.terms.push(formattedText);
                         } else if (currentMode === 'info') {
                             extractedData.infoImages.push({ type: 'text', content: formattedText.replace(/\n/g, '<br>'), centering: 'center' });
                         }
@@ -515,7 +496,7 @@
                 }
             }
 
-            // 5. App Data Integration
+            // Integration
             if (typeof window.processIncomingJson === 'function') {
                 window.processIncomingJson(JSON.stringify(extractedData), file.name);
             } else {
