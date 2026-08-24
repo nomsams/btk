@@ -282,9 +282,9 @@ h3.name.editable { margin-bottom: 0 !important; }
 }
 
 .info-block.align-left {
-    flex-basis: auto;
-    width: auto;
-    display: inline-flex;
+    flex-basis: 100%;
+    width: 100%;
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
     text-align: left;
@@ -719,6 +719,10 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <div class="screen-only" style="margin-top: 10px; text-align: center;">
         <label for="pdfFileNameInput" id="pdfFileNameLabel">PDF Filnamn:</label>
         <input type="text" id="pdfFileNameInput" size="60" style="padding: 5px;"/>
+        <label style="margin-left: 15px; font-size: 10pt;">
+            <input type="checkbox" id="maxOutWordImagesChk" />
+            <span>Maxa bilder i Word-export</span>
+        </label>
     </div>
     <input type="file" id="docxUploadInput" accept=".docx" style="display:none;" />
     <button class="footer-button" id="uploadDocxBtn" style="background-color: #2b579a; color: white;">Ladda Word-offert (.docx)</button>
@@ -1083,6 +1087,7 @@ function processIncomingJson(jsonString, fileName) {
 
         if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
     }
+    window.jsonData = jsonData;
 })();
 
 function deepTraverseAndGetString(obj) {
@@ -1246,6 +1251,7 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('marginPercentageInput').value = q.marginPercentage || 0;
     document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth || 200;
     document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency || false;
+    document.getElementById('maxOutWordImagesChk').checked = q.maxOutWordImages || false;
     
     document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
     document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
@@ -1910,11 +1916,11 @@ function duplicateInfoItem(index) {
         reRenderAll();
     }
 }
-function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'center' }); saveToLocal(); reRenderAll(); }
+function addInfoText(){ jsonData.infoImages.push({ type:'text', content: translations[currentLanguage].newInfoText, centering: 'left' }); saveToLocal(); reRenderAll(); }
 function addTable(){
     const rows=prompt('Antal rader','3'); const cols=prompt('Antal kolumner','3');
     if(rows && cols){
-        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'center' });
+        jsonData.infoImages.push({ type:'table', rows:parseInt(rows)||2, cols:parseInt(cols)||2, data:Array.from({length: parseInt(rows)||2}, () => new Array(parseInt(cols)||2).fill('')), centering: 'left' });
         saveToLocal(); reRenderAll();
     }
 }
@@ -1925,11 +1931,11 @@ function addPageBreak() {
 }
 function addImageFromUrl(){
     const url=prompt(translations[currentLanguage].promptImageUrl);
-    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'center' }); saveToLocal(); reRenderAll(); }
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
-        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'center' }); saveToLocal(); reRenderAll(); };
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); };
         if(document.getElementById('compressImagesChk').checked){
             const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
             const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
@@ -2186,9 +2192,13 @@ function updatePrices(){
             // Convert everything to Custom Currency directly
             const targetCurrency = q.customCurrency.toUpperCase();
             if (currencyOrigin !== targetCurrency) {
-                if (currencyOrigin === 'USD') basePrice *= usdToCustom;
-                else if (currencyOrigin === 'EUR') basePrice *= eurToCustom;
-                else if (currencyOrigin === 'SEK') basePrice *= sekToCustom;
+                if (useMultiCurrency) {
+                    if (currencyOrigin === 'USD') basePrice *= usdToCustom;
+                    else if (currencyOrigin === 'EUR') basePrice *= eurToCustom;
+                    else if (currencyOrigin === 'SEK') basePrice *= sekToCustom;
+                } else {
+                    basePrice *= singleMultiplier;
+                }
                 // If origin is unknown but not target, assume 1:1 or handle error? Defaulting to 1:1
             }
         } else {
@@ -2356,6 +2366,11 @@ document.getElementById('multiplyCustomCurrencyChk').addEventListener('change', 
 
 document.getElementById('marginPercentageInput').addEventListener('input', function() { const val = parseFloat(this.value); if (!isNaN(val)) { jsonData.quote.marginPercentage = val; saveToLocal(); reRenderAll(); }});
 document.getElementById('defaultLogoWidthInput').addEventListener('input', function() { const val = parseInt(this.value); if (!isNaN(val)) { jsonData.quote.defaultLogoWidth = val; saveToLocal(); }});
+
+document.getElementById('maxOutWordImagesChk').addEventListener('change', function() {
+    jsonData.quote.maxOutWordImages = this.checked;
+    saveToLocal();
+});
 
 document.getElementById('useMultipleCurrenciesChk').addEventListener('change', function() {
     jsonData.quote.useMultipleCurrencies = this.checked;
@@ -2692,6 +2707,7 @@ function copyJsonToClipboard(){
 document.getElementById('printBtn').addEventListener('click', () => { if (checkQuoteDate(true)) { window.print(); } });
 
 function saveToLocal() {
+    window.jsonData = jsonData;
     try {
         localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift));
         

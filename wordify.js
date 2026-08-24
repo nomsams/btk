@@ -39,14 +39,17 @@
         // 3. Convert all literal source-code newlines
         s = s.replace(/\r?\n/g, '<br>');
 
-        // 4. Perfect Bullet point break
-        s = s.replace(/(?:<br\s*\/?>\s*)*●\s*/gi, '<br>● ');
+        // 4. Perfect Bullet point break (handles both ● and •)
+        s = s.replace(/(?:<br\s*\/?>\s*)*[●•]\s*/gi, '<br>• ');
+        
+        // Break on space-dash-space when followed by a capital letter or number (treat as bullet)
+        s = s.replace(/\s+-\s+([A-ZÅÄÖ0-9])/g, '<br> - $1');
 
         // 5. Intelligent Mid-Sentence Break Killer (Do NOT apply to Addresses)
         if (type !== 'address') {
             // Matches any non-punctuation character followed by exactly one <br>, 
             // then ensures it's not followed by another <br> or bullet point.
-            s = s.replace(/([^.?!:>\s])\s*<br\s*\/?>\s*(?!<br|●|<\/?p|<\/?div)/gi, '$1 ');
+            s = s.replace(/([^.?!:>\s])\s*<br\s*\/?>\s*(?!<br|[●•]|\-\s|<\/?p|<\/?div)/gi, '$1 ');
         }
 
         return s.trim();
@@ -182,6 +185,8 @@
     async function generateWordDocument() {
         try {
             console.log(`${TAG} 🎬 EXPORT STARTED`);
+            if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+            await new Promise(resolve => setTimeout(resolve, 100)); // allow blur events to process
 
             let data = window.jsonData || (typeof jsonData !== 'undefined' ? jsonData : null);
             if (!data || !data.quote) {
@@ -362,20 +367,21 @@
                 const flushImageBuffer = async () => {
                     if (imgBuffer.length === 0) return;
                     
-                    if (imgBuffer.length === 1) {
-                        const img = imgBuffer[0];
-                        const imgData = await getDocxImageData(img.src);
-                        if (imgData) {
-                            let w = parseFloat(img.width) || imgData.width;
-                            if (w > MAX_IMG_FULL) w = MAX_IMG_FULL; 
-                            const h = Math.round((w / imgData.width) * imgData.height);
-                            let align = img.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
-                            
-                            infoImagesBlock.push(new Paragraph({
-                                alignment: align,
-                                children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })]
-                            }));
-                            infoImagesBlock.push(emptyParagraph());
+                    if (imgBuffer.length === 1 || data.quote.maxOutWordImages) {
+                        for (const img of imgBuffer) {
+                            const imgData = await getDocxImageData(img.src);
+                            if (imgData) {
+                                let w = parseFloat(img.width) || imgData.width;
+                                if (w > MAX_IMG_FULL) w = MAX_IMG_FULL; 
+                                const h = Math.round((w / imgData.width) * imgData.height);
+                                let align = img.centering === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
+                                
+                                infoImagesBlock.push(new Paragraph({
+                                    alignment: align,
+                                    children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })]
+                                }));
+                                infoImagesBlock.push(emptyParagraph());
+                            }
                         }
                     } else {
                         for (let i = 0; i < imgBuffer.length; i += 2) {
@@ -470,7 +476,15 @@
             // Export
             const doc = new Document({ sections: [{ children: docChildren }] });
             const blob = await Packer.toBlob(doc);
-            const fileName = `Offert_${stripUiArtifacts(data.quote.quoteNumber) || "Draft"}.docx`;
+            let fileName = `Offert_${stripUiArtifacts(data.quote.quoteNumber) || "Draft"}.docx`;
+            if (typeof document !== 'undefined') {
+                const pdfInput = document.getElementById('pdfFileNameInput');
+                if (pdfInput && pdfInput.value) {
+                    fileName = pdfInput.value.replace(/\.pdf$/i, '') + '.docx';
+                } else if (typeof buildPdfFileName === 'function') {
+                    fileName = buildPdfFileName().replace(/\.pdf$/i, '') + '.docx';
+                }
+            }
             
             if (typeof saveAs !== 'undefined') {
                 saveAs(blob, fileName);
