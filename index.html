@@ -328,6 +328,19 @@ h3.name.editable { margin-bottom: 0 !important; }
 
 .info-block:hover { background-color: #fafafa; }
 
+/* Page guides: where "Spara som PDF" breaks pages (screen only, never printed/exported) */
+#quoteContent { position: relative; }
+#pageGuides { position: absolute; left: 0; top: 0; width: 100%; height: 0; pointer-events: none; z-index: 5; }
+.page-guide-line { position: absolute; left: -12px; right: -12px; border-top: 1px dashed #3b82f6; pointer-events: none; }
+.page-guide-line span { position: absolute; right: 0; top: -9px; font-size: 8pt; color: #3b82f6; background: #fff; padding: 0 4px; border: 1px solid #bcd3fb; border-radius: 3px; line-height: 14px; white-space: nowrap; }
+.pdf-split-warning { outline: 2px dashed #e53935; outline-offset: 2px; }
+.pdf-split-warning::after { content: "Delas mellan två PDF-sidor"; position: absolute; left: 4px; top: 4px; background: #e53935; color: #fff; font-size: 8pt; padding: 1px 5px; border-radius: 3px; pointer-events: none; z-index: 6; }
+body.page-guides-off #pageGuides { display: none; }
+body.page-guides-off .pdf-split-warning { outline: none; }
+body.page-guides-off .pdf-split-warning::after { display: none; }
+body.pdf-measuring .html2pdf__overlay { pointer-events: none !important; }
+@media print { #pageGuides { display: none !important; } .pdf-split-warning { outline: none !important; } .pdf-split-warning::after { display: none !important; } }
+
 /* Undo / redo / version history toolbar */
 #historyToolbar { position: fixed; bottom: 10px; right: 10px; z-index: 1500; display: flex; gap: 5px; align-items: center; background: rgba(255,255,255,0.95); border: 1px solid #ccc; border-radius: 6px; padding: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.15); font-size: 10pt; }
 #historyToolbar button { cursor: pointer; padding: 4px 8px; border: 1px solid #bbb; background: #f5f5f5; border-radius: 4px; font-size: 10pt; }
@@ -559,6 +572,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
+        <label title="Visar var sidorna bryts i 'Spara som PDF' (syns bara på skärmen, skrivs aldrig ut). Bilder som skulle delas mellan två sidor markeras med röd ram."><input type="checkbox" id="showPageGuidesChk" checked /> Visa sidbrytningar (PDF)</label>
         <div id="compressionOptionsWrapper" style="display: inline-flex; align-items: center; gap: 5px;">
              <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
              <div id="compressionOptions" style="display: inline-flex; align-items: center; gap: 5px;">
@@ -1245,6 +1259,7 @@ function reRenderAll(){
     updateMarginLabel();
     renderSectionSeparators();
     toggleInfoSectionPosition();
+    schedulePageGuides();
 }
 
 function buildPdfFileName() {
@@ -2789,7 +2804,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let container;
         try {
             const quoteContent = document.getElementById('quoteContent'); if (!quoteContent) return alert("Innehåll saknas.");
-            const clone = quoteContent.cloneNode(true); clone.querySelectorAll('.screen-only').forEach(el => el.style.display = 'none');
+            const clone = buildPdfClone();
             createHiddenJsonDiv(clone); 
             container = document.createElement('div'); container.style.cssText = 'position:fixed; left:-9999px; top:0; width:210mm;';
             container.appendChild(clone); document.body.appendChild(container);
@@ -4399,6 +4414,200 @@ async function renderVersionList() {
             </div>
         </div>`).join('');
 }
+
+// --- PDF clone (shared by "Spara som PDF" and the page guides, so both see the same layout) ---
+function buildPdfClone() {
+    const quoteContent = document.getElementById('quoteContent');
+    const clone = quoteContent.cloneNode(true);
+    clone.querySelectorAll('.screen-only').forEach(el => el.style.display = 'none');
+    clone.querySelectorAll('.pdf-split-warning').forEach(el => el.classList.remove('pdf-split-warning'));
+    // Page breaks: the print-only break markers are display:none on screen, so html2pdf measured them
+    // at position 0 and inserted a full page of blank space instead of starting a new page.
+    // Give them a real (zero-height) position so html2pdf moves the following content to the next page.
+    clone.querySelectorAll('.print-only, .section-separator-print-break').forEach(el => {
+        const s = el.getAttribute('style') || '';
+        if (/page-break-before\s*:\s*always/i.test(s) || el.classList.contains('section-separator-print-break')) {
+            el.style.setProperty('display', 'block', 'important');
+            el.style.setProperty('height', '0', 'important');
+            el.style.setProperty('overflow', 'hidden', 'important');
+        }
+    });
+    // "Lägg till sidbrytning" in Info/Bilder only had a print rule; make it break pages in the PDF too.
+    // The image list is a flex row, so the break marker goes INSIDE the full-width block: html2pdf's
+    // spacer then lands in that block's own row instead of next to the images above it.
+    clone.querySelectorAll('#infoImagesList .page-break-element').forEach(el => {
+        el.style.setProperty('min-height', '0', 'important');
+        el.style.setProperty('padding', '0', 'important');
+        el.style.setProperty('margin', '0', 'important');
+        const marker = document.createElement('div');
+        marker.style.cssText = 'display:block; height:0; page-break-before:always;';
+        el.appendChild(marker);
+    });
+    return clone;
+}
+
+// --- Page guides: show on screen where the PDF pages break, and which images get cut ---
+// The layout is measured with html2pdf's own page-break pass (same library/settings as the PDF
+// export), on an off-screen copy, then each page boundary is mapped back to the on-screen element
+// that sits at that spot. Nothing here is printed or exported.
+var PAGE_GUIDES_KEY = 'showPageGuides';
+var pageGuidesTimer = null, pageGuidesRunning = false, pageGuidesPending = false;
+
+function pageGuidesEnabled() {
+    try { return localStorage.getItem(PAGE_GUIDES_KEY) !== '0'; } catch (e) { return true; }
+}
+
+function schedulePageGuides(delay = 700) {
+    if (!pageGuidesEnabled() || typeof html2pdf === 'undefined') return;
+    clearTimeout(pageGuidesTimer);
+    pageGuidesTimer = setTimeout(updatePageGuides, delay);
+}
+
+function waitForImages(root, timeoutMs = 4000) {
+    const imgs = [...root.querySelectorAll('img')].filter(img => !img.complete);
+    if (!imgs.length) return Promise.resolve();
+    return Promise.race([
+        Promise.all(imgs.map(img => new Promise(res => { img.addEventListener('load', res, { once: true }); img.addEventListener('error', res, { once: true }); }))),
+        new Promise(res => setTimeout(res, timeoutMs))
+    ]);
+}
+
+// Returns { pageHeight, totalHeight, pageCount, boundaries: [screenY...], splitImages: [liveBlock...] }
+async function measurePdfPages() {
+    const live = document.getElementById('quoteContent');
+    await waitForImages(live);
+    const liveEls = live.querySelectorAll('*');
+    const clone = buildPdfClone();
+    clone.querySelectorAll('*').forEach((el, i) => el.setAttribute('data-pgid', i));
+    clone.setAttribute('data-pgid', 'root');
+
+    document.body.classList.add('pdf-measuring');
+    let prop = null;
+    try {
+        const pending = html2pdf().set({ margin: 10, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(clone).toContainer();
+        // html2pdf breaks pages around elements, so images must be loaded before its page-break pass;
+        // they are copies of already loaded images, so this is quick.
+        prop = await pending.then(function () { return this.prop; });
+        const container = prop.container;
+        await waitForImages(container);
+        const pageH = prop.pageSize.inner.px.height;
+        const cTop = container.getBoundingClientRect().top;
+        const nodes = [];
+        const byId = {};
+        container.querySelectorAll('[data-pgid]').forEach(el => {
+            const r = el.getBoundingClientRect();
+            const n = { el, id: el.getAttribute('data-pgid'), top: r.top - cTop, bottom: r.bottom - cTop, h: r.height };
+            byId[n.id] = n;
+            if (n.h > 0) nodes.push(n);
+        });
+        const totalH = container.getBoundingClientRect().height;
+        const liveTop = live.getBoundingClientRect().top;
+        const liveOf = (id) => id === 'root' ? live : liveEls[Number(id)];
+
+        // Map a y position in the PDF layout to a y position inside #quoteContent on screen
+        const liveTopOf = (n) => liveOf(n.id).getBoundingClientRect().top - liveTop;
+        const mapY = (y) => {
+            // 1) Page starts just before an element (content pushed down by a page break, or a gap
+            //    between blocks): anchor the line right above that element on screen.
+            let next = null;
+            for (const n of nodes) {
+                if (n.id === 'root' || n.top < y - 0.5 || n.top - y > 40) continue;
+                const le = liveOf(n.id);
+                if (!le || !le.getClientRects().length) continue;
+                if (!next || n.top < next.top || (n.top === next.top && n.h > next.h)) next = n;
+            }
+            let best = null;
+            for (const n of nodes) {
+                if (n.top <= y && y < n.bottom && (!best || n.h < best.h)) {
+                    const le = liveOf(n.id);
+                    if (le && le.getClientRects().length) best = n;
+                }
+            }
+            // 2) Page boundary cuts through an element (e.g. an image or a long text): place it
+            //    proportionally inside the smallest element containing it — unless that "element" is
+            //    really just empty space above the next block (case 1).
+            if (next && (!best || best.id === 'root' || best.el.contains(next.el) || (y - best.top) / best.h > 0.98)) {
+                return liveTopOf(next) - Math.min(next.top - y, 10);
+            }
+            if (!best) return null;
+            const lr = liveOf(best.id).getBoundingClientRect();
+            return (lr.top - liveTop) + ((y - best.top) / best.h) * lr.height;
+        };
+
+        const boundaries = [];
+        for (let y = pageH; y < totalH - 2; y += pageH) {
+            const sy = mapY(y);
+            if (sy !== null) boundaries.push(sy);
+        }
+
+        const splitImages = [];
+        live.querySelectorAll('#infoImagesList .info-block-image img').forEach(img => {
+            const idx = Array.prototype.indexOf.call(liveEls, img);
+            const n = byId[String(idx)];
+            if (!n || n.h <= 0) return;
+            if (Math.floor(n.top / pageH) !== Math.floor((n.bottom - 1) / pageH)) splitImages.push(img.closest('.info-block'));
+        });
+        return { pageHeight: pageH, totalHeight: totalH, pageCount: Math.max(1, Math.ceil((totalH - 1) / pageH)), boundaries, splitImages };
+    } finally {
+        if (prop && prop.overlay && prop.overlay.parentNode) prop.overlay.parentNode.removeChild(prop.overlay);
+        document.querySelectorAll('.html2pdf__overlay').forEach(o => { if (o.querySelector('[data-pgid]')) o.remove(); });
+        document.body.classList.remove('pdf-measuring');
+    }
+}
+
+function clearPageGuides() {
+    const g = document.getElementById('pageGuides');
+    if (g) g.innerHTML = '';
+    document.querySelectorAll('.pdf-split-warning').forEach(el => el.classList.remove('pdf-split-warning'));
+}
+
+async function updatePageGuides() {
+    if (!pageGuidesEnabled()) { clearPageGuides(); return; }
+    if (pageGuidesRunning) { pageGuidesPending = true; return; }
+    pageGuidesRunning = true;
+    try {
+        const info = await measurePdfPages();
+        const live = document.getElementById('quoteContent');
+        let g = document.getElementById('pageGuides');
+        if (!g) {
+            g = document.createElement('div');
+            g.id = 'pageGuides';
+            g.className = 'screen-only';
+            live.appendChild(g);
+        }
+        clearPageGuides();
+        if (!pageGuidesEnabled()) return;
+        info.boundaries.forEach((y, i) => {
+            const line = document.createElement('div');
+            line.className = 'page-guide-line';
+            line.style.top = Math.round(y) + 'px';
+            line.innerHTML = `<span>Sida ${i + 2} börjar (PDF)</span>`;
+            g.appendChild(line);
+        });
+        info.splitImages.forEach(block => block && block.classList.add('pdf-split-warning'));
+        window.__lastPageGuides = { pageCount: info.pageCount, boundaries: info.boundaries.length, splitImages: info.splitImages.length };
+    } catch (e) {
+        console.warn('Sidbrytningar kunde inte beräknas.', e);
+    } finally {
+        pageGuidesRunning = false;
+        if (pageGuidesPending) { pageGuidesPending = false; schedulePageGuides(300); }
+    }
+}
+
+(function setupPageGuides() {
+    const chk = document.getElementById('showPageGuidesChk');
+    chk.checked = pageGuidesEnabled();
+    document.body.classList.toggle('page-guides-off', !chk.checked);
+    chk.addEventListener('change', () => {
+        try { localStorage.setItem(PAGE_GUIDES_KEY, chk.checked ? '1' : '0'); } catch (e) {}
+        document.body.classList.toggle('page-guides-off', !chk.checked);
+        if (chk.checked) schedulePageGuides(0); else clearPageGuides();
+    });
+    // Text edits and image resizing change heights: re-measure after the user pauses
+    document.addEventListener('input', () => schedulePageGuides(1500));
+    document.addEventListener('mouseup', () => schedulePageGuides(800));
+    window.addEventListener('resize', () => schedulePageGuides(800));
+})();
 
 document.getElementById('versionHistoryBtn').addEventListener('click', () => {
     const modal = ensureVersionModal();

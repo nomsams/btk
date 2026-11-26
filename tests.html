@@ -218,6 +218,25 @@ async function run() {
         check('Inläsning av fil kan ångras', w.jsonData.terms.length, 2);
     });
 
+    group('Sidbrytningar (PDF)');
+    await safe('page guides', async () => {
+        const mkImg = (c) => { const cv = doc.createElement('canvas'); cv.width = 800; cv.height = 500; const x = cv.getContext('2d'); x.fillStyle = c; x.fillRect(0, 0, 800, 500); return cv.toDataURL('image/jpeg', 0.5); };
+        const imgs = ['#c33', '#3c3', '#33c', '#cc3'].map(c => ({ type: 'image', src: mkImg(c), width: 700, centering: 'left' }));
+        load(quote({}, [item('A', 1, 1)], { infoImages: imgs }));
+        const noBreaks = await w.measurePdfPages();
+        check('Fyra helsidesbilder ger minst 2 PDF-sidor', noBreaks.pageCount >= 2, true);
+        check('Sidgränser hittas (en per ny sida)', noBreaks.boundaries.length, noBreaks.pageCount - 1);
+        const withBreaks = [];
+        imgs.forEach((im, i) => { if (i > 0) withBreaks.push({ type: 'page-break' }); withBreaks.push(im); });
+        load(quote({}, [item('A', 1, 1)], { infoImages: withBreaks }));
+        const broken = await w.measurePdfPages();
+        check('Sidbrytning i Info/Bilder fungerar i PDF: ingen bild delas', broken.splitImages.length, 0);
+        check('Sidbrytning i Info/Bilder: minst en sida per bild', broken.pageCount >= 4, true);
+        check('Mätningen lämnar inget kvar på sidan', doc.querySelectorAll('.html2pdf__overlay').length, 0);
+        const clone = w.buildPdfClone();
+        check('PDF-kopian har inga skärmmarkeringar', clone.querySelectorAll('.pdf-split-warning, .page-guide-line').length === 0 || [...clone.querySelectorAll('.page-guide-line')].every(l => l.closest('.screen-only')), true);
+    });
+
     check('Testläge: sparad offert i webbläsaren orörd', localStorage.getItem('quoteData'), savedBefore);
 
     const s = document.getElementById('summary');
