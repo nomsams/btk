@@ -329,12 +329,25 @@ h3.name.editable { margin-bottom: 0 !important; }
 .info-block:hover { background-color: #fafafa; }
 
 /* Page guides: where "Spara som PDF" breaks pages (screen only, never printed/exported) */
-#quoteContent { position: relative; }
+@media screen { #quoteContent { position: relative; } } /* screen only: print relies on #quoteContent being position:absolute */
 #pageGuides { position: absolute; left: 0; top: 0; width: 100%; height: 0; pointer-events: none; z-index: 5; }
 .page-guide-line { position: absolute; left: -12px; right: -12px; border-top: 1px dashed #3b82f6; pointer-events: none; }
 .page-guide-line span { position: absolute; right: 0; top: -9px; font-size: 8pt; color: #3b82f6; background: #fff; padding: 0 4px; border: 1px solid #bcd3fb; border-radius: 3px; line-height: 14px; white-space: nowrap; }
 .pdf-split-warning { outline: 2px dashed #e53935; outline-offset: 2px; }
-.pdf-split-warning::after { content: "Delas mellan två PDF-sidor"; position: absolute; left: 4px; top: 4px; background: #e53935; color: #fff; font-size: 8pt; padding: 1px 5px; border-radius: 3px; pointer-events: none; z-index: 6; }
+.pdf-split-warning::after { content: "Delas mellan två sidor"; position: absolute; left: 4px; top: 4px; background: #e53935; color: #fff; font-size: 8pt; padding: 1px 5px; border-radius: 3px; pointer-events: none; z-index: 6; }
+/* Image area on screen = printed/PDF content width (190 mm), so images wrap on screen exactly like on paper */
+#infoImagesList { max-width: 190mm; box-sizing: border-box; }
+/* Width grid over the image area */
+#widthGrid { position: absolute; pointer-events: none; z-index: 4; }
+#widthGrid .wg-line { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #16a34a; }
+#widthGrid .wg-gap { position: absolute; top: 0; bottom: 0; background: rgba(22,163,74,0.07); }
+#widthGrid .wg-edge { position: absolute; top: 0; bottom: 0; border-left: 2px solid rgba(22,163,74,0.55); }
+#widthGrid .wg-label { position: absolute; top: -17px; font-size: 8pt; color: #15803d; background: #fff; padding: 0 4px; white-space: nowrap; border: 1px solid #bbf7d0; border-radius: 3px; line-height: 14px; }
+.img-width-badge { position: absolute; left: 4px; bottom: 4px; z-index: 6; font-size: 8pt; line-height: 14px; padding: 1px 5px; border-radius: 3px; color: #fff; background: #16a34a; pointer-events: none; white-space: nowrap; }
+.img-width-badge.wide { background: #d97706; }
+.img-width-badge.too-wide { background: #dc2626; }
+body.width-grid-off #widthGrid, body.width-grid-off .img-width-badge { display: none !important; }
+@media print { #widthGrid, .img-width-badge { display: none !important; } }
 body.page-guides-off #pageGuides { display: none; }
 body.page-guides-off .pdf-split-warning { outline: none; }
 body.page-guides-off .pdf-split-warning::after { display: none; }
@@ -572,7 +585,14 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <div class="checkbox-group screen-only">
         <label><input type="checkbox" id="showProjectNumber" /> Visa Projekt Nummer</label>
         <label><input type="checkbox" id="showDecimals" /> Visa decimaler</label>
-        <label title="Visar var sidorna bryts i 'Spara som PDF' (syns bara på skärmen, skrivs aldrig ut). Bilder som skulle delas mellan två sidor markeras med röd ram."><input type="checkbox" id="showPageGuidesChk" checked /> Visa sidbrytningar (PDF)</label>
+        <span style="display:inline-flex; align-items:center; gap:4px;" title="Visar var sidorna bryts (syns bara på skärmen, skrivs aldrig ut). Bilder som skulle delas mellan två sidor markeras med röd ram.">
+            <label><input type="checkbox" id="showPageGuidesChk" checked /> Visa sidbrytningar för</label>
+            <select id="pageGuidesModeSelect" style="font-size:10pt;">
+                <option value="print">Utskrift (Print / Ctrl+P i Chrome)</option>
+                <option value="pdf">Knappen "Spara som PDF"</option>
+            </select>
+        </span>
+        <label title="Visar bildytans bredd i utskrift/PDF och var mitten går, så att du ser hur breda bilder får vara för att två (eller tre) ska få plats på samma rad. Syns bara på skärmen."><input type="checkbox" id="showWidthGridChk" checked /> Visa bildrutnät (bredd)</label>
         <div id="compressionOptionsWrapper" style="display: inline-flex; align-items: center; gap: 5px;">
              <label><input type="checkbox" id="compressImagesChk" checked /> Komprimera bilder</label>
              <div id="compressionOptions" style="display: inline-flex; align-items: center; gap: 5px;">
@@ -1259,6 +1279,7 @@ function reRenderAll(){
     updateMarginLabel();
     renderSectionSeparators();
     toggleInfoSectionPosition();
+    updateWidthGrid();
     schedulePageGuides();
 }
 
@@ -1907,7 +1928,7 @@ function initializeResize(handle,img,idxOrId){
     let startWidth, startX;
     const onDown=(ev)=>{ 
         ev.preventDefault(); 
-        startWidth=img.offsetWidth; 
+        startWidth=parseFloat(img.style.width) || img.clientWidth;  
         startX=ev.clientX;
         document.addEventListener('mousemove',onMove); 
         document.addEventListener('mouseup',onUp);
@@ -1916,9 +1937,10 @@ function initializeResize(handle,img,idxOrId){
         ev.preventDefault(); 
         const newWidth = startWidth+(ev.clientX-startX);
         if(newWidth>40){ 
-            img.style.width=newWidth+'px'; 
+            img.style.width=newWidth+'px';
             if (typeof idxOrId === 'number') {
-                jsonData.infoImages[idxOrId].width=newWidth; 
+                jsonData.infoImages[idxOrId].width=newWidth;
+                if (typeof updateImageWidthBadge === 'function') updateImageWidthBadge(img, newWidth); 
             } else if (idxOrId === 'logo') {
                 localStorage.setItem('logoWidth', newWidth);
             }
@@ -4457,8 +4479,12 @@ function pageGuidesEnabled() {
     try { return localStorage.getItem(PAGE_GUIDES_KEY) !== '0'; } catch (e) { return true; }
 }
 
+// The print measurement also feeds the width grid (printed width), so run it if either is on
+function pageMeasureNeeded() {
+    return pageGuidesEnabled() || (widthGridEnabled() && pageGuidesMode() === 'print');
+}
 function schedulePageGuides(delay = 700) {
-    if (!pageGuidesEnabled() || typeof html2pdf === 'undefined') return;
+    if (!pageMeasureNeeded() || typeof html2pdf === 'undefined') return;
     clearTimeout(pageGuidesTimer);
     pageGuidesTimer = setTimeout(updatePageGuides, delay);
 }
@@ -4555,6 +4581,216 @@ async function measurePdfPages() {
     }
 }
 
+var PAGE_GUIDES_MODE_KEY = 'pageGuidesMode', WIDTH_GRID_KEY = 'showWidthGrid';
+function pageGuidesMode() {
+    try { return localStorage.getItem(PAGE_GUIDES_MODE_KEY) === 'pdf' ? 'pdf' : 'print'; } catch (e) { return 'print'; }
+}
+function widthGridEnabled() {
+    try { return localStorage.getItem(WIDTH_GRID_KEY) !== '0'; } catch (e) { return true; }
+}
+
+// All page CSS as it applies when printing: normal rules + the contents of @media print blocks
+// (in their original order, so the cascade is the same), without @media screen blocks.
+function collectPrintCss() {
+    let out = '';
+    for (const sheet of Array.from(document.styleSheets)) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const r of Array.from(rules)) {
+            if (r.type === CSSRule.MEDIA_RULE) {
+                const m = r.media.mediaText.toLowerCase();
+                if (/\bprint\b/.test(m) || m === 'all') Array.from(r.cssRules).forEach(inner => { out += inner.cssText + '\n'; });
+            } else if (r.type !== CSSRule.PAGE_RULE) {
+                out += r.cssText + '\n';
+            }
+        }
+    }
+    return out;
+}
+
+function mmToPx(mm) {
+    const d = document.createElement('div');
+    d.style.cssText = `position:absolute; visibility:hidden; width:${mm}mm; height:1px;`;
+    document.body.appendChild(d);
+    const w = d.getBoundingClientRect().width;
+    d.remove();
+    return w;
+}
+
+// Chrome print layout (Print button / Ctrl+P): the quote is laid out with the print CSS in a hidden
+// frame and split by Chrome itself into page-sized columns (190 x 277 mm = A4 minus the 10 mm
+// @page margins). Chrome's column splitting follows the same rules as its page splitting
+// (page-break-inside: avoid, forced page breaks, orphans/widows), so it shows where pages break.
+async function measurePrintPages() {
+    const live = document.getElementById('quoteContent');
+    await waitForImages(live);
+    const liveEls = live.querySelectorAll('*');
+    const clone = live.cloneNode(true);
+    clone.querySelectorAll('.pdf-split-warning').forEach(el => el.classList.remove('pdf-split-warning'));
+    clone.querySelectorAll('*').forEach((el, i) => el.setAttribute('data-pgid', i));
+    clone.setAttribute('data-pgid', 'root');
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed; left:-20000px; top:0; width:1200px; height:1400px; border:0; visibility:hidden;';
+    document.body.appendChild(iframe);
+    try {
+        const doc = iframe.contentDocument;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html lang="sv"><head><meta charset="utf-8"><style>${collectPrintCss()}</style><style>
+            html { margin: 0; padding: 0; }
+            body { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+            #__pages { width: 190mm; height: 277mm; column-width: 190mm; column-gap: 0; column-fill: auto; }
+            #__pages > #quoteContent { position: static !important; width: 100% !important; left: auto !important; top: auto !important; }
+        </style></head><body class="${document.body.className.replace(/[<>"]/g, '')}"><div id="__pages"></div></body></html>`);
+        doc.close();
+        const pages = doc.getElementById('__pages');
+        pages.appendChild(doc.importNode(clone, true));
+        // In columns, a page break must be a column break
+        pages.querySelectorAll('*').forEach(el => {
+            const cs = doc.defaultView.getComputedStyle(el);
+            if (['page', 'always', 'left', 'right', 'recto', 'verso'].includes(cs.breakBefore)) el.style.setProperty('break-before', 'column', 'important');
+            if (['page', 'always', 'left', 'right', 'recto', 'verso'].includes(cs.breakAfter)) el.style.setProperty('break-after', 'column', 'important');
+        });
+        await waitForImages(pages);
+
+        // Chrome's "shrink to fit": if anything is wider than the page (e.g. the total row is 100 %
+        // wide + padding), Chrome lays the page out that much wider and scales the printout down.
+        // Measure the overflow without columns, then use the widened layout (and taller pages).
+        pages.style.setProperty('columns', 'auto', 'important');
+        pages.style.setProperty('height', 'auto', 'important');
+        const pageW = pages.getBoundingClientRect().width;            // 190 mm
+        const contentW = Math.max(pageW, pages.scrollWidth);
+        const scale = Math.max(0.75, Math.min(1, pageW / contentW));   // Chrome shrinks at most to 75 %
+        const layoutW = pageW / scale;
+        pages.style.setProperty('width', layoutW + 'px', 'important');
+        pages.style.setProperty('height', (mmToPx(277) / scale) + 'px', 'important');
+        pages.style.removeProperty('columns');
+        pages.style.setProperty('column-width', layoutW + 'px', 'important');
+        window.__printLayout = { scale, layoutWidth: layoutW };
+
+        const pr = pages.getBoundingClientRect();
+        const colW = pr.width;
+        const colOf = (r) => Math.max(0, Math.floor((r.left - pr.left + 1) / colW));
+        const items = [];
+        const byId = {};
+        pages.querySelectorAll('[data-pgid]').forEach(el => {
+            const rects = Array.from(el.getClientRects()).filter(r => r.height > 0 && r.width > 0)
+                .map(r => ({ col: colOf(r), top: r.top - pr.top, h: r.height }));
+            if (!rects.length) return;
+            const it = { el, id: el.getAttribute('data-pgid'), rects };
+            items.push(it);
+            byId[it.id] = it;
+        });
+        const pageCount = items.reduce((n, it) => Math.max(n, ...it.rects.map(r => r.col + 1)), 1);
+        const liveTop = live.getBoundingClientRect().top;
+        const liveOf = (id) => id === 'root' ? live : liveEls[Number(id)];
+        const visibleLive = (id) => { const le = liveOf(id); return le && le.getClientRects().length > 0; };
+
+        const boundaries = [], startTexts = [];
+        for (let k = 1; k < pageCount; k++) {
+            // the element that starts highest on page k+1; smallest one wins (deepest)
+            let best = null, bestTop = Infinity;
+            for (const it of items) {
+                if (it.id === 'root' || !visibleLive(it.id)) continue;
+                const r = it.rects.find(x => x.col === k);
+                if (!r) continue;
+                if (r.top < bestTop - 1 || (Math.abs(r.top - bestTop) <= 1 && r.h < best.rect.h)) { best = { it, rect: r }; bestTop = Math.min(bestTop, r.top); }
+            }
+            if (!best) continue;
+            startTexts.push((best.it.el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60) || ('<' + best.it.el.tagName.toLowerCase() + '>'));
+            const le = liveOf(best.it.id).getBoundingClientRect();
+            const firstCol = best.it.rects[0].col;
+            if (firstCol >= k) {
+                boundaries.push(le.top - liveTop);           // element starts on the new page
+            } else {
+                const total = best.it.rects.reduce((n, r) => n + r.h, 0);
+                const before = best.it.rects.filter(r => r.col < k).reduce((n, r) => n + r.h, 0);
+                boundaries.push((le.top - liveTop) + (total ? before / total : 0) * le.height); // split inside it
+            }
+        }
+
+        const splitImages = [];
+        live.querySelectorAll('#infoImagesList .info-block-image img').forEach(img => {
+            const it = byId[String(Array.prototype.indexOf.call(liveEls, img))];
+            if (it && new Set(it.rects.map(r => r.col)).size > 1) splitImages.push(img.closest('.info-block'));
+        });
+        return { pageHeight: pr.height, pageCount, boundaries, splitImages, startTexts, scale, layoutWidth: layoutW };
+    } finally {
+        iframe.remove();
+    }
+}
+
+// --- Width grid: how wide images can be to fit 2 (or 3) per row in print/PDF ---
+// Width the image area really has on paper. "Spara som PDF": 190 mm. Chrome print: 190 mm, or wider
+// when Chrome shrinks the printout to fit (measured by measurePrintPages).
+function imageAreaWidth() {
+    const base = mmToPx(190);
+    if (pageGuidesMode() === 'pdf') return base;
+    return (window.__printLayout && window.__printLayout.layoutWidth) || base;
+}
+
+function imageRowLimits() {
+    const W = imageAreaWidth();       // printed / PDF content width
+    const gap = 10;                   // gap between images (#infoImagesList)
+    const border = 2;                 // 1px border left + right on each image
+    return { W, gap, two: Math.floor((W - gap) / 2) - border, three: Math.floor((W - 2 * gap) / 3) - border };
+}
+
+function updateImageWidthBadge(img, width) {
+    const container = img.closest('.info-image-container');
+    if (!container) return;
+    let badge = container.querySelector('.img-width-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'img-width-badge screen-only';
+        container.appendChild(badge);
+    }
+    const lim = window.__imageRowLimits || (window.__imageRowLimits = imageRowLimits());
+    const w = Math.round(parseFloat(width) || img.clientWidth);
+    let text, cls = '';
+    if (w > Math.floor(lim.W)) { text = `${w} px · bredare än sidan (krymps)`; cls = 'too-wide'; }
+    else if (w <= lim.three) text = `${w} px · 3 per rad`;
+    else if (w <= lim.two) text = `${w} px · 2 per rad`;
+    else { text = `${w} px · egen rad (max ${lim.two} för 2 per rad)`; cls = 'wide'; }
+    badge.textContent = text;
+    badge.className = 'img-width-badge screen-only' + (cls ? ' ' + cls : '');
+}
+
+function updateWidthGrid() {
+    const section = document.getElementById('infoSectionContainer');
+    const list = document.getElementById('infoImagesList');
+    if (!section || !list) return;
+    let grid = document.getElementById('widthGrid');
+    const lim = window.__imageRowLimits = imageRowLimits();
+    list.style.maxWidth = lim.W + 'px';   // images wrap on screen exactly where they wrap on paper
+    if (!widthGridEnabled() || !list.querySelector('.info-block-image')) { if (grid) grid.remove(); return; }
+    list.querySelectorAll('.info-block-image').forEach(block => {
+        const img = block.querySelector('.info-image-container img');
+        const idx = Number(block.dataset.index);
+        const w = (jsonData.infoImages[idx] && jsonData.infoImages[idx].width) || (img && img.clientWidth);
+        if (img) updateImageWidthBadge(img, w);
+    });
+    if (!grid) {
+        grid = document.createElement('div');
+        grid.id = 'widthGrid';
+        grid.className = 'screen-only';
+        section.appendChild(grid);
+    }
+    grid.style.left = list.offsetLeft + 'px';
+    grid.style.top = list.offsetTop + 'px';
+    grid.style.height = list.offsetHeight + 'px';
+    grid.style.width = Math.round(lim.W) + 'px';
+    const half = (lim.W - lim.gap) / 2;
+    grid.innerHTML = `
+        <div class="wg-line" style="left:${half}px"></div>
+        <div class="wg-gap" style="left:${half}px; width:${lim.gap}px"></div>
+        <div class="wg-line" style="left:${half + lim.gap}px"></div>
+        <div class="wg-edge" style="left:${lim.W - 1}px"></div>
+        <div class="wg-label" style="left:0">← 2 per rad: max ${lim.two} px per bild →</div>
+        <div class="wg-label" style="right:0">Sidans bredd ${Math.round(lim.W)} px ⟶|</div>`;
+}
+
 function clearPageGuides() {
     const g = document.getElementById('pageGuides');
     if (g) g.innerHTML = '';
@@ -4562,11 +4798,15 @@ function clearPageGuides() {
 }
 
 async function updatePageGuides() {
-    if (!pageGuidesEnabled()) { clearPageGuides(); return; }
+    if (!pageMeasureNeeded()) { clearPageGuides(); return; }
     if (pageGuidesRunning) { pageGuidesPending = true; return; }
     pageGuidesRunning = true;
     try {
-        const info = await measurePdfPages();
+        const mode = pageGuidesMode();
+        const info = mode === 'pdf' ? await measurePdfPages() : await measurePrintPages();
+        // refresh the grid if it was drawn for a different paper width than the one just measured
+        if (mode === 'print' && (!window.__imageRowLimits || Math.round(info.layoutWidth) !== Math.round(window.__imageRowLimits.W))) updateWidthGrid();
+        if (!pageGuidesEnabled()) { clearPageGuides(); return; }
         const live = document.getElementById('quoteContent');
         let g = document.getElementById('pageGuides');
         if (!g) {
@@ -4581,11 +4821,11 @@ async function updatePageGuides() {
             const line = document.createElement('div');
             line.className = 'page-guide-line';
             line.style.top = Math.round(y) + 'px';
-            line.innerHTML = `<span>Sida ${i + 2} börjar (PDF)</span>`;
+            line.innerHTML = `<span>Sida ${i + 2} börjar (${mode === 'pdf' ? 'Spara som PDF' : 'utskrift'})</span>`;
             g.appendChild(line);
         });
         info.splitImages.forEach(block => block && block.classList.add('pdf-split-warning'));
-        window.__lastPageGuides = { pageCount: info.pageCount, boundaries: info.boundaries.length, splitImages: info.splitImages.length };
+        window.__lastPageGuides = { mode, pageCount: info.pageCount, boundaries: info.boundaries.length, splitImages: info.splitImages.length, positions: info.boundaries.map(Math.round) };
     } catch (e) {
         console.warn('Sidbrytningar kunde inte beräknas.', e);
     } finally {
@@ -4595,6 +4835,23 @@ async function updatePageGuides() {
 }
 
 (function setupPageGuides() {
+    const modeSel = document.getElementById('pageGuidesModeSelect');
+    modeSel.value = pageGuidesMode();
+    modeSel.addEventListener('change', () => {
+        try { localStorage.setItem(PAGE_GUIDES_MODE_KEY, modeSel.value); } catch (e) {}
+        updateWidthGrid();
+        schedulePageGuides(0);
+    });
+    const wchk = document.getElementById('showWidthGridChk');
+    wchk.checked = widthGridEnabled();
+    document.body.classList.toggle('width-grid-off', !wchk.checked);
+    wchk.addEventListener('change', () => {
+        try { localStorage.setItem(WIDTH_GRID_KEY, wchk.checked ? '1' : '0'); } catch (e) {}
+        document.body.classList.toggle('width-grid-off', !wchk.checked);
+        updateWidthGrid();
+        schedulePageGuides(0);
+    });
+    window.addEventListener('resize', () => updateWidthGrid());
     const chk = document.getElementById('showPageGuidesChk');
     chk.checked = pageGuidesEnabled();
     document.body.classList.toggle('page-guides-off', !chk.checked);
