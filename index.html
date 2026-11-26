@@ -608,6 +608,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     </div>
     <div class="currency-multiplier screen-only" style="position: relative;">
         <div id="liveCurrencyRates" style="display:inline-block; margin-right:10px; font-size: 10px;"></div>
+        <div id="rateUpdateNote" style="display:none; font-size:10pt; color:#8a5300; background:#fff6e5; border:1px solid #f0c36d; border-radius:4px; padding:4px 8px; margin:4px 0; text-align:left;"></div>
         <div id="singleCurrencyMultiplierDiv">
             <label for="currencyMultiplierInput">Valutakurs:</label>
             <input type="text" id="currencyMultiplierInput" value="11.8" />
@@ -2715,10 +2716,22 @@ function updateMultiCurrencyInputsFromLiveRates(overwriteManual = false) {
             jsonData.quote.eurToSekRate = parseFloat(liveEurRateWithMargin);
         }
     }
-    if (jsonData.quote.useMultipleCurrencies && (parseFloat(jsonData.quote.usdToSekRate).toFixed(2) !== currentJsonUsd || parseFloat(jsonData.quote.eurToSekRate).toFixed(2) !== currentJsonEur ) ) { 
-        saveToLocal(); 
-        reRenderAll(); 
+    const rateChanges = [];
+    if (parseFloat(jsonData.quote.usdToSekRate).toFixed(2) !== currentJsonUsd) rateChanges.push(`USD ${currentJsonUsd} → ${parseFloat(jsonData.quote.usdToSekRate).toFixed(2)}`);
+    if (parseFloat(jsonData.quote.eurToSekRate).toFixed(2) !== currentJsonEur) rateChanges.push(`EUR ${currentJsonEur} → ${parseFloat(jsonData.quote.eurToSekRate).toFixed(2)}`);
+    if (rateChanges.length) showRateUpdateNote(rateChanges);
+    if (jsonData.quote.useMultipleCurrencies && rateChanges.length) {
+        saveToLocal();
+        reRenderAll();
     }
+}
+
+// Today's fetched rates always win over rates saved in a quote file: tell the user when that happens
+function showRateUpdateNote(changes) {
+    const note = document.getElementById('rateUpdateNote');
+    if (!note) return;
+    note.textContent = `Dagens valutakurser (inkl. +0,40 påslag) används istället för de sparade: ${changes.join(' · ')} SEK. Priserna har räknats om.`;
+    note.style.display = 'block';
 }
 
 async function fetchLiveCurrencyRates() {
@@ -3714,8 +3727,160 @@ const IMPORT_PARTS = [
 let partialImportSource = null;
 
 // Partial import uses the shared normalizers on a deep copy of the source data
-function normalizeImportedItems(list) {
-    return normalizeItemList(JSON.parse(JSON.stringify(Array.isArray(list) ? list : [])), null, 'Artikel', { forImport: true });
+// Items without their own currency were priced in the source file's default currency (its custom
+// currency or SEK). Pin that, so they are converted correctly with this page's rates.
+function normalizeImportedItems(list, fileQuote) {
+    const items = normalizeItemList(JSON.parse(JSON.stringify(Array.isArray(list) ? list : [])), null, 'Artikel', { forImport: true });
+    if (fileQuote) {
+        const fq = applyQuoteDefaults(JSON.parse(JSON.stringify(fileQuote)));
+        const fileDefault = ((fq.useCustomCurrency && fq.customCurrency) || 'SEK').toUpperCase();
+        items.forEach(it => { if (it.type !== 'separator' && !it.currencyOrigin) it.currencyOrigin = fileDefault; });
+    }
+    return items;
+}
+
+// --- Import preview: prices with the file's settings vs this page's settings ---
+function quoteCurrencyLabel(q) { return (q.useCustomCurrency && q.customCurrency) ? String(q.customCurrency).toUpperCase() : 'SEK'; }
+
+// Runs the normal price calculation (updatePrices) on a temporary quote and returns the priced copies
+function priceItemsWithSettings(quoteSettings, items, optionalItems) {
+    const temp = {
+        quote: applyQuoteDefaults(JSON.parse(JSON.stringify(quoteSettings || {}))),
+        items: JSON.parse(JSON.stringify(items || [])),
+        optionalItems: JSON.parse(JSON.stringify(optionalItems || []))
+    };
+    const saved = jsonData;
+    jsonData = temp;
+    try { updatePrices(); } finally { jsonData = saved; }
+    return temp;
+}
+
+// What a main item adds to the total (own price incl. baked-in sub-items + visible sub-items)
+function itemLineTotal(it) {
+    if (!it || it.type === 'separator') return 0;
+    return (it.targetPrice || 0) + (it.subItems || []).filter(s => !s.isPriceBakedIn && !s.isHiddenFromPrint).reduce((n, s) => n + (s.subItemTargetPrice || 0), 0);
+}
+
+function buildImportPriceComparison(src) {
+    const fileQ = applyQuoteDefaults(JSON.parse(JSON.stringify(src.quote || {})));
+    const pageQ = jsonData.quote;
+    const items = normalizeImportedItems(src.items, src.quote);
+    const optional = normalizeImportedItems(src.optionalItems, src.quote);
+    const oldP = priceItemsWithSettings(fileQ, items, optional);
+    const newP = priceItemsWithSettings(pageQ, items, optional);
+    return { fileQ, pageQ, oldP, newP, fileCur: quoteCurrencyLabel(fileQ), pageCur: quoteCurrencyLabel(pageQ) };
+}
+
+function renderImportPricing(cmp) {
+    const { fileQ, pageQ, fileCur, pageCur } = cmp;
+    const f2 = (v) => (parseFloat(v) || 0).toFixed(2);
+    const marginText = (q) => `${parseFloat(q.marginPercentage) || 0} % ${q.marginCalculationMode === 'margin' ? 'marginal' : 'påslag'}`;
+    const rows = [
+        ['Valuta i offerten', fileCur, pageCur],
+        ['Globalt påslag / marginal', marginText(fileQ), marginText(pageQ)],
+        ['Multipla valutakurser', fileQ.useMultipleCurrencies ? 'Ja' : 'Nej', pageQ.useMultipleCurrencies ? 'Ja' : 'Nej']
+    ];
+    const rateRows = (q) => {
+        const cur = quoteCurrencyLabel(q);
+        if (q.useCustomCurrency) {
+            return q.useMultipleCurrencies
+                ? { usd: `${f2(q.customRates.usd)} ${cur}`, eur: `${f2(q.customRates.eur)} ${cur}`, sek: `${f2(q.customRates.sek)} ${cur}`, single: '–' }
+                : { usd: '–', eur: '–', sek: '–', single: f2(q.currencyMultiplicator) };
+        }
+        return q.useMultipleCurrencies
+            ? { usd: `${f2(q.usdToSekRate)} SEK`, eur: `${f2(q.eurToSekRate)} SEK`, sek: '–', single: '–' }
+            : { usd: '–', eur: '–', sek: '–', single: f2(q.currencyMultiplicator) };
+    };
+    const fr = rateRows(fileQ), pr = rateRows(pageQ);
+    rows.push(['Valutakurs (en kurs för all utländsk valuta)', fr.single, pr.single]);
+    rows.push(['1 USD =', fr.usd, pr.usd], ['1 EUR =', fr.eur, pr.eur]);
+    if (fileQ.useCustomCurrency || pageQ.useCustomCurrency) rows.push(['1 SEK =', fr.sek, pr.sek]);
+
+    const lr = window.liveExchangeRates || {};
+    const live = (lr.usd || lr.eur) ? `Dagens hämtade kurs: ${lr.usd ? '1 USD = ' + f2(lr.usd) + ' SEK' : ''}${lr.usd && lr.eur ? ', ' : ''}${lr.eur ? '1 EUR = ' + f2(lr.eur) + ' SEK' : ''} (sidan lägger på +0,40).` : 'Dagens kurs kunde inte hämtas – sidans nuvarande kurser används.';
+
+    const sum = (list) => list.reduce((n, it) => n + itemLineTotal(it), 0);
+    const oldSum = sum(cmp.oldP.items), newSum = sum(cmp.newP.items);
+    const hasItems = cmp.oldP.items.some(i => i.type !== 'separator') || cmp.oldP.optionalItems.some(i => i.type !== 'separator');
+    let summary = '';
+    if (cmp.oldP.items.some(i => i.type !== 'separator')) {
+        const pct = (fileCur === pageCur && oldSum) ? ` (${newSum >= oldSum ? '+' : ''}${((newSum - oldSum) / oldSum * 100).toFixed(1)} %)` : '';
+        summary = `<div style="margin-top:6px;"><b>Artiklar (huvudlista) totalt:</b> ${escapeHtmlText(formatPrice(oldSum))} ${fileCur} i filen → <b>${escapeHtmlText(formatPrice(newSum))} ${pageCur}</b> på den här sidan${pct}</div>`;
+    }
+    return `
+        <div style="border:1px solid #f0c36d; background:#fff9ec; border-radius:5px; padding:8px 10px; font-size:10pt;">
+            <b>Priser och valuta</b> – importerade artiklar räknas om med <b>den här sidans</b> valutakurser och påslag (högra kolumnen).
+            Originalpris och originalvaluta per artikel behålls. ${escapeHtmlText(live)}
+            <table style="width:100%; border-collapse:collapse; margin-top:6px;">
+                <tr style="text-align:left; border-bottom:1px solid #e5d3a5;"><th style="padding:2px 4px;">Inställning</th><th style="padding:2px 4px;">I filen (gamla)</th><th style="padding:2px 4px;">Den här sidan (används)</th></tr>
+                ${rows.map(([label, a, b]) => `<tr style="${a !== b ? 'background:#ffe8c2;' : ''}"><td style="padding:2px 4px;">${escapeHtmlText(label)}</td><td style="padding:2px 4px;">${escapeHtmlText(a)}</td><td style="padding:2px 4px;"><b>${escapeHtmlText(b)}</b></td></tr>`).join('')}
+            </table>
+            ${hasItems ? summary + '<div style="color:#666; margin-top:4px;">Se pris per artikel med “Visa” på artikelraderna nedan. Orange rader = skillnad.</div>' : ''}
+        </div>`;
+}
+
+function plainSnippet(html, max = 160) {
+    const t = plainTextFromHtml(String(html || '').replace(/\n/g, ' ').replace(/<br\s*\/?>/gi, ' ')).replace(/\s+/g, ' ').trim();
+    return t.length > max ? t.slice(0, max) + '…' : t;
+}
+
+function renderImportPartPreview(part, src, cmp) {
+    const esc = escapeHtmlText;
+    if (part.key === 'items' || part.key === 'optionalItems') {
+        const oldList = cmp ? cmp.oldP[part.key] : [];
+        const newList = cmp ? cmp.newP[part.key] : [];
+        const sameCur = cmp && cmp.fileCur === cmp.pageCur;
+        const priceCells = (oldV, newV) => {
+            const diff = sameCur && Math.abs(newV - oldV) >= 0.5;
+            return `<td style="padding:2px 4px; text-align:right;">${esc(formatPrice(oldV))} ${cmp.fileCur}</td>
+                    <td style="padding:2px 4px; text-align:right;${diff ? ' background:#ffe8c2; font-weight:bold;' : ''}">${esc(formatPrice(newV))} ${cmp.pageCur}</td>`;
+        };
+        let rowsHtml = '';
+        oldList.forEach((it, i) => {
+            if (it.type === 'separator') { rowsHtml += '<tr><td colspan="5" style="color:#999; text-align:center;">— separator —</td></tr>'; return; }
+            const nu = newList[i] || {};
+            rowsHtml += `<tr style="border-top:1px solid #eee;">
+                <td style="padding:2px 4px;"><b>${esc(plainSnippet(it.name, 60))}</b>${it.itemDescription && plainSnippet(it.itemDescription) ? `<br><span style="color:#666;">${esc(plainSnippet(it.itemDescription, 120))}</span>` : ''}</td>
+                <td style="padding:2px 4px; text-align:center;">${esc(String(it.quantity ?? ''))}</td>
+                <td style="padding:2px 4px; text-align:right;">${esc(String(it.originalPrice ?? 0))} ${esc(it.currencyOrigin || '')}</td>
+                ${priceCells(itemLineTotal(it), itemLineTotal(nu))}
+            </tr>`;
+            (it.subItems || []).forEach((s, j) => {
+                const ns = (nu.subItems || [])[j] || {};
+                rowsHtml += `<tr>
+                    <td style="padding:2px 4px 2px 20px; color:#444;">↳ ${esc(plainSnippet(s.subItemName, 60))}${s.isPriceBakedIn ? ' (inbakad)' : ''}</td>
+                    <td style="padding:2px 4px; text-align:center; color:#444;">${esc(String(s.subItemQuantity ?? ''))}</td>
+                    <td style="padding:2px 4px; text-align:right; color:#444;">${esc(String(s.subItemOriginalPrice ?? 0))} ${esc(s.currencyOrigin || it.currencyOrigin || '')}</td>
+                    ${priceCells(s.subItemTargetPrice || 0, ns.subItemTargetPrice || 0)}
+                </tr>`;
+            });
+        });
+        return `<table style="width:100%; border-collapse:collapse; font-size:10pt;">
+            <tr style="text-align:left; border-bottom:1px solid #ccc;"><th style="padding:2px 4px;">Artikel</th><th style="padding:2px 4px;">Antal</th><th style="padding:2px 4px; text-align:right;">Originalpris</th><th style="padding:2px 4px; text-align:right;">Pris i filen</th><th style="padding:2px 4px; text-align:right;">Pris här</th></tr>
+            ${rowsHtml}</table>`;
+    }
+    if (part.key === 'terms') {
+        return '<ol style="margin:0; padding-left:20px; font-size:10pt;">' + (src.terms || []).filter(t => t !== null && t !== undefined).map(t => `<li>${esc(plainSnippet(t, 300))}</li>`).join('') + '</ol>';
+    }
+    if (part.key === 'infoImages') {
+        return '<div style="display:flex; flex-wrap:wrap; gap:6px; font-size:10pt;">' + (src.infoImages || []).filter(Boolean).map(it => {
+            if (it.type === 'image') {
+                const s = String(it.src || '');
+                // Only well-formed base64 image data is rendered (nothing that could break out of the attribute)
+                if (/^data:image\/(png|jpe?g|gif|webp|bmp);base64,[A-Za-z0-9+\/=\s]+$/i.test(s)) return `<img src="${s}" alt="" style="height:60px; border:1px solid #ddd;">`;
+                return `<span style="border:1px dashed #ccc; padding:4px; color:#a15c00;">${s.startsWith('DELETED_FOR_EXPORT_SIZE') ? 'Bild utan bilddata (hoppas över)' : 'Bild (länk)'}</span>`;
+            }
+            if (it.type === 'text') return `<div style="flex-basis:100%; border-left:3px solid #ddd; padding-left:6px;">${esc(plainSnippet(it.content, 300))}</div>`;
+            if (it.type === 'table') return `<div style="flex-basis:100%; color:#555;">Tabell ${esc(String(it.rows))} × ${esc(String(it.cols))}</div>`;
+            if (it.type === 'page-break') return '<div style="flex-basis:100%; color:#999;">— sidbrytning —</div>';
+            return '';
+        }).join('') + '</div>';
+    }
+    if (part.kind === 'company') {
+        return '<div style="font-size:10pt;">' + deepTraverseAndGetString(src[part.key] || {}).map(l => esc(plainSnippet(l, 120))).join('<br>') + '</div>';
+    }
+    if (part.kind === 'quoteField') return `<div style="font-size:10pt;">${esc(String((src.quote && src.quote[part.key]) || ''))}</div>`;
+    return '';
 }
 
 function normalizeImportedInfo(list) {
@@ -3744,7 +3909,7 @@ function ensurePartialImportModal() {
     modal.id = 'partialImportModal';
     modal.className = 'modal screen-only';
     modal.innerHTML = `
-        <div class="modal-content" style="max-width:640px;">
+        <div class="modal-content" style="max-width:860px; max-height:88vh; overflow-y:auto;">
             <h3 style="margin-top:0;">Importera delar från JSON</h3>
             <div style="margin-bottom:10px;">
                 <button type="button" class="footer-button" id="partialImportFileBtn">Välj JSON-fil</button>
@@ -3752,6 +3917,7 @@ function ensurePartialImportModal() {
                 <input type="file" id="partialImportFileInput" accept=".json,application/json,text/plain" style="display:none;" />
                 <div id="partialImportSourceName" style="font-size:10pt; color:#555; margin-top:4px;"></div>
             </div>
+            <div id="partialImportPricing" style="display:none; margin-bottom:12px;"></div>
             <table id="partialImportTable" style="width:100%; border-collapse:collapse; font-size:11pt; display:none;">
                 <thead><tr style="text-align:left; border-bottom:1px solid #ccc;">
                     <th style="padding:4px;">Importera</th><th style="padding:4px;">I filen</th><th style="padding:4px;">Nuvarande</th><th style="padding:4px;">Läge</th>
@@ -3795,6 +3961,7 @@ function openPartialImportModal() {
     const modal = ensurePartialImportModal();
     partialImportSource = null;
     modal.querySelector('#partialImportTable').style.display = 'none';
+    modal.querySelector('#partialImportPricing').style.display = 'none';
     modal.querySelector('#partialImportSourceName').textContent = '';
     modal.querySelector('#partialImportNote').textContent = '';
     modal.querySelector('#partialImportApplyBtn').disabled = true;
@@ -3819,6 +3986,20 @@ function loadPartialImportSource(content, name) {
     }
     partialImportSource = parsed;
     modal.querySelector('#partialImportSourceName').textContent = `Källa: ${name}`;
+
+    // Price/currency comparison (file settings vs this page's settings, which include today's rates)
+    let cmp = null;
+    const pricingEl = modal.querySelector('#partialImportPricing');
+    try {
+        cmp = buildImportPriceComparison(parsed);
+        pricingEl.innerHTML = renderImportPricing(cmp);
+        pricingEl.style.display = '';
+    } catch (err) {
+        console.warn('Import: prisjämförelse misslyckades', err);
+        pricingEl.innerHTML = '<div style="color:#a15c00; font-size:10pt;">Prisjämförelsen kunde inte beräknas för den här filen. Importerade artiklar räknas ändå om med sidans valutakurser och påslag.</div>';
+        pricingEl.style.display = '';
+    }
+
     const tbody = modal.querySelector('#partialImportTable tbody');
     tbody.innerHTML = '';
     let anyAvailable = false;
@@ -3836,10 +4017,32 @@ function loadPartialImportSource(content, name) {
         tr.style.borderBottom = '1px solid #eee';
         tr.innerHTML = `
             <td style="padding:4px;"><label><input type="checkbox" data-part="${part.key}" ${available ? '' : 'disabled'}/> ${part.label}</label></td>
-            <td style="padding:4px; color:${available ? '#000' : '#aaa'};">${escapeHtmlText(src.text)}</td>
+            <td style="padding:4px; color:${available ? '#000' : '#aaa'};">${escapeHtmlText(src.text)}
+                ${available ? `<button type="button" data-preview-for="${part.key}" style="margin-left:6px; font-size:9pt; cursor:pointer;">Visa</button>` : ''}</td>
             <td style="padding:4px; color:#555;">${escapeHtmlText(cur.text)}</td>
             <td style="padding:4px;">${modeCell}</td>`;
         tbody.appendChild(tr);
+        if (available) {
+            const previewTr = document.createElement('tr');
+            previewTr.className = 'import-preview-row';
+            previewTr.dataset.previewRow = part.key;
+            previewTr.style.display = 'none';
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.style.cssText = 'padding:6px 8px 10px 24px; background:#fafafa; border-bottom:1px solid #eee;';
+            try { td.innerHTML = renderImportPartPreview(part, parsed, cmp); }
+            catch (err) { td.textContent = 'Förhandsvisningen kunde inte visas.'; }
+            previewTr.appendChild(td);
+            tbody.appendChild(previewTr);
+        }
+    });
+    tbody.querySelectorAll('button[data-preview-for]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const row = tbody.querySelector(`tr[data-preview-row="${btn.dataset.previewFor}"]`);
+            const show = row.style.display === 'none';
+            row.style.display = show ? '' : 'none';
+            btn.textContent = show ? 'Dölj' : 'Visa';
+        });
     });
     modal.querySelector('#partialImportTable').style.display = '';
     modal.querySelector('#partialImportApplyBtn').disabled = !anyAvailable;
@@ -3870,7 +4073,7 @@ function applyPartialImport() {
             const mode = modeFor(part.key);
             if (part.kind === 'array') {
                 let incoming;
-                if (part.key === 'items' || part.key === 'optionalItems') incoming = normalizeImportedItems(src[part.key]);
+                if (part.key === 'items' || part.key === 'optionalItems') incoming = normalizeImportedItems(src[part.key], src.quote);
                 else if (part.key === 'infoImages') {
                     const r = normalizeImportedInfo(src.infoImages);
                     incoming = r.items;

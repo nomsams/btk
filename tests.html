@@ -160,6 +160,37 @@ async function run() {
         check('Ersätt: bara importerade artiklar', w.jsonData.items.map(i => i.name), ['Ny']);
     });
 
+    group('Import: priser och valuta');
+    await safe('import pricing', async () => {
+        load(quote({ useMultipleCurrencies: true, usdToSekRate: 10, eurToSekRate: 12, marginPercentage: 0 }, [item('Sidans', 1, 1)]));
+        const before = JSON.stringify(w.jsonData);
+        const src = quote({ useMultipleCurrencies: true, usdToSekRate: 10, eurToSekRate: 11, marginPercentage: 5 },
+            [item('Pump', 2, 100, 'EUR', { subItems: [sub('Slang', 1, 20)] }), { type: 'item', name: 'Utan valuta', quantity: 1, originalPrice: 1000, subItems: [] }]);
+        const cmp = w.buildImportPriceComparison(src);
+        check('Pris i filen: 2×100 EUR×11×1,05 + slang 231 = 2541', Math.round(w.itemLineTotal(cmp.oldP.items[0])), 2541);
+        check('Pris här: 2×100 EUR×12 + slang 240 = 2640', Math.round(w.itemLineTotal(cmp.newP.items[0])), 2640);
+        check('Prisjämförelsen ändrar inte sidans offert', JSON.stringify(w.jsonData), before);
+        const custom = w.normalizeImportedItems([{ name: 'X', quantity: 1, originalPrice: 5 }], { useCustomCurrency: true, customCurrency: 'eur' });
+        check('Artikel utan valuta får filens valuta (EUR)', custom[0].currencyOrigin, 'EUR');
+        w.openPartialImportModal(); w.loadPartialImportSource(JSON.stringify(src), 'pris.json');
+        const m = doc.getElementById('partialImportModal');
+        check('Prisrutan visas', m.querySelector('#partialImportPricing').style.display, '');
+        check('Förhandsvisning av artiklar finns', !!m.querySelector('tr[data-preview-row="items"]'), true);
+        m.querySelector('input[data-part="items"]').checked = true;
+        w.applyPartialImport();
+        check('Importerad artikel räknas med sidans kurs', Math.round(w.jsonData.items[1].targetPrice), 2400);
+    });
+
+    group('Dagens valutakurs vinner över filens');
+    await safe('live rates', async () => {
+        w.liveExchangeRates = { usd: 10, eur: 11 };
+        w.processIncomingJson(JSON.stringify(quote({ useMultipleCurrencies: true, usdToSekRate: 9, eurToSekRate: 10 }, [item('E', 1, 100, 'EUR')])), 'gamla_kurser.json');
+        check('Filens kurser ersätts med dagens (+0,40)', [w.jsonData.quote.usdToSekRate, w.jsonData.quote.eurToSekRate], [10.4, 11.4]);
+        check('Priset räknas med dagens kurs', Math.round(w.jsonData.items[0].targetPrice), 1140);
+        check('Användaren får besked om bytet', doc.getElementById('rateUpdateNote').style.display, 'block');
+        w.liveExchangeRates = { usd: null, eur: null };
+    });
+
     group('Ångra / gör om');
     await safe('undo', async () => {
         load(quote({}, [item('A', 1, 10)], { terms: ['T1'] }));
