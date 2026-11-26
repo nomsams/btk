@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <title>Offert</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+<link rel="stylesheet" href="vendor/cropper.min.css">
 <style>
 /* ------------------ PRINT STYLES ------------------ */
 @media print {
@@ -327,6 +327,15 @@ h3.name.editable { margin-bottom: 0 !important; }
 .item-details, .info-text-block, .term-item .editable { overflow-wrap: anywhere; }
 
 .info-block:hover { background-color: #fafafa; }
+
+/* Undo / redo / version history toolbar */
+#historyToolbar { position: fixed; bottom: 10px; right: 10px; z-index: 1500; display: flex; gap: 5px; align-items: center; background: rgba(255,255,255,0.95); border: 1px solid #ccc; border-radius: 6px; padding: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.15); font-size: 10pt; }
+#historyToolbar button { cursor: pointer; padding: 4px 8px; border: 1px solid #bbb; background: #f5f5f5; border-radius: 4px; font-size: 10pt; }
+#historyToolbar button:disabled { cursor: default; opacity: 0.45; }
+#unsavedIndicator { color: #c06000; display: none; margin-right: 4px; }
+#unsavedIndicator.visible { display: inline; }
+.version-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid #eee; font-size: 10.5pt; }
+.version-row button { cursor: pointer; padding: 3px 8px; margin-left: 4px; }
 .info-block .content-wrapper { position: relative; width: 100%; } 
 
 #infoImagesList .info-block-image .info-image-container {
@@ -492,6 +501,13 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 </style>
 </head>
 <body class="">
+
+<div id="historyToolbar" class="screen-only">
+  <span id="unsavedIndicator" title="Ändringar finns som inte sparats till JSON-fil (de är autosparade i webbläsaren)">● Ej sparad till fil</span>
+  <button type="button" id="undoBtn" title="Ångra (Ctrl+Z utanför textfält)" disabled>↶ Ångra</button>
+  <button type="button" id="redoBtn" title="Gör om (Ctrl+Y / Ctrl+Shift+Z utanför textfält)" disabled>↷ Gör om</button>
+  <button type="button" id="versionHistoryBtn" title="Automatiskt sparade versioner i denna webbläsare">🕘 Versioner</button>
+</div>
 
 <div id="formatting-toolbar" class="screen-only">
   <button id="bold-btn" title="Fet (Ctrl+B)"><b>B</b></button>
@@ -753,6 +769,10 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
             <input type="checkbox" id="maxOutWordImagesChk" />
             <span>Maxa bilder i Word-export</span>
         </label>
+        <label style="margin-left: 15px; font-size: 10pt;" title="På: rader som inte slutar med . ? ! : slås ihop och ' - ' följt av versal/siffra blir ny rad (bra för text inklistrad från PDF). Av: radbrytningar behålls exakt som på skärmen.">
+            <input type="checkbox" id="wordSmartLineJoinChk" checked />
+            <span>Smart radhantering i Word-export</span>
+        </label>
     </div>
     <input type="file" id="docxUploadInput" accept=".docx" style="display:none;" />
     <button class="footer-button" id="uploadDocxBtn" style="background-color: #2b579a; color: white;">Ladda Word-offert (.docx)</button>
@@ -769,24 +789,26 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
 </div>
 
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<!-- Third-party libraries are bundled locally in /vendor (same versions as the former CDN links)
+     so the app keeps working if a CDN is down or changes a file. -->
+<script src="vendor/html2pdf.bundle.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/Sortable.min.js"></script>
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/cropper.min.js"></script>
 <!-- Pako for Decompression -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script src="vendor/pako.min.js"></script>
 <!-- For generating DOCX document from the HTML witht the exportWordBtn button -->
-<script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>    
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="vendor/docx.umd.js"></script>
+<script src="vendor/FileSaver.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
 
 <script src="wordify.js" defer></script>
 <script src="dewordify.js" defer></script>
 
 <script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 </script>
     
 <script>
@@ -967,19 +989,31 @@ function clearAllContainers() {
 }
 
 function processIncomingJson(jsonString, fileName) {
+    let parsedData;
     try {
-        let parsedData = robustJsonParse(jsonString);
-        if (!parsedData) throw new Error("Parsed data is null or undefined.");
-        
+        parsedData = robustJsonParse(jsonString);
+        if (!parsedData || typeof parsedData !== 'object') throw new Error("Parsed data is null or undefined.");
+    } catch (err) {
+        console.error("Kritiskt fel vid inläsning av offert:", err);
+        alert("Ett fel uppstod vid inläsning av offerten.\n\nDetaljer: " + err.message);
+        return;
+    }
+    if (isQuoteDirty() && !confirm("Den nuvarande offerten har ändringar som inte sparats till fil.\n\nDen sparas i versionshistoriken (🕘 Versioner) och kan också ångras, men vill du verkligen ersätta den?")) return;
+
+    const previousState = JSON.stringify(jsonData);
+    const previousFileName = currentFileName;
+    saveVersionSnapshot('Före inläsning av ' + (fileName || 'fil'), previousState);
+    try {
         // We attach the data to the window object so wordify.js can see it.
-        window.jsonData = parsedData; 
+        window.jsonData = parsedData;
 
         clearAllContainers();
         loadQuoteData(parsedData, fileName);
-        
+
         reRenderAll();
         saveToLocal();
-        
+        markQuoteClean();
+                
         const msgEl = document.getElementById('statusMessage');
         if(msgEl && !msgEl.textContent.includes("Varning")) {
             msgEl.textContent = "Offerten laddades framgångsrikt!";
@@ -990,133 +1024,123 @@ function processIncomingJson(jsonString, fileName) {
         }
     } catch (err) {
         console.error("Kritiskt fel vid inläsning av offert:", err);
-        alert("Ett fel uppstod vid inläsning av offerten.\n\nDetaljer: " + err.message);
+        // Never leave the editor empty/half-loaded: put the previous quote back
+        let restored = false;
+        try { loadQuoteData(JSON.parse(previousState), previousFileName); reRenderAll(); saveToLocal(); restored = true; } catch (e2) { console.error("Kunde inte återställa föregående offert:", e2); }
+        alert("Ett fel uppstod vid inläsning av offerten.\n\nDetaljer: " + err.message + (restored ? "\n\nDen tidigare offerten har återställts." : ""));
     }
 }
+// --- Shared data normalization (used by page load, JSON load, partial import and undo/history restore) ---
+const IS_TEST_MODE = new URLSearchParams(window.location.search).has('testmode'); // tests.html: never touch saved data
+
+function defaultSignature() {
+    return { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
+}
+
+function applyQuoteDefaults(q) {
+    if (!q || typeof q !== 'object') q = {};
+    const defaults = {
+        marginPercentage: 0, currencyMultiplicator: 11.8, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50,
+        showSignature: false, showTillSection: true, removeTotal: false, defaultLogoWidth: 200, useCustomCurrency: false,
+        customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', multiplyCustomCurrency: false,
+        moveInfoSectionUp: false, wordSmartLineJoin: true
+    };
+    Object.keys(defaults).forEach(k => { if (q[k] === undefined) q[k] = defaults[k]; });
+    if (q.separators === undefined || q.separators === null) q.separators = {};
+    if (!q.customRates) q.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
+    if (!q.labels) q.labels = {};
+    if (q.totalLabel) { q.labels.totalLabel = q.totalLabel; delete q.totalLabel; }
+    if (!q.visibility) q.visibility = { optional: true, info: true, terms: true };
+    return q;
+}
+
+// opts.forImport: give separators fresh ids and drop item ids (items copied from another quote)
+function normalizeItemList(list, errors, label, opts = {}) {
+    const out = [];
+    if (!Array.isArray(list)) return out;
+    list.forEach((it, i) => {
+        try {
+            if (!it || typeof it !== 'object') return;
+            if (it.type === 'separator') {
+                if (opts.forImport || !it.id) it.id = 'sep-' + Date.now() + Math.random();
+                out.push(it); return;
+            }
+            if (opts.forImport) delete it.id;
+            if (it.isPriceBakedIn === undefined) it.isPriceBakedIn = false;
+            if (it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
+            if (it.vendorNotes === undefined) it.vendorNotes = "";
+            if (it.type === undefined && it.name !== undefined) it.type = 'item';
+            if (opts.forImport) { if (it.type === undefined) it.type = 'item'; if (it.marginPercentage === undefined) it.marginPercentage = 0; }
+            const subs = [];
+            (Array.isArray(it.subItems) ? it.subItems : []).forEach((sIt, j) => {
+                try {
+                    if (!sIt || typeof sIt !== 'object') return;
+                    if (sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false;
+                    if (sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
+                    if (sIt.vendorNotes === undefined) sIt.vendorNotes = "";
+                    if (opts.forImport && sIt.marginPercentage === undefined) sIt.marginPercentage = 0;
+                    subs.push(sIt);
+                } catch (e) { if (errors) errors.push(`Underpost ${j} i ${label} ${i} hoppades över.`); }
+            });
+            it.subItems = subs;
+            out.push(it);
+        } catch (e) { if (errors) errors.push(`${label} ${i} hoppades över.`); }
+    });
+    return out;
+}
+
+function normalizeTermList(list) {
+    return Array.isArray(list) ? list.filter(t => t !== undefined && t !== null) : [];
+}
+
+// opts.skipMissingImages: drop images without image data (e.g. saved "utan bilder"); returns { items, skippedImages }
+function normalizeInfoList(list, errors, opts = {}) {
+    const result = { items: [], skippedImages: 0 };
+    if (!Array.isArray(list)) return result;
+    list.forEach((it, i) => {
+        try {
+            if (!it || typeof it !== 'object') return;
+            if (it.type === 'image') {
+                if (opts.skipMissingImages && (!it.src || String(it.src).startsWith('DELETED_FOR_EXPORT_SIZE'))) { result.skippedImages++; return; }
+                if (it.compressionImmune === undefined) it.compressionImmune = false;
+            }
+            if (it.type === 'table') {
+                it.rows = parseInt(it.rows, 10) || 1;
+                it.cols = parseInt(it.cols, 10) || 1;
+                if (!Array.isArray(it.data)) it.data = [];
+            }
+            if (it.centering === undefined) it.centering = 'center';
+            result.items.push(it);
+        } catch (e) { if (errors) errors.push(`Info/Bild ${i} hoppades över.`); }
+    });
+    return result;
+}
+
+// Normalizes a whole quote object in place and returns it. Collects skipped-element messages in errors[].
+function normalizeQuoteData(data, errors) {
+    if (!data || typeof data !== 'object') data = {};
+    data.quote = applyQuoteDefaults(data.quote);
+    if (!data.companyA || typeof data.companyA !== 'object') data.companyA = {};
+    if (!data.companyB || typeof data.companyB !== 'object') data.companyB = {};
+    data.items = normalizeItemList(data.items, errors, 'Artikel');
+    data.optionalItems = normalizeItemList(data.optionalItems, errors, 'Tillval');
+    data.terms = normalizeTermList(data.terms);
+    data.infoImages = normalizeInfoList(data.infoImages, errors).items;
+    if (!data.signature) data.signature = defaultSignature();
+    return data;
+}
+
 (function initData(){
-    let localData = localStorage.getItem('quoteData');
+    let localData = IS_TEST_MODE ? null : localStorage.getItem('quoteData');
+    let parsed = null;
     if(localData){
         try {
-            jsonData = robustJsonParse(localData);
+            parsed = robustJsonParse(localData);
         } catch (e) {
             console.error("Failed to parse or decrypt local storage data.", e);
-            localData = null; 
         }
     }
-
-    if(!localData){
-        jsonData={ quote:{ currencyMultiplicator: 11.8, marginPercentage: 0, useMultipleCurrencies: false, usdToSekRate: 10.50, eurToSekRate: 11.50, showSignature: false, showTillSection: true, removeTotal: false, labels: {}, visibility: { optional: true, info: true, terms: true }, defaultLogoWidth: 200, useCustomCurrency: false, customCurrency: 'EUR', centerImagesByDefault: true, marginCalculationMode: 'markup', separators: {}, multiplyCustomCurrency: false, customRates: { usd: 1.0, eur: 1.0, sek: 1.0 }, moveInfoSectionUp: false }, companyA:{}, companyB:{}, items:[], optionalItems:[], terms:[], infoImages:[], signature: { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel } };
-    } else {
-        if(!jsonData.quote) jsonData.quote = {};
-        const q = jsonData.quote;
-        if(q.marginPercentage === undefined) q.marginPercentage = 0;
-        if(q.currencyMultiplicator === undefined) q.currencyMultiplicator = 11.8;
-        if(q.useMultipleCurrencies === undefined) q.useMultipleCurrencies = false;
-        if(q.usdToSekRate === undefined) q.usdToSekRate = 10.50;
-        if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50;
-        if(q.showSignature === undefined) q.showSignature = false;
-        if(q.showTillSection === undefined) q.showTillSection = true;
-        if(q.removeTotal === undefined) q.removeTotal = false;
-        if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
-        if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
-        if(q.customCurrency === undefined) q.customCurrency = 'EUR';
-        if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
-        if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
-        if(q.separators === undefined) q.separators = {};
-        if(q.multiplyCustomCurrency === undefined) q.multiplyCustomCurrency = false;
-        if(q.customRates === undefined) q.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
-        if(q.moveInfoSectionUp === undefined) q.moveInfoSectionUp = false;
-
-        if(!q.labels) q.labels = {};
-        if (q.totalLabel) { q.labels.totalLabel = q.totalLabel; delete q.totalLabel; }
-        if (!q.visibility) q.visibility = { optional: true, info: true, terms: true };
-        
-        if(!jsonData.companyA) jsonData.companyA={}; 
-        if(!jsonData.companyB) jsonData.companyB={};
-        
-        // Felsäker inläsning av items
-        let safeItems = [];
-        if(Array.isArray(jsonData.items)) {
-            for(let it of jsonData.items) {
-                try {
-                    if(!it) continue;
-                    if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-                    if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-                    if(it.vendorNotes === undefined) it.vendorNotes = "";
-                    if(it.type === undefined && it.name !== undefined) it.type = 'item';
-                    
-                    let safeSubItems = [];
-                    if (Array.isArray(it.subItems)) {
-                        for(let sIt of it.subItems) {
-                            try {
-                                if(!sIt) continue;
-                                if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-                                if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-                                if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-                                safeSubItems.push(sIt);
-                            } catch(e) {}
-                        }
-                    }
-                    it.subItems = safeSubItems;
-                    safeItems.push(it);
-                } catch(e) {}
-            }
-        }
-        jsonData.items = safeItems;
-
-        // Felsäker inläsning av optionalItems
-        let safeOptionalItems = [];
-        if(Array.isArray(jsonData.optionalItems)) {
-            for(let it of jsonData.optionalItems) {
-                try {
-                    if(!it) continue;
-                    if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-                    if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-                    if(it.vendorNotes === undefined) it.vendorNotes = "";
-                    if(it.type === undefined && it.name !== undefined) it.type = 'item';
-                    
-                    let safeSubItems = [];
-                    if (Array.isArray(it.subItems)) {
-                        for(let sIt of it.subItems) {
-                            try {
-                                if(!sIt) continue;
-                                if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-                                if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-                                if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-                                safeSubItems.push(sIt);
-                            } catch(e) {}
-                        }
-                    }
-                    it.subItems = safeSubItems;
-                    safeOptionalItems.push(it);
-                } catch(e) {}
-            }
-        }
-        jsonData.optionalItems = safeOptionalItems;
-
-        let safeTerms = [];
-        if(Array.isArray(jsonData.terms)) {
-            for(let t of jsonData.terms) {
-                if(t !== undefined && t !== null) safeTerms.push(t);
-            }
-        }
-        jsonData.terms = safeTerms;
-
-        let safeInfoImages = [];
-        if(Array.isArray(jsonData.infoImages)) {
-            for(let it of jsonData.infoImages) {
-                try {
-                    if(!it) continue;
-                    if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-                    if (it.centering === undefined) it.centering = 'center';
-                    safeInfoImages.push(it);
-                } catch(e) {}
-            }
-        }
-        jsonData.infoImages = safeInfoImages;
-
-        if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
-    }
+    jsonData = normalizeQuoteData(parsed || {});
     window.jsonData = jsonData;
 })();
 
@@ -1150,124 +1174,9 @@ function loadQuoteData(data, loadedFileName=null){
         jsonData = data; 
     }
 
-    const q = jsonData.quote || {};
+    jsonData = normalizeQuoteData(jsonData, loadErrors);
+    const q = jsonData.quote;
     if(!q.quoteNumber)q.quoteNumber=Math.floor(Math.random()*100000).toString();
-    if(q.marginPercentage === undefined) q.marginPercentage = 0;
-    if(q.currencyMultiplicator === undefined) q.currencyMultiplicator = 11.8;
-    if(q.useMultipleCurrencies === undefined) q.useMultipleCurrencies = false;
-    if(q.usdToSekRate === undefined) q.usdToSekRate = 10.50; 
-    if(q.eurToSekRate === undefined) q.eurToSekRate = 11.50; 
-    if(q.showSignature === undefined) q.showSignature = false;
-    if(q.showTillSection === undefined) q.showTillSection = true;
-    if(q.removeTotal === undefined) q.removeTotal = false;
-    if(q.defaultLogoWidth === undefined) q.defaultLogoWidth = 200;
-    if(q.useCustomCurrency === undefined) q.useCustomCurrency = false;
-    if(q.customCurrency === undefined) q.customCurrency = 'EUR';
-    if(q.centerImagesByDefault === undefined) q.centerImagesByDefault = true;
-    if(q.marginCalculationMode === undefined) q.marginCalculationMode = 'markup';
-    if(q.separators === undefined) q.separators = {};
-    if(q.multiplyCustomCurrency === undefined) q.multiplyCustomCurrency = false;
-    if(q.customRates === undefined) q.customRates = { usd: 1.0, eur: 1.0, sek: 1.0 };
-    if(q.moveInfoSectionUp === undefined) q.moveInfoSectionUp = false;
-
-    if(!q.labels) q.labels = {};
-    if (q.totalLabel) { q.labels.totalLabel = q.totalLabel; delete q.totalLabel; }
-    if (!q.visibility) q.visibility = { optional: true, info: true, terms: true };
-
-    jsonData.quote = q;
-    if(!jsonData.signature) jsonData.signature = { date: "", lessorLine: "", lesseeLine: "", lessorText: translations.sv.signatureLessorLabel, lesseeText: translations.sv.signatureLesseeLabel };
-    
-    // Felsäker inläsning av items
-    let safeItems = [];
-    if (Array.isArray(jsonData.items)) {
-        for (let i = 0; i < jsonData.items.length; i++) {
-            try {
-                let it = jsonData.items[i];
-                if (!it) continue;
-                if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-                if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-                if(it.vendorNotes === undefined) it.vendorNotes = "";
-                if(it.type === undefined && it.name !== undefined) it.type = 'item';
-                
-                let safeSubItems = [];
-                if (Array.isArray(it.subItems)) {
-                    for (let j = 0; j < it.subItems.length; j++) {
-                        try {
-                            let sIt = it.subItems[j];
-                            if (!sIt) continue;
-                            if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-                            if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-                            if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-                            safeSubItems.push(sIt);
-                        } catch(e) { loadErrors.push(`Underpost ${j} i artikel ${i} hoppades över.`); }
-                    }
-                }
-                it.subItems = safeSubItems;
-                safeItems.push(it);
-            } catch(e) { loadErrors.push(`Artikel ${i} hoppades över.`); }
-        }
-    }
-    jsonData.items = safeItems;
-
-    // Felsäker inläsning av optionalItems
-    let safeOptionalItems = [];
-    if (Array.isArray(jsonData.optionalItems)) {
-        for (let i = 0; i < jsonData.optionalItems.length; i++) {
-            try {
-                let it = jsonData.optionalItems[i];
-                if (!it) continue;
-                if(it.isPriceBakedIn === undefined) it.isPriceBakedIn = false; 
-                if(it.isHiddenFromPrint === undefined) it.isHiddenFromPrint = false;
-                if(it.vendorNotes === undefined) it.vendorNotes = "";
-                if(it.type === undefined && it.name !== undefined) it.type = 'item';
-                
-                let safeSubItems = [];
-                if (Array.isArray(it.subItems)) {
-                    for (let j = 0; j < it.subItems.length; j++) {
-                        try {
-                            let sIt = it.subItems[j];
-                            if (!sIt) continue;
-                            if(sIt.isPriceBakedIn === undefined) sIt.isPriceBakedIn = false; 
-                            if(sIt.isHiddenFromPrint === undefined) sIt.isHiddenFromPrint = false;
-                            if(sIt.vendorNotes === undefined) sIt.vendorNotes = "";
-                            safeSubItems.push(sIt);
-                        } catch(e) { loadErrors.push(`Underpost ${j} i tillval ${i} hoppades över.`); }
-                    }
-                }
-                it.subItems = safeSubItems;
-                safeOptionalItems.push(it);
-            } catch(e) { loadErrors.push(`Tillval ${i} hoppades över.`); }
-        }
-    }
-    jsonData.optionalItems = safeOptionalItems;
-
-    // Felsäker inläsning av terms
-    let safeTerms = [];
-    if (Array.isArray(jsonData.terms)) {
-        for (let i = 0; i < jsonData.terms.length; i++) {
-            try {
-                if (jsonData.terms[i] !== undefined && jsonData.terms[i] !== null) {
-                    safeTerms.push(jsonData.terms[i]);
-                }
-            } catch(e) { loadErrors.push(`Villkor ${i} hoppades över.`); }
-        }
-    }
-    jsonData.terms = safeTerms;
-
-    // Felsäker inläsning av infoImages
-    let safeInfoImages = [];
-    if (Array.isArray(jsonData.infoImages)) {
-        for (let i = 0; i < jsonData.infoImages.length; i++) {
-            try {
-                let it = jsonData.infoImages[i];
-                if (!it) continue;
-                if (it.type === 'image' && it.compressionImmune === undefined) it.compressionImmune = false;
-                if (it.centering === undefined) it.centering = 'center';
-                safeInfoImages.push(it);
-            } catch(e) { loadErrors.push(`Info/Bild ${i} hoppades över.`); }
-        }
-    }
-    jsonData.infoImages = safeInfoImages;
 
     // --- UI Uppdateringar ---
     document.getElementById('quoteNumber').textContent = q.quoteNumber || '';
@@ -1282,6 +1191,7 @@ function loadQuoteData(data, loadedFileName=null){
     document.getElementById('defaultLogoWidthInput').value = q.defaultLogoWidth || 200;
     document.getElementById('multiplyCustomCurrencyChk').checked = q.multiplyCustomCurrency || false;
     document.getElementById('maxOutWordImagesChk').checked = q.maxOutWordImages || false;
+    document.getElementById('wordSmartLineJoinChk').checked = q.wordSmartLineJoin !== false;
     
     document.getElementById('useMultipleCurrenciesChk').checked = q.useMultipleCurrencies || false;
     document.getElementById('usdRateInput').value = parseFloat(q.usdToSekRate || 10.50).toFixed(2);
@@ -2401,6 +2311,10 @@ document.getElementById('maxOutWordImagesChk').addEventListener('change', functi
     jsonData.quote.maxOutWordImages = this.checked;
     saveToLocal();
 });
+document.getElementById('wordSmartLineJoinChk').addEventListener('change', function() {
+    jsonData.quote.wordSmartLineJoin = this.checked;
+    saveToLocal();
+});
 
 document.getElementById('useMultipleCurrenciesChk').addEventListener('change', function() {
     jsonData.quote.useMultipleCurrencies = this.checked;
@@ -2721,7 +2635,7 @@ function updateLiveDOMPrices(containerId, mainIndex, subIndex) {
     if(priceSpan) priceSpan.textContent = formatPrice((item[priceField] || 0));
 }
 function buildFileName(ref, version){ const datePart= new Date().toISOString().slice(2,10).replace(/-/g,''); const safeRef = (ref||'').trim().replace(/[^\w\s\-]/gi, '').replace(/\s+/g,'-').substring(0, 50); return `${safeRef || 'offert'}_${datePart}_v${version}.json`; }
-function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(encryptCaesar(JSON.stringify(jsonData,null,2), caesarShift)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); }
+function doDownloadJson(fileName){ const dl=document.createElement('a'); dl.href = "data:text/plain;charset=utf-8," + encodeURIComponent(encryptCaesar(JSON.stringify(jsonData,null,2), caesarShift)); dl.download = fileName; document.body.appendChild(dl); dl.click(); dl.remove(); markQuoteClean(); }
 document.getElementById('saveJson').addEventListener('click',()=>{ if (checkQuoteDate(true)) { doDownloadJson(buildJsonFileName()); } });
 
 function copyJsonToClipboard(){
@@ -2739,8 +2653,12 @@ document.getElementById('printBtn').addEventListener('click', () => { if (checkQ
 
 function saveToLocal() {
     window.jsonData = jsonData;
+    let stateStr;
+    try { stateStr = JSON.stringify(jsonData); } catch (e) { console.error("Kunde inte serialisera offerten:", e); return; }
+    recordHistory(stateStr);
+    if (IS_TEST_MODE) return;
     try {
-        localStorage.setItem('quoteData', encryptCaesar(JSON.stringify(jsonData), caesarShift));
+        localStorage.setItem('quoteData', encryptCaesar(stateStr, caesarShift));
         
         // Om det lyckas (minnet är inte längre fullt), ta bort eventuell varning
         const statusEl = document.getElementById('statusMessage');
@@ -2764,7 +2682,7 @@ function saveToLocal() {
 
 window.onload=()=>{ 
     loadQuoteData(jsonData); 
-    fetchLiveCurrencyRates();
+    if (!IS_TEST_MODE) fetchLiveCurrencyRates(); // tests need fixed rates
     setupLogo();
     checkForIncomingData(); // Check for data from PDF Flow
 
@@ -2955,7 +2873,8 @@ window.addEventListener('load', () => {
 
     updatePrintMultiplier();
     setupFormattingToolbar();
-    reRenderAll(); 
+    reRenderAll();
+    setTimeout(initHistoryTracking, 0);
 });
 document.getElementById('uploadPdfBtn').addEventListener('click', () => document.getElementById('pdfUploadInput').click());
 document.getElementById('pdfUploadInput').addEventListener('change', async function(ev) {
@@ -3379,6 +3298,7 @@ document.getElementById('saveJsonUnencrypted').addEventListener('click', () => {
     document.body.appendChild(dl);
     dl.click();
     dl.remove();
+    markQuoteClean();
 });
 
 document.getElementById('saveJsonUnencryptedNoImg').addEventListener('click', () => {
@@ -3793,50 +3713,13 @@ const IMPORT_PARTS = [
 ];
 let partialImportSource = null;
 
+// Partial import uses the shared normalizers on a deep copy of the source data
 function normalizeImportedItems(list) {
-    if (!Array.isArray(list)) return [];
-    const out = [];
-    list.forEach(it => {
-        if (!it || typeof it !== 'object') return;
-        const copy = JSON.parse(JSON.stringify(it));
-        if (copy.type === 'separator') { copy.id = 'sep-' + Date.now() + Math.random(); out.push(copy); return; }
-        delete copy.id;
-        if (copy.type === undefined) copy.type = 'item';
-        if (copy.isPriceBakedIn === undefined) copy.isPriceBakedIn = false;
-        if (copy.isHiddenFromPrint === undefined) copy.isHiddenFromPrint = false;
-        if (copy.vendorNotes === undefined) copy.vendorNotes = '';
-        if (copy.marginPercentage === undefined) copy.marginPercentage = 0;
-        copy.subItems = (Array.isArray(copy.subItems) ? copy.subItems : []).filter(s => s && typeof s === 'object').map(s => {
-            if (s.isPriceBakedIn === undefined) s.isPriceBakedIn = false;
-            if (s.isHiddenFromPrint === undefined) s.isHiddenFromPrint = false;
-            if (s.vendorNotes === undefined) s.vendorNotes = '';
-            if (s.marginPercentage === undefined) s.marginPercentage = 0;
-            return s;
-        });
-        out.push(copy);
-    });
-    return out;
+    return normalizeItemList(JSON.parse(JSON.stringify(Array.isArray(list) ? list : [])), null, 'Artikel', { forImport: true });
 }
 
 function normalizeImportedInfo(list) {
-    const result = { items: [], skippedImages: 0 };
-    if (!Array.isArray(list)) return result;
-    list.forEach(it => {
-        if (!it || typeof it !== 'object') return;
-        const copy = JSON.parse(JSON.stringify(it));
-        if (copy.type === 'image') {
-            if (!copy.src || String(copy.src).startsWith('DELETED_FOR_EXPORT_SIZE')) { result.skippedImages++; return; }
-            if (copy.compressionImmune === undefined) copy.compressionImmune = false;
-        }
-        if (copy.type === 'table') {
-            copy.rows = parseInt(copy.rows, 10) || 1;
-            copy.cols = parseInt(copy.cols, 10) || 1;
-            if (!Array.isArray(copy.data)) copy.data = [];
-        }
-        if (copy.centering === undefined) copy.centering = 'center';
-        result.items.push(copy);
-    });
-    return result;
+    return normalizeInfoList(JSON.parse(JSON.stringify(Array.isArray(list) ? list : [])), null, { skipMissingImages: true });
 }
 
 function describeImportPart(part, data) {
@@ -3979,6 +3862,7 @@ function applyPartialImport() {
     };
     const overwriting = selected.filter(p => p.kind !== 'quoteField' && modeFor(p.key) === 'overwrite' && describeImportPart(p, jsonData).count > 0);
     if (overwriting.length > 0 && !confirm('Följande delar kommer att ERSÄTTAS helt:\n- ' + overwriting.map(p => p.label).join('\n- ') + '\n\nFortsätta?')) return;
+    saveVersionSnapshot('Före import av delar', JSON.stringify(jsonData));
 
     const notes = [];
     try {
@@ -4028,6 +3912,260 @@ function applyPartialImport() {
 }
 
 document.getElementById('partialImportBtn').addEventListener('click', openPartialImportModal);
+
+// --- Undo / Redo (covers every change: text, structure, settings, loads and imports) ---
+// Every saveToLocal() hands us the serialized quote. Changes less than UNDO_COALESCE_MS apart are
+// merged into one step (a burst of typing, or an action plus the re-render it triggers).
+// `var` on purpose: saveToLocal may run before this part of the script, and must then just be ignored.
+var UNDO_LIMIT = 40, UNDO_MAX_CHARS = 40e6, UNDO_COALESCE_MS = 1000;
+var undoStack = [], redoStack = [], historyCurrent = null, historyLastChange = 0, historyRestoring = false, historyReady = false;
+
+function initHistoryTracking() {
+    historyCurrent = JSON.stringify(jsonData);
+    historyReady = true;
+    updateHistoryUi();
+}
+
+function trimUndoStack() {
+    let total = undoStack.reduce((n, str) => n + str.length, 0);
+    while (undoStack.length > UNDO_LIMIT || (undoStack.length > 1 && total > UNDO_MAX_CHARS)) total -= undoStack.shift().length;
+}
+
+function recordHistory(stateStr) {
+    if (!historyReady) return;
+    if (historyRestoring || historyCurrent === null) { historyCurrent = stateStr; return; }
+    if (stateStr === historyCurrent) return;
+    const now = Date.now();
+    if (now - historyLastChange > UNDO_COALESCE_MS) { undoStack.push(historyCurrent); trimUndoStack(); }
+    historyLastChange = now;
+    historyCurrent = stateStr;
+    redoStack = [];
+    markQuoteDirty();
+    maybeAutoSnapshot(stateStr);
+    updateHistoryUi();
+}
+
+function restoreQuoteState(stateStr) {
+    historyRestoring = true;
+    try {
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        loadQuoteData(JSON.parse(stateStr), currentFileName);
+        reRenderAll();
+        saveToLocal();
+    } finally {
+        historyRestoring = false;
+    }
+    historyCurrent = JSON.stringify(jsonData);
+    historyLastChange = 0;
+    markQuoteDirty();
+    updateHistoryUi();
+}
+
+function undoChange() {
+    if (!historyReady || undoStack.length === 0) return;
+    redoStack.push(historyCurrent);
+    restoreQuoteState(undoStack.pop());
+}
+
+function redoChange() {
+    if (!historyReady || redoStack.length === 0) return;
+    undoStack.push(historyCurrent);
+    restoreQuoteState(redoStack.pop());
+}
+
+document.getElementById('undoBtn').addEventListener('click', undoChange);
+document.getElementById('redoBtn').addEventListener('click', redoChange);
+document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const el = document.activeElement;
+    // Inside text fields the browser's own text undo applies
+    if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); undoChange(); }
+    else if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); redoChange(); }
+});
+
+// --- Unsaved-to-file tracking ---
+const DIRTY_KEY = 'quoteUnsavedSinceFileSave';
+function isQuoteDirty() { return !IS_TEST_MODE && localStorage.getItem(DIRTY_KEY) === '1'; }
+function markQuoteDirty() { if (!IS_TEST_MODE) { try { localStorage.setItem(DIRTY_KEY, '1'); } catch (e) {} } updateHistoryUi(); }
+function markQuoteClean() { if (!IS_TEST_MODE) { try { localStorage.setItem(DIRTY_KEY, '0'); } catch (e) {} } updateHistoryUi(); }
+window.addEventListener('beforeunload', (e) => {
+    if (isQuoteDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+function updateHistoryUi() {
+    const u = document.getElementById('undoBtn'), r = document.getElementById('redoBtn'), ind = document.getElementById('unsavedIndicator');
+    if (u) u.disabled = !historyReady || undoStack.length === 0;
+    if (r) r.disabled = !historyReady || redoStack.length === 0;
+    if (ind) ind.classList.toggle('visible', isQuoteDirty());
+}
+
+// --- Version history (IndexedDB, survives reloads; independent of the localStorage autosave) ---
+// Snapshots are taken automatically every few minutes while editing, and always before a file is
+// loaded, before a partial import and before restoring an older version.
+var VERSION_DB_NAME = 'btkVersionHistory', VERSION_KEEP = 25, VERSION_INTERVAL_MS = 3 * 60 * 1000;
+var versionDbPromise = null, lastVersionSnapshotTime = 0, lastVersionSnapshotStr = null;
+
+function openVersionDb() {
+    if (IS_TEST_MODE || !window.indexedDB) return Promise.resolve(null);
+    if (!versionDbPromise) {
+        versionDbPromise = new Promise((resolve) => {
+            try {
+                const req = indexedDB.open(VERSION_DB_NAME, 1);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'id', autoIncrement: true });
+                    if (!db.objectStoreNames.contains('data')) db.createObjectStore('data', { keyPath: 'id' });
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+                req.onblocked = () => resolve(null);
+            } catch (e) { resolve(null); }
+        });
+    }
+    return versionDbPromise;
+}
+
+function idbRequest(req) {
+    return new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+}
+
+function maybeAutoSnapshot(stateStr) {
+    if (Date.now() - lastVersionSnapshotTime > VERSION_INTERVAL_MS) saveVersionSnapshot('Autosparad', stateStr);
+}
+
+// stateStr is captured synchronously by the caller, so the snapshot is the state at call time
+async function saveVersionSnapshot(reason, stateStr) {
+    try {
+        if (!stateStr) stateStr = JSON.stringify(jsonData);
+        lastVersionSnapshotTime = Date.now();
+        if (stateStr === lastVersionSnapshotStr) return;
+        const db = await openVersionDb();
+        if (!db) return;
+        let d; try { d = JSON.parse(stateStr); } catch (e) { return; }
+        const firstLine = (obj) => { const l = deepTraverseAndGetString(obj || {})[0]; return l ? plainTextFromHtml(String(l)).slice(0, 40) : ''; };
+        const meta = {
+            time: Date.now(), reason,
+            reference: (d.quote && d.quote.reference) || '', quoteNumber: (d.quote && d.quote.quoteNumber) || '',
+            customer: firstLine(d.companyA),
+            itemCount: (d.items || []).filter(i => i && i.type !== 'separator').length,
+            size: stateStr.length
+        };
+        await new Promise((resolve) => {
+            const tx = db.transaction(['meta', 'data'], 'readwrite');
+            const addReq = tx.objectStore('meta').add(meta);
+            addReq.onsuccess = () => tx.objectStore('data').put({ id: addReq.result, data: stateStr });
+            tx.oncomplete = resolve; tx.onerror = resolve; tx.onabort = resolve;
+        });
+        lastVersionSnapshotStr = stateStr;
+        await pruneVersionSnapshots(db);
+    } catch (e) {
+        console.warn('Versionshistorik: kunde inte spara ögonblicksbild.', e);
+    }
+}
+
+async function pruneVersionSnapshots(db) {
+    const keys = await idbRequest(db.transaction('meta').objectStore('meta').getAllKeys());
+    if (keys.length <= VERSION_KEEP) return;
+    const toDelete = keys.slice(0, keys.length - VERSION_KEEP);
+    await new Promise((resolve) => {
+        const tx = db.transaction(['meta', 'data'], 'readwrite');
+        toDelete.forEach(k => { tx.objectStore('meta').delete(k); tx.objectStore('data').delete(k); });
+        tx.oncomplete = resolve; tx.onerror = resolve; tx.onabort = resolve;
+    });
+}
+
+async function listVersionSnapshots() {
+    const db = await openVersionDb();
+    if (!db) return null;
+    const all = await idbRequest(db.transaction('meta').objectStore('meta').getAll());
+    return all.sort((a, b) => b.id - a.id);
+}
+
+async function readVersionSnapshot(id) {
+    const db = await openVersionDb();
+    if (!db) return null;
+    const row = await idbRequest(db.transaction('data').objectStore('data').get(id));
+    return row ? row.data : null;
+}
+
+function ensureVersionModal() {
+    let modal = document.getElementById('versionHistoryModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'versionHistoryModal';
+    modal.className = 'modal screen-only';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:720px;">
+            <h3 style="margin-top:0;">Versionshistorik</h3>
+            <div style="font-size:10pt; color:#555; margin-bottom:8px;">Sparas automatiskt i den här webbläsaren (de ${VERSION_KEEP} senaste): var ${VERSION_INTERVAL_MS / 60000}:e minut under redigering och alltid innan en fil läses in, delar importeras eller en version återställs. Rensas om webbläsardatan rensas – spara viktiga offerter som JSON.</div>
+            <div id="versionList" style="max-height:55vh; overflow-y:auto; overflow-x:hidden;"></div>
+            <div class="modal-footer" style="margin-top:15px;">
+                <button type="button" class="btn-save" id="versionSnapshotNowBtn" style="float:left;">Spara version nu</button>
+                <button type="button" class="btn-cancel" id="versionCloseBtn">Stäng</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#versionCloseBtn').addEventListener('click', () => { modal.style.display = 'none'; });
+    modal.querySelector('#versionSnapshotNowBtn').addEventListener('click', async () => {
+        lastVersionSnapshotStr = null;
+        await saveVersionSnapshot('Manuellt sparad', JSON.stringify(jsonData));
+        renderVersionList();
+    });
+    modal.querySelector('#versionList').addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const id = Number(btn.dataset.id);
+        const data = await readVersionSnapshot(id);
+        if (!data) return alert('Versionen kunde inte läsas.');
+        if (btn.dataset.action === 'download') {
+            const dl = document.createElement('a');
+            dl.href = URL.createObjectURL(new Blob([encryptCaesar(data, caesarShift)], { type: 'text/plain;charset=utf-8' }));
+            dl.download = `version_${id}.json`;
+            document.body.appendChild(dl); dl.click(); dl.remove();
+            setTimeout(() => URL.revokeObjectURL(dl.href), 5000);
+        } else if (btn.dataset.action === 'restore') {
+            if (!confirm('Återställa den här versionen?\n\nDen nuvarande offerten sparas först som en egen version och kan även ångras.')) return;
+            await saveVersionSnapshot('Före återställning', JSON.stringify(jsonData));
+            if (historyReady) { undoStack.push(historyCurrent); redoStack = []; trimUndoStack(); }
+            try {
+                restoreQuoteState(data);
+                modal.style.display = 'none';
+            } catch (err) {
+                console.error(err);
+                alert('Versionen kunde inte återställas: ' + err.message);
+            }
+        }
+    });
+    return modal;
+}
+
+async function renderVersionList() {
+    const list = document.getElementById('versionList');
+    list.textContent = 'Laddar…';
+    let versions;
+    try { versions = await listVersionSnapshots(); } catch (e) { versions = null; }
+    if (versions === null) { list.textContent = 'Versionshistorik är inte tillgänglig i den här webbläsaren (t.ex. privat läge).'; return; }
+    if (versions.length === 0) { list.textContent = 'Inga sparade versioner ännu.'; return; }
+    list.innerHTML = versions.map(v => `
+        <div class="version-row">
+            <div>
+                <b>${escapeHtmlText(new Date(v.time).toLocaleString('sv-SE'))}</b> – ${escapeHtmlText(v.reason || '')}<br>
+                <span style="color:#555;">Nr ${escapeHtmlText(v.quoteNumber)}${v.reference ? ' · Ref: ' + escapeHtmlText(v.reference) : ''}${v.customer ? ' · ' + escapeHtmlText(v.customer) : ''} · ${v.itemCount} artiklar · ${formatBytes(v.size)}</span>
+            </div>
+            <div style="white-space:nowrap;">
+                <button type="button" data-action="download" data-id="${v.id}">Ladda ner</button>
+                <button type="button" data-action="restore" data-id="${v.id}">Återställ</button>
+            </div>
+        </div>`).join('');
+}
+
+document.getElementById('versionHistoryBtn').addEventListener('click', () => {
+    const modal = ensureVersionModal();
+    modal.style.display = 'block';
+    renderVersionList();
+});
 
 </script>
 </body>

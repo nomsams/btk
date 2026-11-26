@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8"/>
+<title>BTK – tester</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; font-size: 11pt; }
+  #summary { font-size: 14pt; font-weight: bold; margin-bottom: 10px; }
+  .pass { color: #1a7f37; } .fail { color: #c62828; }
+  .group { margin-top: 14px; font-weight: bold; }
+  .row { margin: 2px 0 2px 12px; font-family: Consolas, monospace; font-size: 10pt; white-space: pre-wrap; }
+  iframe { width: 900px; height: 250px; border: 1px solid #ccc; margin-top: 15px; }
+</style>
+</head>
+<body>
+<h2>BTK – automatiska tester</h2>
+<p>Laddar <code>index.html?testmode</code> i en ram och kontrollerar prisberäkningar, datahantering, inklistring, Word-export,
+import och ångra. I testläge läser/skriver appen <b>inte</b> din sparade offert, versionshistorik eller osparad-flagga.</p>
+<div id="summary">Kör…</div>
+<div id="results"></div>
+<iframe id="app" src="index.html?testmode"></iframe>
+
+<script>
+const results = document.getElementById('results');
+let passed = 0, failed = 0;
+const group = (name) => { const d = document.createElement('div'); d.className = 'group'; d.textContent = name; results.appendChild(d); };
+function check(name, actual, expected) {
+    const ok = JSON.stringify(actual) === JSON.stringify(expected);
+    ok ? passed++ : failed++;
+    const d = document.createElement('div');
+    d.className = 'row ' + (ok ? 'pass' : 'fail');
+    d.textContent = (ok ? '✔ ' : '✘ ') + name + (ok ? '' : `\n    förväntat: ${JSON.stringify(expected)}\n    fick:      ${JSON.stringify(actual)}`);
+    results.appendChild(d);
+}
+async function safe(name, fn) {
+    try { await fn(); } catch (e) { failed++; const d = document.createElement('div'); d.className = 'row fail'; d.textContent = `✘ ${name} kastade fel: ${e && e.stack || e}`; results.appendChild(d); }
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function quote(qOverrides, items, extra = {}) {
+    return Object.assign({
+        quote: Object.assign({ quoteNumber: '1', date: '2026-01-01', currencyMultiplicator: 10, marginPercentage: 0, marginCalculationMode: 'markup',
+            useMultipleCurrencies: false, usdToSekRate: 10.5, eurToSekRate: 11.5, useCustomCurrency: false, customCurrency: 'EUR',
+            customRates: { usd: 1, eur: 1, sek: 1 } }, qOverrides),
+        companyA: {}, companyB: {}, items, optionalItems: [], terms: [], infoImages: []
+    }, extra);
+}
+const item = (name, qty, price, cur = 'SEK', more = {}) => Object.assign({ type: 'item', name, quantity: qty, originalPrice: price, currencyOrigin: cur, marginPercentage: 0, subItems: [] }, more);
+const sub = (name, qty, price, more = {}) => Object.assign({ subItemName: name, subItemQuantity: qty, subItemOriginalPrice: price, marginPercentage: 0 }, more);
+
+async function run() {
+    const savedBefore = localStorage.getItem('quoteData');
+    const frame = document.getElementById('app');
+    const w = frame.contentWindow;
+    // wait until the app has finished its startup (history tracking is enabled last)
+    for (let i = 0; i < 100 && !w.historyReady; i++) await sleep(100);
+    w.alert = () => {}; w.confirm = () => true;
+    const doc = w.document;
+
+    const load = (data) => { w.loadQuoteData(JSON.parse(JSON.stringify(data))); w.reRenderAll(); };
+    const total = () => Number(doc.getElementById('totalValue').textContent.replace(/[^\d.,-]/g, '').replace(',', '.'));
+
+    group('Prisberäkning');
+    await safe('priser', async () => {
+        load(quote({}, [item('A', 2, 100)]));                                        check('SEK 2 × 100 = 200', total(), 200);
+        load(quote({ marginPercentage: 10 }, [item('A', 2, 100)]));                  check('Påslag 10 %: 220', total(), 220);
+        load(quote({ marginPercentage: 20, marginCalculationMode: 'margin' }, [item('A', 2, 100)])); check('Marginal 20 %: 2 × 100/0,8 = 250', total(), 250);
+        load(quote({ currencyMultiplicator: 10 }, [item('A', 1, 10, 'USD')]));       check('En valutakurs: 10 USD × 10 = 100', total(), 100);
+        load(quote({ useMultipleCurrencies: true }, [item('A', 1, 10, 'USD'), item('B', 1, 10, 'EUR')])); check('Multipla kurser: 105 + 115 = 220', total(), 220);
+        load(quote({}, [item('A', 1, 100, 'SEK', { marginPercentage: 50 })]));     check('Lokalt påslag 50 %: 150', total(), 150);
+        load(quote({}, [item('A', 1, 100, 'SEK', { subItems: [sub('s', 1, 50)] })])); check('Underpost läggs till totalen: 150', total(), 150);
+        load(quote({}, [item('A', 1, 100, 'SEK', { subItems: [sub('s', 1, 50, { isPriceBakedIn: true })] })]));
+        check('Inbakad underpost: totalt 150', total(), 150);
+        check('Inbakad underpost ingår i artikelpriset', Math.round(w.jsonData.items[0].targetPrice), 150);
+        load(quote({}, [item('A', 1, 100, 'SEK', { isHiddenFromPrint: true }), item('B', 1, 100)]));
+        check('Dold artikel fördelas på övriga: totalt 200', total(), 200);
+        check('Dold artikel fördelas: B = 200', Math.round(w.jsonData.items[1].targetPrice), 200);
+        load(quote({ useCustomCurrency: true, customCurrency: 'EUR', useMultipleCurrencies: true, customRates: { usd: 1, eur: 1, sek: 0.1 } }, [item('A', 1, 1000, 'SEK')]));
+        check('Egen valuta EUR, SEK-kurs 0,1: 100', total(), 100);
+        load(quote({}, [item('A', 1, 100), { type: 'separator', id: 'sep-1' }, item('B', 1, 50)]));
+        check('Separator påverkar inte totalen: 150', total(), 150);
+        check('Numrering hoppar över separator', w.jsonData.items.filter(i => i.type !== 'separator').map(i => i.itemNumber), ['1.1', '2.1']);
+    });
+
+    group('Data & robusthet');
+    await safe('data', async () => {
+        const text = 'Åäö € "citat" ✖';
+        check('Kryptering tur och retur', w.decryptCaesar(w.encryptCaesar(text, 17), 17), text);
+        check('robustJsonParse läser krypterad JSON', w.robustJsonParse(w.encryptCaesar(JSON.stringify({ a: 1 }), 17)), { a: 1 });
+        const norm = w.normalizeQuoteData({ items: [null, { name: 'x' }, 'skräp'], terms: [null, 'a', undefined], infoImages: [{ type: 'image', src: 'x' }, null] });
+        check('Normalisering: trasiga artiklar tas bort', norm.items.length, 1);
+        check('Normalisering: typ sätts till item', norm.items[0].type, 'item');
+        check('Normalisering: tomma villkor tas bort', norm.terms, ['a']);
+        check('Normalisering: standardinställningar sätts', [norm.quote.currencyMultiplicator, norm.quote.visibility.info, norm.quote.wordSmartLineJoin], [11.8, true, true]);
+        load(quote({ reference: 'Behåll mig' }, [item('A', 1, 100)]));
+        w.processIncomingJson('{ detta är inte json', 'trasig.json');
+        check('Trasig fil: nuvarande offert behålls', w.jsonData.quote.reference, 'Behåll mig');
+        w.processIncomingJson(JSON.stringify({ items: [{ name: 'Gammal fil utan quote' }] }), 'gammal.json');
+        check('Fil utan quote-del laddas', w.jsonData.items[0].name, 'Gammal fil utan quote');
+    });
+
+    group('Inklistring (sanering)');
+    await safe('paste', async () => {
+        const S = w.sanitizePastedHtml;
+        check('Layoutstilar tas bort, block blir radbrytning', S('<div class="item-details" style="padding-right:260px;max-width:calc(100% - 340px)">A<div>B</div></div>'), 'A<br>B');
+        check('Google Docs: <b style=normal> blir inte fet', S('<b style="font-weight:normal" id="docs-internal-guid-1"><span style="font-weight:700">Fet</span> vanlig</b>'), '<b>Fet</b> vanlig');
+        check('Listor blir punkter', S('<ul><li>a</li><li>b</li></ul>'), '• a<br>• b');
+        check('Numrerad lista', S('<ol><li>a</li><li>b</li></ol>'), '1. a<br>2. b');
+        check('Script tas bort', S('<script>alert(1)<\/script>ok'), 'ok');
+        check('Max en tom rad', S('x<br><br><br><br>y'), 'x<br><br>y');
+    });
+
+    group('Word-export (hjälpfunktioner)');
+    await safe('word helpers', async () => {
+        const W = w.__wordifyInternals;
+        check('div-rader blir enkla radbrytningar', W.blocksToBreaks('a<div>b</div><div><br></div><div>c</div>'), 'a<br>b<br><br>c<br>');
+        check('Tom beskrivning räknas som tom', [W.hasVisibleText(' '), W.hasVisibleText('<span class="description-remove-icon screen-only">✖</span>'), W.hasVisibleText('x')], [false, false, true]);
+        W.setSmartLineJoin(true);
+        check('Smart radhantering på: rader slås ihop', W.stripUiArtifacts('Rad ett\nRad två', 'terms'), 'Rad ett Rad två');
+        W.setSmartLineJoin(false);
+        check('Smart radhantering av: radbrytning behålls', W.stripUiArtifacts('Rad ett\nRad två', 'terms'), 'Rad ett<br>Rad två');
+        W.setSmartLineJoin(true);
+    });
+
+    group('Word-export (hel fil)');
+    await safe('word export', async () => {
+        load(quote({}, [item('Testartikel', 1, 100, 'SEK', { itemDescription: 'Rad 1.\n\n\n\nRad 2.' })], { terms: ['Villkor ett.'] }));
+        w.saveToLocal();
+        let blob = null;
+        const origSaveAs = w.saveAs;
+        w.saveAs = (b) => { blob = b; };
+        await W_generate(w);
+        w.saveAs = origSaveAs;
+        check('Word-fil skapades', !!blob, true);
+        if (blob) {
+            const zip = await JSZip.loadAsync(blob);
+            const xml = await zip.file('word/document.xml').async('string');
+            check('Innehåller artikeln', xml.includes('Testartikel'), true);
+            check('Innehåller villkoret', xml.includes('Villkor ett.'), true);
+            const descPara = (xml.match(/<w:p>(?:(?!<w:p>).)*Rad 1\.(?:(?!<\/w:p>).)*<\/w:p>/) || [''])[0];
+            check('Max en tom rad i beskrivningen (2 radbrytningar)', (descPara.match(/<w:br\/>/g) || []).length, 2);
+        }
+    });
+
+    group('Importera delar från JSON');
+    await safe('partial import', async () => {
+        load(quote({}, [item('Befintlig', 1, 10)], { terms: ['T1'] }));
+        const src = JSON.stringify({ quote: { reference: 'R' }, items: [item('Ny', 1, 20)], terms: ['T2'], companyA: { l: 'Kund AB' } });
+        w.openPartialImportModal(); w.loadPartialImportSource(src, 'test.json');
+        const m = doc.getElementById('partialImportModal');
+        ['items', 'terms', 'companyA'].forEach(k => { m.querySelector(`input[data-part="${k}"]`).checked = true; });
+        w.applyPartialImport();
+        check('Lägg till: artiklar efter befintliga', w.jsonData.items.map(i => i.name), ['Befintlig', 'Ny']);
+        check('Lägg till: villkor', w.jsonData.terms, ['T1', 'T2']);
+        check('Adress importerad', w.jsonData.companyA, { line1: 'Kund AB' });
+        w.openPartialImportModal(); w.loadPartialImportSource(src, 'test.json');
+        m.querySelector('input[data-part="items"]').checked = true;
+        m.querySelector('select[data-mode-for="items"]').value = 'overwrite';
+        w.applyPartialImport();
+        check('Ersätt: bara importerade artiklar', w.jsonData.items.map(i => i.name), ['Ny']);
+    });
+
+    group('Ångra / gör om');
+    await safe('undo', async () => {
+        load(quote({}, [item('A', 1, 10)], { terms: ['T1'] }));
+        w.saveToLocal();
+        w.historyLastChange = 0;
+        doc.getElementById('addTermButton').click();
+        check('Villkor tillagt', w.jsonData.terms.length, 2);
+        w.undoChange();
+        check('Ångra tar bort villkoret', w.jsonData.terms.length, 1);
+        w.redoChange();
+        check('Gör om lägger tillbaka det', w.jsonData.terms.length, 2);
+        w.historyLastChange = 0;
+        w.processIncomingJson(JSON.stringify(quote({ reference: 'Annan fil' }, [])), 'annan.json');
+        w.undoChange();
+        check('Inläsning av fil kan ångras', w.jsonData.terms.length, 2);
+    });
+
+    check('Testläge: sparad offert i webbläsaren orörd', localStorage.getItem('quoteData'), savedBefore);
+
+    const s = document.getElementById('summary');
+    s.textContent = failed === 0 ? `Alla ${passed} tester godkända ✔` : `${failed} av ${passed + failed} tester misslyckades ✘`;
+    s.className = failed === 0 ? 'pass' : 'fail';
+    document.title = (failed === 0 ? 'PASS' : 'FAIL') + ' – BTK tester';
+}
+
+async function W_generate(w) { await w.__wordifyInternals.generateWordDocument(); }
+
+document.getElementById('app').addEventListener('load', () => { run().catch(e => { document.getElementById('summary').textContent = 'Testkörningen kraschade: ' + e; }); });
+</script>
+<script src="vendor/jszip.min.js"></script>
+</body>
+</html>

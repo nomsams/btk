@@ -20,7 +20,7 @@
         console.log(`${TAG} 📦 Injecting JSZip...`);
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            script.src = 'vendor/jszip.min.js';
             script.onload = () => resolve(window.JSZip);
             script.onerror = () => reject(new Error("Kunde inte ladda JSZip-biblioteket."));
             document.head.appendChild(script);

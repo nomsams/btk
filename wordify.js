@@ -19,6 +19,10 @@
         HeadingLevel, PageBreak
     } = docx;
 
+    // "Smart radhantering" (quote.wordSmartLineJoin, default on): join mid-sentence line breaks and
+    // treat " - X" as a new line. Set per export from the quote settings.
+    let smartLineJoin = true;
+
     // --- Helper: Paragraph with ZERO hidden margins ---
     const cellParagraph = (opts) => new Paragraph({ ...opts, spacing: { before: 0, after: 0 } });
 
@@ -85,10 +89,10 @@
         s = s.replace(/(?:<br\s*\/?>\s*)*[●•]\s*/gi, '<br>• ');
         
         // Break on space-dash-space when followed by a capital letter or number (treat as bullet)
-        s = s.replace(/\s+-\s+([A-ZÅÄÖ0-9])/g, '<br> - $1');
+        if (smartLineJoin) s = s.replace(/\s+-\s+([A-ZÅÄÖ0-9])/g, '<br> - $1');
 
         // 5. Intelligent Mid-Sentence Break Killer (Do NOT apply to Addresses)
-        if (type !== 'address') {
+        if (type !== 'address' && smartLineJoin) {
             // Matches any non-punctuation character followed by exactly one <br>, 
             // then ensures it's not followed by another <br> or bullet point.
             s = s.replace(/([^.?!:>\s])\s*<br\s*\/?>\s*(?!<br|[●•]|\-\s|<\/?p|<\/?div)/gi, '$1 ');
@@ -243,6 +247,7 @@
             }
             if (!data || !data.quote) return alert("Export misslyckades: Ingen data hittades.");
 
+            smartLineJoin = data.quote.wordSmartLineJoin !== false;
             const lang = data.quote.language || 'sv';
             const t = (typeof translations !== 'undefined' && translations[lang]) || {};
             const labels = data.quote.labels || {};
@@ -551,6 +556,12 @@
             alert("Ett fel uppstod vid skapandet av filen. Kontrollera webbläsarens konsol (F12) för detaljer.");
         }
     }
+
+    // Exposed for tests.html only (no effect on the app)
+    window.__wordifyInternals = {
+        blocksToBreaks, stripUiArtifacts, hasVisibleText, generateWordDocument,
+        setSmartLineJoin: (v) => { smartLineJoin = !!v; }
+    };
 
     // Binding
     function attach() {
