@@ -16,11 +16,52 @@
     const { 
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
         ImageRun, WidthType, BorderStyle, AlignmentType, VerticalAlign, 
-        HeadingLevel 
+        HeadingLevel, PageBreak
     } = docx;
 
     // --- Helper: Paragraph with ZERO hidden margins ---
     const cellParagraph = (opts) => new Paragraph({ ...opts, spacing: { before: 0, after: 0 } });
+
+    // --- Utility: Flatten block-level HTML into inline HTML + <br> ---
+    const BLOCK_TAGS = /^(p|div|li|ul|ol|h[1-6]|tr|table|tbody|thead|blockquote|pre|section|article|header|footer)$/;
+    function blocksToBreaks(htmlStr) {
+        if (!/<\s*(p|div|li|ul|ol|h[1-6]|tr|table|blockquote|pre|section|article|header|footer)\b/i.test(htmlStr)) return htmlStr;
+        const docNode = new DOMParser().parseFromString(`<body>${htmlStr}</body>`, 'text/html');
+        let out = '';
+        // Ignore trailing whitespace / empty formatting tags when deciding if we're at a line start
+        const atLineStart = () => /^(\s|<\/?[bi]>)*$/.test(out) || /<br>(\s|<\/?[bi]>)*$/.test(out);
+        const softBreak = () => { if (!atLineStart()) out += '<br>'; };
+        const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const walk = (node, listInfo) => {
+            if (node.nodeType === Node.TEXT_NODE) { out += esc(node.textContent); return; }
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            const tag = node.tagName.toLowerCase();
+            if (tag === 'br') { out += '<br>'; return; }
+            if (tag === 'style' || tag === 'script') return;
+            if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
+                const t = (tag === 'strong') ? 'b' : (tag === 'em' ? 'i' : tag);
+                out += `<${t}>`; node.childNodes.forEach(c => walk(c, listInfo)); out += `</${t}>`;
+                return;
+            }
+            if (tag === 'span' && node.classList.contains('screen-only')) return;
+            if (BLOCK_TAGS.test(tag)) {
+                softBreak();
+                let childList = listInfo;
+                if (tag === 'ul' || tag === 'ol') childList = { ordered: tag === 'ol', n: 0 };
+                if (tag === 'li') {
+                    const li = listInfo || { ordered: false, n: 0 };
+                    li.n++;
+                    out += li.ordered ? `${li.n}. ` : '• ';
+                }
+                node.childNodes.forEach(c => walk(c, childList));
+                softBreak();
+                return;
+            }
+            node.childNodes.forEach(c => walk(c, listInfo));
+        };
+        docNode.body.childNodes.forEach(c => walk(c, null));
+        return out;
+    }
 
     // --- Utility: Clean UI Artifacts & HTML Pre-Processing ---
     function stripUiArtifacts(htmlStr, type = 'general') {
@@ -31,13 +72,14 @@
         s = s.replace(/<span[^>]*class="[^"]*screen-only[^"]*"[^>]*>.*?<\/span>/gi, '');
         s = s.replace(/✖|👨‍🍳|📝/g, '');
 
-        // 2. Convert structural HTML blocks into line breaks
-        s = s.replace(/<\/p>\s*<p[^>]*>/gi, '<br><br>');
-        s = s.replace(/<\/div>\s*<div[^>]*>/gi, '<br><br>');
-        s = s.replace(/<\/?(?:p|div)[^>]*>/gi, '<br>');
-        
-        // 3. Convert all literal source-code newlines
+        // 2. Convert all literal source-code newlines (descriptions store <br> as \n)
         s = s.replace(/\r?\n/g, '<br>');
+
+        // 3. Convert structural HTML blocks (div/p/li from the editor or pasted content) into
+        //    line breaks. A block only starts a new line when there is text before it, so
+        //    "a<div>b</div>" -> "a<br>b" and "<div><br></div>" -> exactly one empty line
+        //    (the old regex approach turned every </div><div> into a blank line).
+        s = blocksToBreaks(s);
 
         // 4. Perfect Bullet point break (handles both ● and •)
         s = s.replace(/(?:<br\s*\/?>\s*)*[●•]\s*/gi, '<br>• ');
@@ -83,29 +125,35 @@
         }
         Array.from(docNode.body.childNodes).forEach(child => traverse(child, defaultBold, defaultItalics));
         
-        // STRICT BREAK FILTER: Impossible to output more than 2 consecutive blank lines
+        // Trim hanging breaks / whitespace-only runs at the start and end of the block.
+        // (Must be done on the plain objects: docx TextRun instances do not expose a `.break` property,
+        // so the old trim on TextRuns never removed anything and left blank lines in cells.)
+        const isBlank = (r) => r.isBreak || r.text.trim() === '';
+        while (rawRuns.length > 0 && isBlank(rawRuns[0])) rawRuns.shift();
+        while (rawRuns.length > 0 && isBlank(rawRuns[rawRuns.length - 1])) rawRuns.pop();
+
+        // STRICT BREAK FILTER: at most 2 consecutive breaks (= max one empty line)
         const runs = [];
         let breakCount = 0;
-        
         for (let r of rawRuns) {
             if (r.isBreak) {
                 breakCount++;
-                if (breakCount <= 2) {
-                    runs.push(new TextRun({ text: "", break: 1 }));
-                }
+                if (breakCount <= 2) runs.push(new TextRun({ text: "", break: 1 }));
             } else {
-                if (r.text.trim() !== '') {
-                    breakCount = 0; // Reset counter when real text is found
-                }
+                if (r.text.trim() !== '') breakCount = 0; // Reset counter when real text is found
+                else if (breakCount > 0) continue;        // Drop whitespace-only runs between breaks (leading spaces on new lines)
                 runs.push(new TextRun({ text: r.text, bold: r.bold, italics: r.italics }));
             }
         }
 
-        // Trim hanging breaks at the start and end of the block
-        while (runs.length > 0 && runs[runs.length - 1].break) runs.pop();
-        while (runs.length > 0 && runs[0].break) runs.shift();
-        
         return runs.length > 0 ? runs : [new TextRun({ text: "" })];
+    }
+
+    // --- Utility: Does an HTML snippet contain any visible text? (skips " " placeholder descriptions) ---
+    function hasVisibleText(htmlStr) {
+        if (!htmlStr) return false;
+        const cleaned = stripUiArtifacts(htmlStr).replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ');
+        return cleaned.trim() !== '';
     }
 
     // --- Utility: Format Numbers & Hide Zeros ---
@@ -201,6 +249,15 @@
             const visibility = data.quote.visibility || { optional: true, info: true, terms: true };
             const docChildren = [];
             const emptyParagraph = () => new Paragraph({ children: [new TextRun("")] });
+            // Small spacer: keeps consecutive tables apart without adding a full blank line
+            const spacerParagraph = () => new Paragraph({ children: [new TextRun({ text: "", size: 8 })], spacing: { before: 0, after: 0, line: 120 } });
+            const sectionHeading = (text, opts = {}) => new Paragraph({
+                children: [new TextRun({ text: stripUiArtifacts(text), bold: true, size: 28, color: "000000" })],
+                heading: HeadingLevel.HEADING_2,
+                spacing: { before: opts.pageBreakBefore ? 0 : 360, after: 120 },
+                keepNext: true,
+                ...opts
+            });
 
             // 1. Logo & Top Header
             let logoSrc = localStorage.getItem('companyLogo');
@@ -230,7 +287,7 @@
                             // Spacing Before: 0 is CRITICAL here to prevent the invisible ghost row above the logo
                             new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.quoteTitle || t.quoteTitle || "Offert"), size: 32, bold: true, color: "000000" })], heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 } }),
                             cellParagraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.quoteNumberLabel || "Nr:")} ${stripUiArtifacts(data.quote.quoteNumber || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT }),
-                            cellParagraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.dateLabel || "Datum:")} ${stripUiArtifacts(data.quote.date || "")}`, color: "000000" })], alignment: AlignmentType.RIGHT })
+                            cellParagraph({ children: [new TextRun({ text: `${stripUiArtifacts(t.dateLabel || "Datum:")} ${stripUiArtifacts(data.quote.date || (document.getElementById('quoteDate') ? document.getElementById('quoteDate').textContent.trim() : ""))}`, color: "000000" })], alignment: AlignmentType.RIGHT })
                         ], verticalAlign: VerticalAlign.CENTER })
                     ]
                 })]
@@ -274,7 +331,7 @@
                     if (item.type === 'separator' || item.isHiddenFromPrint) return;
                     totalSum += item.targetPrice || 0;
 
-                    const descRuns = item.itemDescription ? parseHtmlToRuns(item.itemDescription, false, false, 'terms') : [];
+                    const descRuns = hasVisibleText(item.itemDescription) ? parseHtmlToRuns(item.itemDescription, false, false, 'terms') : [];
                     const cellChildren = [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(item.name || ""), bold: true })] })];
                     if (descRuns.length > 0) cellChildren.push(cellParagraph({ children: descRuns }));
 
@@ -291,7 +348,7 @@
                         item.subItems.forEach(sub => {
                             if (sub.isHiddenFromPrint) return;
                             if (!sub.isPriceBakedIn) totalSum += sub.subItemTargetPrice || 0;
-                            const subDescRuns = sub.subItemDescription ? parseHtmlToRuns(sub.subItemDescription, false, false, 'terms') : [];
+                            const subDescRuns = hasVisibleText(sub.subItemDescription) ? parseHtmlToRuns(sub.subItemDescription, false, false, 'terms') : [];
                             
                             const subCellChildren = [cellParagraph({ children: [new TextRun({ text: stripUiArtifacts(sub.subItemName || ""), bold: true })] })];
                             if (subDescRuns.length > 0) subCellChildren.push(cellParagraph({ children: subDescRuns }));
@@ -337,9 +394,7 @@
 
             const optionalItemsBlock = [];
             if (visibility.optional && data.optionalItems && data.optionalItems.length > 0) {
-                optionalItemsBlock.push(emptyParagraph());
-                optionalItemsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.optionalItemsHeading || t.optionalItemsHeading || "Alternativ"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
-                optionalItemsBlock.push(emptyParagraph());
+                optionalItemsBlock.push(sectionHeading(labels.optionalItemsHeading || t.optionalItemsHeading || "Alternativ"));
                 const optTbl = buildTable(
                     data.optionalItems, 
                     labels.optNrHeader || t.optNrHeader || "Nr", 
@@ -355,13 +410,7 @@
             if (visibility.info && data.infoImages && data.infoImages.length > 0) {
                 const isMovedUp = data.quote.moveInfoSectionUp || false;
                 
-                infoImagesBlock.push(emptyParagraph());
-                infoImagesBlock.push(new Paragraph({ 
-                    pageBreakBefore: !isMovedUp, 
-                    children: [new TextRun({ text: stripUiArtifacts(labels.infoImagesHeading || t.infoImagesHeading || "Info / Bilder"), bold: true, size: 28, color: "000000" })], 
-                    heading: HeadingLevel.HEADING_2 
-                }));
-                infoImagesBlock.push(emptyParagraph());
+                infoImagesBlock.push(sectionHeading(labels.infoImagesHeading || t.infoImagesHeading || "Info / Bilder", { pageBreakBefore: !isMovedUp }));
 
                 let imgBuffer = [];
                 const flushImageBuffer = async () => {
@@ -378,9 +427,9 @@
                                 
                                 infoImagesBlock.push(new Paragraph({
                                     alignment: align,
+                                    spacing: { before: 0, after: 160 },
                                     children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })]
                                 }));
-                                infoImagesBlock.push(emptyParagraph());
                             }
                         }
                     } else {
@@ -400,7 +449,7 @@
                                     return new TableCell({
                                         width: { size: 50, type: WidthType.PERCENTAGE },
                                         borders: INVISIBLE_BORDERS,
-                                        children: [new Paragraph({ alignment: align, children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })] })]
+                                        children: [new Paragraph({ alignment: align, spacing: { before: 0, after: 0 }, children: [new ImageRun({ data: imgData.uint8, transformation: { width: w, height: h }, type: imgData.mime })] })]
                                     });
                                 }
                                 return new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [emptyParagraph()], borders: INVISIBLE_BORDERS });
@@ -413,9 +462,9 @@
                                 width: { size: 100, type: WidthType.PERCENTAGE },
                                 columnWidths: [4500, 4500],
                                 borders: INVISIBLE_BORDERS,
-                                rows: [new TableRow({ children: [cell1, cell2] })]
+                                rows: [new TableRow({ cantSplit: true, children: [cell1, cell2] })]
                             }));
-                            infoImagesBlock.push(emptyParagraph());
+                            infoImagesBlock.push(spacerParagraph());
                         }
                     }
                     imgBuffer = [];
@@ -427,12 +476,13 @@
                     } else {
                         await flushImageBuffer();
                         if (infoItem.type === 'page-break') {
-                            infoImagesBlock.push(new Paragraph({ pageBreakBefore: true }));
+                            infoImagesBlock.push(new Paragraph({ children: [new PageBreak()], spacing: { before: 0, after: 0 } }));
                         } else if (infoItem.type === 'text') {
                             let alignment = infoItem.centering === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
-                            // Using standard Paragraph so spacing is natural for text sections
-                            infoImagesBlock.push(new Paragraph({ children: parseHtmlToRuns(infoItem.content, false, false, 'general'), alignment: alignment }));
-                            infoImagesBlock.push(emptyParagraph());
+                            // Skip empty text blocks; use paragraph spacing instead of an extra empty line
+                            if (hasVisibleText(infoItem.content)) {
+                                infoImagesBlock.push(new Paragraph({ children: parseHtmlToRuns(infoItem.content, false, false, 'general'), alignment: alignment, spacing: { before: 0, after: 160 } }));
+                            }
                         } else if (infoItem.type === 'table') {
                             const tRows = [];
                             for (let r = 0; r < infoItem.rows; r++) {
@@ -444,7 +494,7 @@
                                 tRows.push(new TableRow({ children: cells }));
                             }
                             infoImagesBlock.push(new Table({ rows: tRows, width: { size: 100, type: WidthType.PERCENTAGE }, borders: TABLE_BORDERS }));
-                            infoImagesBlock.push(emptyParagraph());
+                            infoImagesBlock.push(new Paragraph({ children: [], spacing: { before: 0, after: 160 } }));
                         }
                     }
                 }
@@ -453,11 +503,11 @@
 
             const termsBlock = [];
             if (visibility.terms && data.terms && data.terms.length > 0) {
-                termsBlock.push(emptyParagraph());
-                termsBlock.push(new Paragraph({ children: [new TextRun({ text: stripUiArtifacts(labels.termsHeading || t.termsHeading || "Villkor"), bold: true, size: 28, color: "000000" })], heading: HeadingLevel.HEADING_2 }));
+                termsBlock.push(sectionHeading(labels.termsHeading || t.termsHeading || "Villkor"));
                 data.terms.forEach(term => {
+                    if (!hasVisibleText(term)) return; // skip empty terms instead of printing blank lines
                     // Terms use natural paragraphs, but we pass 'terms' to strip mid-sentence breaks
-                    termsBlock.push(new Paragraph({ children: parseHtmlToRuns(term, false, false, 'terms') }));
+                    termsBlock.push(new Paragraph({ children: parseHtmlToRuns(term, false, false, 'terms'), spacing: { before: 0, after: 80 } }));
                 });
             }
 

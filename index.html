@@ -68,6 +68,16 @@
         max-height: 250mm !important;
     }
 
+    /* Images flow side by side (2 per row when their widths fit) */
+    #infoImagesList .info-block.info-block-image {
+        flex: 0 1 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+        display: flex !important;
+        flex-direction: column;
+    }
+    #infoImagesList .info-block.info-block-image.align-center { margin-left: auto !important; margin-right: auto !important; }
+
     b { font-weight: bold; }
     i { font-style: italic; }
     .print-only { display: block !important; }
@@ -296,6 +306,25 @@ h3.name.editable { margin-bottom: 0 !important; }
     flex-basis: 100%;
     display: block;
 }
+
+/* Images flow side by side (2 per row when their widths fit); text/tables/page breaks still take a full row */
+#infoImagesList .info-block.info-block-image {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+}
+#infoImagesList .info-block.info-block-image.align-center { margin-left: auto; margin-right: auto; }
+
+/* Guard against pasted content carrying layout styles (e.g. copied from another description) */
+.item-details div, .item-details p, .item-details table,
+.info-text-block div, .info-text-block p,
+.term-item .editable div, .term-item .editable p,
+.vendor-item-notes div, .vendor-item-notes p {
+    display: block !important; width: auto !important; max-width: 100% !important; min-width: 0 !important;
+    margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important;
+    float: none !important; position: static !important; grid-column: auto !important;
+}
+.item-details, .info-text-block, .term-item .editable { overflow-wrap: anywhere; }
 
 .info-block:hover { background-color: #fafafa; }
 .info-block .content-wrapper { position: relative; width: 100%; } 
@@ -711,6 +740,7 @@ body.vendor-print-mode .vendor-price-details, body.vendor-print-mode .vendor-ite
     <input type="file" id="fileInput" accept=".json" style="display: none;" />
     <button class="footer-button" onclick="document.getElementById('fileInput').click()">Ladda JSON</button>
     <button id="loadFromClipboardBtn" class="footer-button">Klistra in JSON (Urklipp)</button>
+    <button id="partialImportBtn" class="footer-button" title="Välj vilka delar (artiklar, alternativ, info, villkor, adresser) som ska importeras och om de ska läggas till eller ersätta befintligt innehåll">Importera delar från JSON</button>
     <button id="saveJson" class="footer-button">Spara JSON</button>
     <button id="exportWordBtn" class="footer-button" style="background-color: #2b579a; color: white;">Spara som Word (.docx)</button>
     <button id="copyJsonBtn" class="footer-button">Kopiera JSON (text)</button>
@@ -1607,7 +1637,7 @@ function loadItems(items, containerId, distributionRatio = 1){
             const details = document.createElement('div');
             details.className = 'item-details editable'; details.contentEditable = true;
             details.dataset.item = containerId; details.dataset.index = idx; details.dataset.field = 'itemDescription';
-            details.innerHTML = it.itemDescription.replace(/\n/g,'<br>');
+            details.innerHTML = stripRemoveIcons(it.itemDescription).replace(/\n/g,'<br>');
             const descRemove = document.createElement('span');
             descRemove.className = 'description-remove-icon screen-only'; descRemove.textContent = '✖'; descRemove.onclick = () => removeDescription(details);
             details.appendChild(descRemove); itemDiv.appendChild(details);
@@ -1685,7 +1715,7 @@ function loadItems(items, containerId, distributionRatio = 1){
                 const sDetails = document.createElement('div');
                 sDetails.className = 'item-details editable'; sDetails.contentEditable = true;
                 sDetails.dataset.item = containerId; sDetails.dataset.index = idx; sDetails.dataset.includedIndex = sIdx; sDetails.dataset.field = 'subItemDescription';
-                sDetails.innerHTML = sItem.subItemDescription.replace(/\n/g,'<br>');
+                sDetails.innerHTML = stripRemoveIcons(sItem.subItemDescription).replace(/\n/g,'<br>');
                 const sDescRem = document.createElement('span');
                 sDescRem.className = 'description-remove-icon screen-only'; sDescRem.textContent = '✖'; sDescRem.onclick = () => removeDescription(sDetails);
                 sDetails.appendChild(sDescRem); included.appendChild(sDetails);
@@ -1931,11 +1961,11 @@ function addPageBreak() {
 }
 function addImageFromUrl(){
     const url=prompt(translations[currentLanguage].promptImageUrl);
-    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); }
+    if(url){ jsonData.infoImages.push({ type:'image', src:url, width:340, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); }
 }
 document.getElementById('imageUpload').addEventListener('change',function(ev){
     for(let f of ev.target.files){
-        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:400, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); };
+        const process = (src) => { jsonData.infoImages.push({ type:'image', src, width:340, description:'', compressionImmune: false, centering: 'left' }); saveToLocal(); reRenderAll(); };
         if(document.getElementById('compressImagesChk').checked){
             const quality = parseFloat(document.getElementById('compressionQuality').value) || 0.7;
             const maxWidth = parseInt(document.getElementById('compressionMaxWidth').value) || 1280;
@@ -2597,8 +2627,9 @@ function onEditableInput(e){
         return;
     }
 
-    if(!field) { 
+    if(!field) {
         const id=target.id;
+        if (!id) return; // e.g. info text blocks save themselves; avoid writing junk into jsonData.quote[""]
         if(id === 'companyA' || id === 'companyB') {
             const lines = target.innerHTML.split(/<br\s*\/?>/gi).map(line => line.trim()).filter(Boolean); 
             let data = {};
@@ -2659,7 +2690,7 @@ function onEditableInput(e){
                 item.originalPrice = valFloat / qty;
             }
         }
-    } else if (field.includes('Description') || field === 'vendorNotes'){ item[field] = target.innerHTML.replace(/<br\s*\/?>/gi,'\n');
+    } else if (field.includes('Description') || field === 'vendorNotes'){ item[field] = getEditableHtml(target).replace(/<br\s*\/?>/gi,'\n');
     } else { item[field] = val.replace(/<span.*>.*<\/span>$/, '').trim(); } 
     
     saveToLocal();
@@ -3635,6 +3666,368 @@ function toggleInfoSectionPosition() {
         parent.insertBefore(infoContainer, termsContainer);
     }
 }
+
+// --- Paste Sanitizer ---
+// Pasted HTML (from other descriptions, Word, web pages, PDFs) carries inline layout styles
+// (widths, paddings, grid settings) that squeeze the field into a narrow, very tall column.
+// We only keep text, line breaks, bold and italic.
+const MULTILINE_EDITABLE_SELECTOR = '.item-details, .vendor-item-notes, .p-editable, .info-text-block, .info-table td, [data-field="term"]';
+
+function escapeHtmlText(t) {
+    return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function sanitizePastedHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const BLOCK = /^(p|div|li|ul|ol|h[1-6]|tr|table|tbody|thead|blockquote|pre|section|article|header|footer|dl|dt|dd)$/;
+    let out = '';
+    const atLineStart = () => /^(\s|<\/?[bi]>)*$/.test(out) || /<br>(\s|<\/?[bi]>)*$/.test(out);
+    const softBreak = () => { if (!atLineStart()) out += '<br>'; };
+    const walk = (node, ctx) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            let txt = node.textContent;
+            if (!ctx.pre) txt = txt.replace(/[\s ]+/g, ' ');
+            if (ctx.pre) { out += escapeHtmlText(txt).replace(/\r?\n/g, '<br>'); return; }
+            if (atLineStart()) txt = txt.replace(/^ +/, '');
+            out += escapeHtmlText(txt);
+            return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = node.tagName.toLowerCase();
+        if (/^(style|script|head|meta|title|link|img|svg|button|input|select|textarea)$/.test(tag)) return;
+        if (node.classList && (node.classList.contains('screen-only') || node.classList.contains('description-remove-icon'))) return;
+        if (tag === 'br') { out += '<br>'; return; }
+
+        const style = (node.getAttribute('style') || '').toLowerCase();
+        const fw = (style.match(/font-weight\s*:\s*([a-z0-9]+)/) || [])[1];
+        let bold = ctx.bold, italic = ctx.italic;
+        if (tag === 'b' || tag === 'strong') bold = !(fw === 'normal' || fw === '400'); // Google Docs wraps everything in <b style="font-weight:normal">
+        else if (fw) bold = (fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600);
+        if (tag === 'i' || tag === 'em' || /font-style\s*:\s*italic/.test(style)) italic = true;
+        else if (/font-style\s*:\s*normal/.test(style)) italic = false;
+
+        const childCtx = { ...ctx, bold, italic, pre: ctx.pre || tag === 'pre' };
+        const openB = bold && !ctx.bold, openI = italic && !ctx.italic;
+        const isBlock = BLOCK.test(tag);
+
+        if (isBlock) softBreak();
+        if (tag === 'ul' || tag === 'ol') childCtx.list = { ordered: tag === 'ol', n: 0 };
+        if (tag === 'li') { const l = ctx.list || { ordered: false, n: 0 }; l.n++; out += l.ordered ? `${l.n}. ` : '• '; }
+        if ((tag === 'td' || tag === 'th') && node.previousElementSibling) out += ' | ';
+        if (openB) out += '<b>';
+        if (openI) out += '<i>';
+        node.childNodes.forEach(c => walk(c, childCtx));
+        if (openI) out += '</i>';
+        if (openB) out += '</b>';
+        if (isBlock) softBreak();
+    };
+    doc.body.childNodes.forEach(c => walk(c, { bold: false, italic: false, pre: false, list: null }));
+    return out
+        .replace(/<b><\/b>|<i><\/i>/g, '')
+        .replace(/ +<br>/g, '<br>')
+        .replace(/(<br>\s*){3,}/g, '<br><br>')
+        .replace(/^(\s*<br>)+/, '')
+        .replace(/(<br>\s*)+$/, '')
+        .trim();
+}
+
+function plainTextFromHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body ? doc.body.textContent : '';
+}
+
+document.addEventListener('paste', (e) => {
+    const startNode = e.target && (e.target.nodeType === 1 ? e.target : e.target.parentElement);
+    const editable = startNode && startNode.closest ? startNode.closest('[contenteditable]') : null;
+    if (!editable || !editable.isContentEditable) return;
+    const cd = e.clipboardData;
+    if (!cd) return;
+    const html = cd.getData('text/html');
+    const text = cd.getData('text/plain');
+    if (!html && !text) return; // e.g. pasted image files: keep browser default
+
+    const multiline = !!editable.closest(MULTILINE_EDITABLE_SELECTOR);
+    let clean;
+    if (!multiline) {
+        clean = escapeHtmlText((text || plainTextFromHtml(html)).replace(/\s+/g, ' ').trim());
+    } else if (html) {
+        clean = sanitizePastedHtml(html);
+    } else {
+        clean = escapeHtmlText(text.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim()).replace(/\n/g, '<br>');
+    }
+    e.preventDefault();
+    if (!clean) return;
+    // insertHTML keeps native undo (Ctrl+Z) and fires the input event that saves the field
+    if (!document.execCommand('insertHTML', false, clean)) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const frag = range.createContextualFragment(clean);
+        const last = frag.lastChild;
+        range.insertNode(frag);
+        if (last) { range.setStartAfter(last); range.collapse(true); sel.removeAllRanges(); sel.addRange(range); }
+        editable.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+});
+
+// Returns the editable's HTML without UI-only children (e.g. the ✖ remove icon inside descriptions)
+function getEditableHtml(el) {
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('.description-remove-icon, .screen-only').forEach(n => n.remove());
+    return clone.innerHTML;
+}
+function stripRemoveIcons(html) {
+    return String(html || '').replace(/<span class="description-remove-icon[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '');
+}
+
+// --- Partial JSON Import (pick parts, append or overwrite) ---
+const IMPORT_PARTS = [
+    { key: 'items',         label: 'Artiklar (huvudlista)',           kind: 'array' },
+    { key: 'optionalItems', label: 'Alternativ / Ytterligare artiklar', kind: 'array', visibility: 'optional' },
+    { key: 'infoImages',    label: 'Info / Bilder',                    kind: 'array', visibility: 'info' },
+    { key: 'terms',         label: 'Villkor',                          kind: 'array', visibility: 'terms' },
+    { key: 'companyA',      label: 'Till (mottagare)',                 kind: 'company' },
+    { key: 'companyB',      label: 'Från (avsändare)',                 kind: 'company' },
+    { key: 'reference',     label: 'Referens',                         kind: 'quoteField' }
+];
+let partialImportSource = null;
+
+function normalizeImportedItems(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    list.forEach(it => {
+        if (!it || typeof it !== 'object') return;
+        const copy = JSON.parse(JSON.stringify(it));
+        if (copy.type === 'separator') { copy.id = 'sep-' + Date.now() + Math.random(); out.push(copy); return; }
+        delete copy.id;
+        if (copy.type === undefined) copy.type = 'item';
+        if (copy.isPriceBakedIn === undefined) copy.isPriceBakedIn = false;
+        if (copy.isHiddenFromPrint === undefined) copy.isHiddenFromPrint = false;
+        if (copy.vendorNotes === undefined) copy.vendorNotes = '';
+        if (copy.marginPercentage === undefined) copy.marginPercentage = 0;
+        copy.subItems = (Array.isArray(copy.subItems) ? copy.subItems : []).filter(s => s && typeof s === 'object').map(s => {
+            if (s.isPriceBakedIn === undefined) s.isPriceBakedIn = false;
+            if (s.isHiddenFromPrint === undefined) s.isHiddenFromPrint = false;
+            if (s.vendorNotes === undefined) s.vendorNotes = '';
+            if (s.marginPercentage === undefined) s.marginPercentage = 0;
+            return s;
+        });
+        out.push(copy);
+    });
+    return out;
+}
+
+function normalizeImportedInfo(list) {
+    const result = { items: [], skippedImages: 0 };
+    if (!Array.isArray(list)) return result;
+    list.forEach(it => {
+        if (!it || typeof it !== 'object') return;
+        const copy = JSON.parse(JSON.stringify(it));
+        if (copy.type === 'image') {
+            if (!copy.src || String(copy.src).startsWith('DELETED_FOR_EXPORT_SIZE')) { result.skippedImages++; return; }
+            if (copy.compressionImmune === undefined) copy.compressionImmune = false;
+        }
+        if (copy.type === 'table') {
+            copy.rows = parseInt(copy.rows, 10) || 1;
+            copy.cols = parseInt(copy.cols, 10) || 1;
+            if (!Array.isArray(copy.data)) copy.data = [];
+        }
+        if (copy.centering === undefined) copy.centering = 'center';
+        result.items.push(copy);
+    });
+    return result;
+}
+
+function describeImportPart(part, data) {
+    if (!data) return { count: 0, text: 'saknas' };
+    if (part.kind === 'array') {
+        const arr = Array.isArray(data[part.key]) ? data[part.key].filter(Boolean) : [];
+        const n = (part.key === 'items' || part.key === 'optionalItems') ? arr.filter(i => i.type !== 'separator').length : arr.length;
+        return { count: n, text: n ? `${n} st` : 'tom' };
+    }
+    if (part.kind === 'company') {
+        const lines = deepTraverseAndGetString(data[part.key] || {});
+        return { count: lines.length, text: lines.length ? lines.slice(0, 2).map(l => plainTextFromHtml(String(l))).join(', ') + (lines.length > 2 ? '…' : '') : 'tom' };
+    }
+    const v = (data.quote && data.quote[part.key]) || '';
+    return { count: v ? 1 : 0, text: v ? `"${String(v).slice(0, 40)}"` : 'tom' };
+}
+
+function ensurePartialImportModal() {
+    let modal = document.getElementById('partialImportModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'partialImportModal';
+    modal.className = 'modal screen-only';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:640px;">
+            <h3 style="margin-top:0;">Importera delar från JSON</h3>
+            <div style="margin-bottom:10px;">
+                <button type="button" class="footer-button" id="partialImportFileBtn">Välj JSON-fil</button>
+                <button type="button" class="footer-button" id="partialImportClipboardBtn">Från urklipp</button>
+                <input type="file" id="partialImportFileInput" accept=".json,application/json,text/plain" style="display:none;" />
+                <div id="partialImportSourceName" style="font-size:10pt; color:#555; margin-top:4px;"></div>
+            </div>
+            <table id="partialImportTable" style="width:100%; border-collapse:collapse; font-size:11pt; display:none;">
+                <thead><tr style="text-align:left; border-bottom:1px solid #ccc;">
+                    <th style="padding:4px;">Importera</th><th style="padding:4px;">I filen</th><th style="padding:4px;">Nuvarande</th><th style="padding:4px;">Läge</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+            <div id="partialImportNote" style="font-size:10pt; color:#a15c00; margin-top:8px;"></div>
+            <div class="modal-footer" style="margin-top:15px;">
+                <button type="button" class="btn-cancel" id="partialImportCancelBtn">Avbryt</button>
+                <button type="button" class="btn-save" id="partialImportApplyBtn" disabled>Importera valda delar</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const fileInput = modal.querySelector('#partialImportFileInput');
+    modal.querySelector('#partialImportFileBtn').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => loadPartialImportSource(ev.target.result, file.name);
+        reader.onerror = () => alert('Kunde inte läsa filen.');
+        reader.readAsText(file);
+        e.target.value = '';
+    });
+    modal.querySelector('#partialImportClipboardBtn').addEventListener('click', async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text || !text.trim()) return alert('Urklipp är tomt.');
+            loadPartialImportSource(text, 'urklipp');
+        } catch (err) {
+            alert('Kunde inte läsa från urklipp. Kontrollera att du har gett webbläsaren behörighet.');
+        }
+    });
+    modal.querySelector('#partialImportCancelBtn').addEventListener('click', closePartialImportModal);
+    modal.querySelector('#partialImportApplyBtn').addEventListener('click', applyPartialImport);
+    return modal;
+}
+
+function openPartialImportModal() {
+    const modal = ensurePartialImportModal();
+    partialImportSource = null;
+    modal.querySelector('#partialImportTable').style.display = 'none';
+    modal.querySelector('#partialImportSourceName').textContent = '';
+    modal.querySelector('#partialImportNote').textContent = '';
+    modal.querySelector('#partialImportApplyBtn').disabled = true;
+    modal.style.display = 'block';
+}
+
+function closePartialImportModal() {
+    const modal = document.getElementById('partialImportModal');
+    if (modal) modal.style.display = 'none';
+    partialImportSource = null;
+}
+
+function loadPartialImportSource(content, name) {
+    const modal = ensurePartialImportModal();
+    let parsed;
+    try {
+        parsed = robustJsonParse(content);
+        if (!parsed || typeof parsed !== 'object') throw new Error('Ogiltigt innehåll');
+    } catch (err) {
+        alert('Kunde inte läsa JSON-datan.\n\nDetaljer: ' + err.message);
+        return;
+    }
+    partialImportSource = parsed;
+    modal.querySelector('#partialImportSourceName').textContent = `Källa: ${name}`;
+    const tbody = modal.querySelector('#partialImportTable tbody');
+    tbody.innerHTML = '';
+    let anyAvailable = false;
+    IMPORT_PARTS.forEach(part => {
+        const src = describeImportPart(part, parsed);
+        const cur = describeImportPart(part, jsonData);
+        const available = src.count > 0;
+        if (available) anyAvailable = true;
+        const modeCell = (part.kind === 'quoteField')
+            ? '<span style="color:#777;">Ersätt</span>'
+            : (cur.count > 0
+                ? `<select data-mode-for="${part.key}"><option value="append">Lägg till efter befintligt</option><option value="overwrite">Ersätt helt</option></select>`
+                : '<span style="color:#777;">(tomt nu)</span>');
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #eee';
+        tr.innerHTML = `
+            <td style="padding:4px;"><label><input type="checkbox" data-part="${part.key}" ${available ? '' : 'disabled'}/> ${part.label}</label></td>
+            <td style="padding:4px; color:${available ? '#000' : '#aaa'};">${escapeHtmlText(src.text)}</td>
+            <td style="padding:4px; color:#555;">${escapeHtmlText(cur.text)}</td>
+            <td style="padding:4px;">${modeCell}</td>`;
+        tbody.appendChild(tr);
+    });
+    modal.querySelector('#partialImportTable').style.display = '';
+    modal.querySelector('#partialImportApplyBtn').disabled = !anyAvailable;
+    modal.querySelector('#partialImportNote').textContent = anyAvailable ? '' : 'Filen innehåller inga delar som kan importeras.';
+}
+
+function applyPartialImport() {
+    const modal = document.getElementById('partialImportModal');
+    if (!modal || !partialImportSource) return;
+    const src = partialImportSource;
+    const selected = IMPORT_PARTS.filter(p => {
+        const cb = modal.querySelector(`input[data-part="${p.key}"]`);
+        return cb && cb.checked && !cb.disabled;
+    });
+    if (selected.length === 0) return alert('Välj minst en del att importera.');
+
+    const modeFor = (key) => {
+        const sel = modal.querySelector(`select[data-mode-for="${key}"]`);
+        return sel ? sel.value : 'overwrite'; // nothing there yet -> just set it
+    };
+    const overwriting = selected.filter(p => p.kind !== 'quoteField' && modeFor(p.key) === 'overwrite' && describeImportPart(p, jsonData).count > 0);
+    if (overwriting.length > 0 && !confirm('Följande delar kommer att ERSÄTTAS helt:\n- ' + overwriting.map(p => p.label).join('\n- ') + '\n\nFortsätta?')) return;
+
+    const notes = [];
+    try {
+        selected.forEach(part => {
+            const mode = modeFor(part.key);
+            if (part.kind === 'array') {
+                let incoming;
+                if (part.key === 'items' || part.key === 'optionalItems') incoming = normalizeImportedItems(src[part.key]);
+                else if (part.key === 'infoImages') {
+                    const r = normalizeImportedInfo(src.infoImages);
+                    incoming = r.items;
+                    if (r.skippedImages) notes.push(`${r.skippedImages} bild(er) saknade bilddata och hoppades över.`);
+                } else incoming = (src.terms || []).filter(t => t !== undefined && t !== null).map(t => String(t));
+                if (!Array.isArray(jsonData[part.key])) jsonData[part.key] = [];
+                jsonData[part.key] = (mode === 'append') ? jsonData[part.key].concat(incoming) : incoming;
+                if (part.visibility && jsonData.quote.visibility) jsonData.quote.visibility[part.visibility] = true;
+            } else if (part.kind === 'company') {
+                const newLines = deepTraverseAndGetString(src[part.key] || {}).map(String);
+                const lines = (mode === 'append') ? deepTraverseAndGetString(jsonData[part.key] || {}).map(String).concat(newLines) : newLines;
+                const obj = {};
+                lines.forEach((l, i) => { obj[`line${i + 1}`] = l; });
+                jsonData[part.key] = obj;
+                document.getElementById(part.key).innerHTML = formatCompanyInfo(obj);
+                if (part.key === 'companyA' && typeof updatePdfFileNameInput === 'function') updatePdfFileNameInput();
+            } else if (part.kind === 'quoteField') {
+                jsonData.quote[part.key] = (src.quote && src.quote[part.key]) || '';
+                const el = document.getElementById(part.key);
+                if (el) el.textContent = jsonData.quote[part.key];
+                updateDocumentTitle();
+            }
+        });
+    } catch (err) {
+        console.error('Partial import failed:', err);
+        alert('Ett fel uppstod vid importen: ' + err.message);
+        return;
+    }
+
+    saveToLocal();
+    reRenderAll();
+    closePartialImportModal();
+    const msgEl = document.getElementById('statusMessage');
+    if (msgEl) {
+        msgEl.style.color = 'green';
+        msgEl.textContent = 'Importerade: ' + selected.map(p => p.label).join(', ') + (notes.length ? ' — ' + notes.join(' ') : '');
+        setTimeout(() => { if (msgEl.textContent.startsWith('Importerade:')) msgEl.textContent = ''; }, 6000);
+    }
+}
+
+document.getElementById('partialImportBtn').addEventListener('click', openPartialImportModal);
 
 </script>
 </body>
