@@ -2940,31 +2940,67 @@ function hideFormattingToolbar() {
     if (toolbar) toolbar.style.display = 'none';
 }
 
+// Splits selected HTML into lines. Lines can be separated by <br> OR be separate <div>/<p> blocks
+// (Chrome creates a <div> per line when you press Enter), so both are handled. Bold/italic is kept.
+function selectionHtmlToLines(html) {
+    const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+    const BLOCK = /^(div|p|li|h[1-6]|tr|ul|ol|blockquote|pre)$/;
+    const lines = [''];
+    const lineHasText = () => lines[lines.length - 1].replace(/<[^>]*>/g, '').trim() !== '';
+    const softBreak = () => { if (lineHasText()) lines.push(''); };
+    const walk = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) { lines[lines.length - 1] += escapeHtmlText(node.textContent); return; }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = node.tagName.toLowerCase();
+        if (node.classList.contains('description-remove-icon') || node.classList.contains('screen-only')) return;
+        if (tag === 'br') { lines.push(''); return; }
+        if (tag === 'b' || tag === 'strong' || tag === 'i' || tag === 'em') {
+            const t = (tag === 'strong') ? 'b' : (tag === 'em' ? 'i' : tag);
+            // keep the formatting per line so a bold block spanning lines stays valid HTML
+            const start = lines.length;
+            lines[lines.length - 1] += `<${t}>`;
+            node.childNodes.forEach(walk);
+            for (let i = start - 1; i < lines.length; i++) {
+                if (i > start - 1) lines[i] = `<${t}>` + lines[i];
+                lines[i] += `</${t}>`;
+            }
+            return;
+        }
+        const isBlock = BLOCK.test(tag);
+        if (isBlock) softBreak();
+        node.childNodes.forEach(walk);
+        if (isBlock) softBreak();
+    };
+    doc.body.childNodes.forEach(walk);
+    if (lines.length > 1 && !lineHasText() && lines[lines.length - 1].replace(/<[^>]*>/g, '') === '') lines.pop();
+    return lines.map(l => l.replace(/<(b|i)><\/\1>/g, ''));
+}
+
 function toggleListStyle(prefix) {
     const selection = window.getSelection();
-    if (!selection.rangeCount) return;
+    if (!selection.rangeCount || selection.isCollapsed) return;
 
     const range = selection.getRangeAt(0);
     const tempDiv = document.createElement('div');
     tempDiv.appendChild(range.cloneContents());
 
-    let html = tempDiv.innerHTML;
-    const fullPrefix = prefix + ' ';
-    const regex = new RegExp(`^${prefix}\\s?`, 'gm');
+    const lines = selectionHtmlToLines(tempDiv.innerHTML);
+    const textOf = (l) => l.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // prefix may sit right after an opening <b>/<i> tag
+    const prefixRe = new RegExp(`^((?:<[bi]>)*)(?:\\s|&nbsp;)*${esc}(?:\\s|&nbsp;)?`);
 
-    const isPrefixed = html.split(/<br\s*\/?>/g).find(line => line.trim() !== '')?.trim().startsWith(prefix);
+    const firstLine = lines.find(l => textOf(l) !== '');
+    if (firstLine === undefined) return;
+    const isPrefixed = textOf(firstLine).startsWith(prefix);
 
-    let newHtml;
-    if (isPrefixed) {
-        newHtml = html.split(/<br\s*\/?>/g).map(line => line.replace(regex, '')).join('<br>');
-    } else {
-        newHtml = html.split(/<br\s*\/?>/g).map(line => {
-            const trimmed = line.trim();
-            return trimmed ? fullPrefix + trimmed : line;
-        }).join('<br>');
-    }
+    const newLines = lines.map(line => {
+        if (textOf(line) === '') return line;
+        if (isPrefixed) return line.replace(prefixRe, '$1');
+        return prefix + ' ' + line.replace(/^((?:<[bi]>)*)(?:\s|&nbsp;)+/, '$1');
+    });
 
-    document.execCommand('insertHTML', false, newHtml);
+    document.execCommand('insertHTML', false, newLines.join('<br>'));
 }
 
 

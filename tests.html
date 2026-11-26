@@ -110,6 +110,16 @@ async function run() {
         check('Max en tom rad', S('x<br><br><br><br>y'), 'x<br><br>y');
     });
 
+    group('Punktlista-knappen (rader i markeringen)');
+    await safe('bullets', async () => {
+        const L = w.selectionHtmlToLines;
+        check('Rader som <div> (Enter i Chrome)', L('Vikt: 18 kg<div>Sugkraft: 3.6</div><div>Filter: patron</div>'), ['Vikt: 18 kg', 'Sugkraft: 3.6', 'Filter: patron']);
+        check('Rader med <br>', L('A<br>B<br>C'), ['A', 'B', 'C']);
+        check('Tom rad behålls', L('A<div><br></div><div>B</div>'), ['A', '', 'B']);
+        check('Fetstil över flera rader blir giltig per rad', L('<b>A<br>B</b>'), ['<b>A</b>', '<b>B</b>']);
+        check('Ta bort-ikonen följer inte med', L('A<span class="description-remove-icon screen-only">✖</span>'), ['A']);
+    });
+
     group('Word-export (hjälpfunktioner)');
     await safe('word helpers', async () => {
         const W = w.__wordifyInternals;
